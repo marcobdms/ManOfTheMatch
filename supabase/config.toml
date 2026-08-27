@@ -1,0 +1,9 @@
+# Minimal Supabase CLI config. Run `supabase init` locally to expand this,
+# or link a hosted project with `supabase link --project-ref <ref>`.
+project_id = "manofthematch"
+
+[db]
+major_version = 15
+
+[api]
+enabled = true

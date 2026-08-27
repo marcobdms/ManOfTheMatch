@@ -1,0 +1,23 @@
+{
+  "name": "@motm/ingest",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@motm/shared": "*",
+    "@supabase/supabase-js": "^2.45.4",
+    "croner": "^9.0.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/web-push": "^3.6.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

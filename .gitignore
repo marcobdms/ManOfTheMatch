@@ -1,0 +1,25 @@
+# deps
+node_modules/
+
+# build output
+dist/
+build/
+.vercel/
+apps/web/dev-dist/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+.mcp.json
+
+# Claude Design seeded output (regenerable from the *.dc.html sources)
+design/*.html
+!design/*.dc.html
+
+# misc
+*.log
+*.local
+.DS_Store
+.claude/settings.local.json
