@@ -79,7 +79,8 @@ async function main() {
 
   // --- API-Football --------------------------------------------------------
   try {
-    const af = await getLeagueTeams(COMPETITIONS.laliga.apiFootball, 2026);
+    // Team ids are stable across seasons; 2024 is the newest the free plan allows.
+    const af = await getLeagueTeams(COMPETITIONS.laliga.apiFootball, 2024);
     for (const t of teams as TeamRow[]) {
       const hit = af.find((x) => matches(x.team.name, t.name));
       if (hit) (resolved[t.id] ??= {}).apiFootball = hit.team.id;
