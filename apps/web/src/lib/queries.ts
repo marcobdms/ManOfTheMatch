@@ -55,6 +55,8 @@ export function isLiveStatus(status: MatchStatus | undefined): boolean {
 
 type RawTeam = { id: string; tla: string; name: string }
 
+export type TeamRow = { id: string; name: string; short_name: string; tla: string; primary_color: string | null }
+
 type FixtureRow = {
   id: string
   status: string
@@ -201,9 +203,12 @@ function buildEventText(row: EventRow): string {
 
 // --- fetchers -------------------------------------------------------------------
 
-async function fetchLiveMatch(): Promise<LiveMatch | null> {
-  const ids = TRACKED_TEAM_IDS.join(',')
-  const trackedFilter = `home_team_id.in.(${ids}),away_team_id.in.(${ids})`
+/** `favoriteTeamId` narrows to that club's fixtures; without one (no favorite
+ *  chosen yet) any LaLiga match qualifies, same as the pre-favorites behaviour. */
+async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch | null> {
+  const ids = favoriteTeamId ? [favoriteTeamId] : TRACKED_TEAM_IDS
+  const idList = ids.join(',')
+  const trackedFilter = `home_team_id.in.(${idList}),away_team_id.in.(${idList})`
   const base = () => supabase.from('fixtures').select(FIXTURE_SELECT).or(trackedFilter)
 
   // 1) a match in play
@@ -276,14 +281,32 @@ async function fetchTimeline(fixtureId: string): Promise<TimelineEvent[]> {
 
 // --- hooks -------------------------------------------------------------------
 
-export function useLiveMatch(opts: { enabled?: boolean } = {}) {
+export function useLiveMatch(opts: { enabled?: boolean; favoriteTeamId?: string | null } = {}) {
   return useQuery({
-    queryKey: ['liveMatch'],
-    queryFn: fetchLiveMatch,
+    queryKey: ['liveMatch', opts.favoriteTeamId ?? null],
+    queryFn: () => fetchLiveMatch(opts.favoriteTeamId),
     enabled: (opts.enabled ?? true) && hasSupabaseEnv,
     staleTime: 15_000,
     refetchInterval: (query) =>
       isLiveStatus(query.state.data?.status) ? LIVE_MS : false,
+  })
+}
+
+/** All 20 LaLiga clubs — for the favorite-team picker (Profile) and Teams browse. */
+export function useTeams() {
+  return useQuery({
+    queryKey: ['teams'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name, short_name, tla, primary_color')
+        .order('name', { ascending: true })
+        .returns<TeamRow[]>()
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: hasSupabaseEnv,
+    staleTime: 6 * 60 * 60 * 1000, // roster barely changes — 6h is plenty
   })
 }
 

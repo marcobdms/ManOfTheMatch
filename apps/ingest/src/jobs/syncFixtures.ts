@@ -6,20 +6,24 @@ import { getCompetitionMatches } from '../sources/footballData.js';
 import type { FootballDataMatch } from '../sources/footballData.js';
 import { getEventsNext } from '../sources/theSportsDB.js';
 import { mapFootballDataStatus } from '../lib/map.js';
-import { TEAM_TSDB_ID, teamSlugByFootballDataId, teamSlugByTsdbId } from '../lib/ids.js';
+import { refreshTeamCache, teamSlugByFootballDataId, teamSlugByTsdbId, tsdbIdForTeam } from '../lib/ids.js';
 
 /**
- * Pull the LaLiga + Champions calendars from football-data.org and upsert the
- * Real Madrid / FC Barcelona fixtures into `fixtures` (api-research.md §6.4).
- * Runs twice a day (POLL.idleCron).
+ * Pull the LaLiga + Champions calendars from football-data.org and upsert
+ * every fixture into `fixtures` (api-research.md §6.4) — all 20 LaLiga clubs,
+ * not just 2. Runs twice a day (POLL.idleCron).
  *
  * football-data.org is the only fixture writer; rows are keyed on
  * `source_ids.footballData` so a reschedule updates in place instead of
- * duplicating. A best-effort second pass then folds in the TheSportsDB `idEvent`
- * and — for free — the API-Football `idAPIfootball` that `syncMatchDetail` needs.
+ * duplicating. Fixtures whose side(s) aren't a seeded LaLiga slug (e.g. a
+ * Champions League opponent) still get stored via the `home_team_name` /
+ * `home_team_crest` text columns (`0002`) — no `teams` row required. A
+ * best-effort second pass then folds in the TheSportsDB `idEvent` and — for
+ * free — the API-Football `idAPIfootball` that `syncMatchDetail` needs.
  */
 export function syncFixtures() {
   return withRun('syncFixtures', 'football-data', async () => {
+    await refreshTeamCache();
     let count = 0;
 
     for (const comp of Object.values(COMPETITIONS)) {
@@ -35,7 +39,6 @@ export function syncFixtures() {
       for (const m of data.matches ?? []) {
         const home = teamSlugByFootballDataId(m.homeTeam?.id);
         const away = teamSlugByFootballDataId(m.awayTeam?.id);
-        if (!home && !away) continue; // neither side is a tracked team
 
         try {
           await upsertFixture(compId, home, away, m);
@@ -115,9 +118,12 @@ async function crossReferenceIds(): Promise<number> {
 
   for (const team of Object.values(TEAMS)) {
     const slug = team.id as TeamId;
+    const tsdbId = tsdbIdForTeam(slug);
+    if (!tsdbId) continue; // not yet resolved (scripts/resolveTeamIds.ts hasn't run for this club)
+
     let events;
     try {
-      events = (await getEventsNext(TEAM_TSDB_ID[slug])).events ?? [];
+      events = (await getEventsNext(tsdbId)).events ?? [];
     } catch (err) {
       console.warn(`[syncFixtures] eventsnext failed for ${slug}`, err);
       continue;

@@ -19,6 +19,14 @@ export function getCompetitionMatches(code: 'PD' | 'CL', season = 2026) {
   );
 }
 
+/** All teams in a competition — used one-off by scripts/resolveTeamIds.ts. */
+export function getCompetitionTeams(code: 'PD' | 'CL', season = 2026) {
+  return cachedJson<FootballDataTeams>(
+    `${BASE}/competitions/${code}/teams?season=${season}`,
+    { headers: authHeaders(), ttlSeconds: 6 * 3600 },
+  );
+}
+
 /** Matches for a single team across competitions (api-research.md §3.1). */
 export function getTeamMatches(teamId: number, season = 2026) {
   return cachedJson<FootballDataMatches>(
@@ -94,6 +102,19 @@ export type FootballDataMatch = {
   homeTeam: FootballDataTeamRef;
   awayTeam: FootballDataTeamRef;
   score: FootballDataScore;
+};
+
+export type FootballDataTeams = {
+  count: number;
+  competition: { id: number; name: string; code: string };
+  season: { id: number; startDate: string; endDate: string };
+  teams: Array<{
+    id: number;
+    name: string;
+    shortName: string | null;
+    tla: string | null;
+    crest: string | null;
+  }>;
 };
 
 export type FootballDataMatches = {

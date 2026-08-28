@@ -1,4 +1,6 @@
--- Seed reference data for the MVP (Real Madrid + FC Barcelona, LaLiga + Champions).
+-- Seed reference data: season + competitions (LaLiga + Champions).
+-- `teams` is seeded by migration 0004_teams_favorites.sql (all 20 LaLiga
+-- clubs) — run this file AFTER 0004, not before, so the 20 rows exist first.
 
 insert into seasons (id, start_date, end_date, is_current) values
   ('2026-27', '2026-08-15', '2027-06-30', true)
@@ -9,11 +11,4 @@ insert into competitions (id, name, short_name, type, country, source_ids) value
      '{"footballData":"PD","apiFootball":140}'),
   ('ucl', 'UEFA Champions League', 'Champions', 'cup', 'Europe',
      '{"footballData":"CL","apiFootball":2}')
-on conflict (id) do nothing;
-
-insert into teams (id, name, short_name, tla, primary_color, is_tracked, source_ids) values
-  ('real-madrid', 'Real Madrid CF', 'Real Madrid', 'RMA', '#1B2A4A', true,
-     '{"footballData":86,"apiFootball":541}'),
-  ('barcelona', 'FC Barcelona', 'Barcelona', 'BAR', '#6B1020', true,
-     '{"footballData":81,"apiFootball":529}')
 on conflict (id) do nothing;

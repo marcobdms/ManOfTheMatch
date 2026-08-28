@@ -1,7 +1,9 @@
 # ManOfTheMatch (MOTM)
 
-PWA para iPhone sobre LaLiga. MVP centrado en **Real Madrid** y **FC Barcelona**,
-competiciones **LaLiga** + **Champions**, temporada en curso.
+PWA para iPhone sobre LaLiga. Sincroniza los **20 clubes de LaLiga**; cada
+dispositivo elige un equipo favorito (sin login) para recibir sus
+notificaciones (alineación, goles, partido hoy). Competiciones **LaLiga** +
+**Champions**, temporada en curso.
 
 Monorepo (npm workspaces):
 

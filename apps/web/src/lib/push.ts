@@ -6,6 +6,7 @@
 // turns into an inline explainer instead of throwing.
 
 import { supabase } from './supabase'
+import { getStoredFavoriteTeam, getStoredPrefs, type PushPrefs } from './favorite'
 
 export type PushStatus =
   | 'unsupported' // no serviceWorker / PushManager / Notification
@@ -84,6 +85,8 @@ export async function enablePush(): Promise<PushStatus> {
       p256dh: json.keys?.p256dh ?? '',
       auth: json.keys?.auth ?? '',
       user_agent: navigator.userAgent,
+      favorite_team_id: getStoredFavoriteTeam(),
+      prefs: getStoredPrefs(),
     },
     { onConflict: 'endpoint' },
   )
@@ -92,6 +95,28 @@ export async function enablePush(): Promise<PushStatus> {
     throw error
   }
   return 'enabled'
+}
+
+/**
+ * Best-effort mirror of the on-device favorite team / prefs (source of truth:
+ * localStorage, see lib/favorite.ts) onto this device's `push_subscriptions`
+ * row, so the ingest worker's per-type/per-team targeting picks up a change
+ * without the user re-enabling push. A no-op if push was never enabled on
+ * this device — the values still apply the next time `enablePush()` runs.
+ */
+export async function syncPushProfile(favoriteTeamId: string | null, prefs: PushPrefs): Promise<void> {
+  if (!pushSupported()) return
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (!sub) return
+    await supabase
+      .from('push_subscriptions')
+      .update({ favorite_team_id: favoriteTeamId, prefs })
+      .eq('endpoint', sub.endpoint)
+  } catch {
+    // no service worker / no subscription yet — nothing to mirror
+  }
 }
 
 /** Unsubscribe locally and drop the stored row. */

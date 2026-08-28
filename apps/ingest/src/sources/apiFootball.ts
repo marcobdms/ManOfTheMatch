@@ -92,9 +92,23 @@ export function getStandings(leagueApiId: number, season = 2026) {
   return afGet<AfStandingsBlock>(`${BASE}/standings?league=${leagueApiId}&season=${season}`, 3600);
 }
 
+/** All teams in a league/season — used one-off by scripts/resolveTeamIds.ts.
+ *  ⚠️ Free plan only serves seasons 2022-2024 for most endpoints
+ *  (docs/endpoint-check-2026-08-27.md) — verify this works for 2026 before
+ *  relying on it; fall back to a paid season or to name-matching against the
+ *  football-data.org / TheSportsDB team lists if it 200s with `errors.plan`. */
+export function getLeagueTeams(leagueApiId: number, season = 2026) {
+  return afGet<AfTeamInfo>(`${BASE}/teams?league=${leagueApiId}&season=${season}`, 6 * 3600);
+}
+
 // --- response shapes (verified samples in api-research.md §3.2) --------------
 
 export type AfTeamRef = { id: number | null; name: string | null; logo: string | null; winner: boolean | null };
+
+export type AfTeamInfo = {
+  team: { id: number; name: string; code: string | null; country: string | null; logo: string | null };
+  venue: { id: number | null; name: string | null; city: string | null };
+};
 
 export type AfFixture = {
   fixture: {
