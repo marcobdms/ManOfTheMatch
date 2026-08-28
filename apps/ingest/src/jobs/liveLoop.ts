@@ -3,16 +3,18 @@ import { withRun } from '../lib/run.js';
 import { getMatch } from '../sources/footballData.js';
 import { getLivescores, getTimeline } from '../sources/theSportsDB.js';
 import type { TsdbLiveEvent } from '../sources/theSportsDB.js';
-import { pushGoal } from '../notify.js';
+import { pushGoal, pushKickoff, pushMatchday } from '../notify.js';
 import { GOAL_EVENT_TYPES, mapFootballDataStatus, mapTheSportsDbEvent, mapTheSportsDbStatus } from '../lib/map.js';
 import { isTrackedSlug, teamName, teamSlugByTsdbId } from '../lib/ids.js';
 
 /**
- * Runs every minute (POLL.liveSeconds). For every tracked fixture that is LIVE /
+ * Runs every minute (POLL.liveSeconds). For every fixture that is LIVE /
  * PAUSED, or whose kickoff is within ±2 h, refresh score / minute / status from
  * football-data.org (fallback: TheSportsDB `livescore.php`), diff `match_events`
- * from the TheSportsDB timeline, and fire a GOAL push when the tracked fixture's
- * score goes up (api-research.md §6.4 / §6.5 / §2).
+ * from the TheSportsDB timeline, and fire a GOAL push to each side's favorite-team
+ * followers when the score goes up (api-research.md §6.4 / §6.5 / §2). Also scans
+ * today's + the ±2 h window's fixtures for MATCHDAY / KICKOFF_SOON pushes
+ * (docs/handoff-schema-notify.md §4).
  *
  * The per-minute cron is cheap on idle minutes (one indexed select → return).
  * Real API cadence is shaped by the cache TTLs (getMatch ~90 s, livescore ~50 s,
@@ -44,11 +46,22 @@ export function liveLoop() {
     const nowMs = Date.now();
     const lo = new Date(nowMs - WINDOW_MS).toISOString();
     const hi = new Date(nowMs + WINDOW_MS).toISOString();
+    const dayStart = new Date(nowMs);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 3_600_000);
 
-    const [{ data: playing }, { data: soon }] = await Promise.all([
+    const [{ data: playing }, { data: soon }, { data: today }] = await Promise.all([
       db.from('fixtures').select(SELECT).in('status', ['LIVE', 'PAUSED']),
       db.from('fixtures').select(SELECT).gte('kickoff_at', lo).lte('kickoff_at', hi),
+      db
+        .from('fixtures')
+        .select(SELECT)
+        .eq('status', 'SCHEDULED')
+        .gte('kickoff_at', dayStart.toISOString())
+        .lt('kickoff_at', dayEnd.toISOString()),
     ]);
+
+    await pushScheduledNotifications(nowMs, (soon ?? []) as FixtureRow[], (today ?? []) as FixtureRow[]);
 
     const byId = new Map<string, FixtureRow>();
     for (const f of (playing ?? []) as FixtureRow[]) byId.set(f.id, f);
@@ -203,6 +216,13 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
   }
 }
 
+/**
+ * Fires GOAL pushes to BOTH sides' favorite-team followers — the scoring
+ * team's fans ("Gol del X") and the conceding team's fans ("Gol del rival").
+ * With all 20 LaLiga clubs seeded, `isTrackedSlug` is true for either side of
+ * any LaLiga fixture; a non-seeded Champions League opponent simply has no
+ * followers to notify (`pushGoal` no-ops on an empty audience).
+ */
 async function maybePushGoals(
   f: FixtureRow,
   newHome: number | null,
@@ -215,29 +235,90 @@ async function maybePushGoals(
   const dAway = (newAway ?? prevAway) - prevAway;
   if (dHome <= 0 && dAway <= 0) return;
 
-  const trackedSide: 'home' | 'away' | null = isTrackedSlug(f.home_team_id)
-    ? 'home'
-    : isTrackedSlug(f.away_team_id)
-      ? 'away'
-      : null;
-  if (!trackedSide) return;
-
-  const trackedTeamId = (trackedSide === 'home' ? f.home_team_id : f.away_team_id) as string;
   const score = `${newHome ?? '?'}-${newAway ?? '?'}`;
 
-  const fire = async (side: 'home' | 'away') => {
-    const forUs = side === trackedSide;
+  const fire = async (scoringSide: 'home' | 'away') => {
+    const scoringTeamId = scoringSide === 'home' ? f.home_team_id : f.away_team_id;
+    const concedingTeamId = scoringSide === 'home' ? f.away_team_id : f.home_team_id;
     const scoringName =
-      teamName(side === 'home' ? f.home_team_id : f.away_team_id) ??
-      (side === 'home' ? f.home_team_name : f.away_team_name);
-    const scorer = freshGoals.find((g) => g.home === (side === 'home'))?.player ?? null;
-    const title = forUs
-      ? `Gol del ${scoringName ?? 'equipo'}`
-      : `Gol del rival${scoringName ? ` (${scoringName})` : ''}`;
+      teamName(scoringTeamId) ?? (scoringSide === 'home' ? f.home_team_name : f.away_team_name);
+    const scorer = freshGoals.find((g) => g.home === (scoringSide === 'home'))?.player ?? null;
     const body = [scorer, score].filter(Boolean).join(' · ');
-    await pushGoal({ fixtureId: f.id, teamId: trackedTeamId, title, body });
+
+    if (isTrackedSlug(scoringTeamId)) {
+      await pushGoal({
+        fixtureId: f.id,
+        teamId: scoringTeamId,
+        title: `Gol del ${scoringName ?? 'equipo'}`,
+        body,
+      });
+    }
+    if (isTrackedSlug(concedingTeamId)) {
+      await pushGoal({
+        fixtureId: f.id,
+        teamId: concedingTeamId,
+        title: `Gol del rival${scoringName ? ` (${scoringName})` : ''}`,
+        body,
+      });
+    }
   };
 
   if (dHome > 0) await fire('home');
   if (dAway > 0) await fire('away');
+}
+
+/**
+ * MATCHDAY (once, any time today's date is first seen for a SCHEDULED
+ * fixture) and KICKOFF_SOON (once, from T-15min to kickoff) — for each
+ * seeded team on either side of the fixture, gated by that team's own
+ * `prefs`. Dedup is the `notifications` log itself: `pushMatchday`/
+ * `pushKickoff` insert a row there, so the next minute's scan skips a
+ * (fixture, type, team) combo that already has one.
+ */
+async function pushScheduledNotifications(
+  nowMs: number,
+  soon: FixtureRow[],
+  today: FixtureRow[],
+): Promise<void> {
+  const kickoffSoon = soon.filter((f) => {
+    if (f.status !== 'SCHEDULED') return false;
+    const delta = new Date(f.kickoff_at).getTime() - nowMs;
+    return delta <= 15 * 60_000 && delta > 0;
+  });
+  if (today.length === 0 && kickoffSoon.length === 0) return;
+
+  const fixtureIds = [...new Set([...today, ...kickoffSoon].map((f) => f.id))];
+  const { data: sent } = await db
+    .from('notifications')
+    .select('fixture_id, type, team_id')
+    .in('fixture_id', fixtureIds)
+    .in('type', ['MATCHDAY', 'KICKOFF_SOON']);
+  const sentKeys = new Set((sent ?? []).map((r) => `${r.fixture_id}:${r.type}:${r.team_id}`));
+
+  const forEachSide = async (
+    f: FixtureRow,
+    type: 'MATCHDAY' | 'KICKOFF_SOON',
+    push: typeof pushMatchday,
+  ) => {
+    const sides: Array<['home' | 'away', string | null, string | null]> = [
+      ['home', f.home_team_id, f.away_team_id],
+      ['away', f.away_team_id, f.home_team_id],
+    ];
+    for (const [, teamId, opponentId] of sides) {
+      if (!isTrackedSlug(teamId) || sentKeys.has(`${f.id}:${type}:${teamId}`)) continue;
+      const teamLabel = teamName(teamId) ?? teamId;
+      const opponentLabel = teamName(opponentId) ?? (opponentId === f.home_team_id ? f.home_team_name : f.away_team_name) ?? 'rival';
+      const kickoffLocal = new Date(f.kickoff_at).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Madrid',
+      });
+      const title = type === 'MATCHDAY' ? `Hoy juega el ${teamLabel}` : `${teamLabel} empieza en 15 minutos`;
+      const body = type === 'MATCHDAY' ? `vs ${opponentLabel} · ${kickoffLocal}` : `vs ${opponentLabel}`;
+      await push({ fixtureId: f.id, teamId, title, body });
+    }
+  };
+
+  for (const f of today) await forEachSide(f, 'MATCHDAY', pushMatchday);
+  for (const f of kickoffSoon) await forEachSide(f, 'KICKOFF_SOON', pushKickoff);
 }

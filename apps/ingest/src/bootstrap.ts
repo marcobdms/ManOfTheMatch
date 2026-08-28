@@ -1,11 +1,17 @@
 import { Cron } from 'croner';
 import { POLL } from '@motm/shared';
+import { refreshTeamCache } from './lib/ids.js';
 import { syncFixtures } from './jobs/syncFixtures.js';
 import { syncStandings } from './jobs/syncStandings.js';
 import { liveLoop } from './jobs/liveLoop.js';
 import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
 
 console.log('[ingest] worker ManOfTheMatch arrancando…');
+
+// Populate the teams.source_ids cache before any job can run — syncFixtures
+// (below) refreshes it again on every run, so a later resolveTeamIds.ts pass
+// is picked up without restarting the worker.
+await refreshTeamCache();
 
 // Calendar + standings: twice a day.
 new Cron(POLL.idleCron, guard(syncFixtures));

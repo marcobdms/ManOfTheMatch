@@ -13,6 +13,7 @@ import {
   useTimeline,
 } from '../lib/queries'
 import { disablePush, enablePush, getPushStatus, type PushStatus } from '../lib/push'
+import { getStoredFavoriteTeam } from '../lib/favorite'
 
 // Dev-only fallback: used exclusively when running `vite` with no Supabase URL.
 const USE_MOCK = import.meta.env.DEV && !import.meta.env.VITE_SUPABASE_URL
@@ -71,11 +72,11 @@ function ScoreboardSkeleton() {
   return <div className="motm-skel" aria-hidden="true" />
 }
 
-function EmptyState({ note }: { note?: string }) {
+function EmptyState({ note, hasFavorite }: { note?: string; hasFavorite: boolean }) {
   return (
     <div className="motm-empty" role="status">
       <b>Sin partido</b>
-      No hay partido de Madrid ni Barça ahora.
+      {hasFavorite ? 'Tu equipo no juega ahora.' : 'No hay partido de LaLiga ahora.'}
       {note ? (
         <>
           <br />
@@ -86,11 +87,12 @@ function EmptyState({ note }: { note?: string }) {
   )
 }
 
-function PrematchNote({ match }: { match: LiveMatch }) {
+function PrematchNote({ match, hasFavorite }: { match: LiveMatch; hasFavorite: boolean }) {
+  const subject = hasFavorite ? 'Tu equipo' : 'LaLiga'
   const text =
     match.status === 'FINISHED'
-      ? `No hay partido de Madrid ni Barça en directo — último: ${match.home.tla} ${match.homeScore}–${match.awayScore} ${match.away.tla}`
-      : `No hay partido de Madrid ni Barça ahora — próximo: ${match.home.tla}–${match.away.tla} · ${formatKickoff(
+      ? `${subject} no juega en directo — último: ${match.home.tla} ${match.homeScore}–${match.awayScore} ${match.away.tla}`
+      : `${subject} no juega ahora — próximo: ${match.home.tla}–${match.away.tla} · ${formatKickoff(
           match.kickoffAt,
         )}`
   return (
@@ -132,7 +134,8 @@ export default function Live() {
     }
   }
 
-  const liveQuery = useLiveMatch({ enabled: !USE_MOCK })
+  const favoriteTeamId = USE_MOCK ? null : getStoredFavoriteTeam()
+  const liveQuery = useLiveMatch({ enabled: !USE_MOCK, favoriteTeamId })
   const match: LiveMatch | null | undefined = USE_MOCK ? MOCK_MATCH : liveQuery.data
   const fixtureId = USE_MOCK ? undefined : match?.id
   const live = isLiveStatus(match?.status)
@@ -155,13 +158,14 @@ export default function Live() {
 
       {showEmpty && (
         <EmptyState
+          hasFavorite={!!favoriteTeamId}
           note={hasSupabaseEnv ? undefined : 'Configura Supabase (.env.local) para ver datos en vivo.'}
         />
       )}
 
       {match && (
         <>
-          {!live && <PrematchNote match={match} />}
+          {!live && <PrematchNote match={match} hasFavorite={!!favoriteTeamId} />}
 
           <ScoreboardCard match={match} goals={goals} />
 

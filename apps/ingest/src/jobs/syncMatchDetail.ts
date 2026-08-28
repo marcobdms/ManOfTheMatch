@@ -7,8 +7,9 @@ import {
 } from '../sources/apiFootball.js';
 import type { AfEvent, AfLineup, AfPlayersTeam } from '../sources/apiFootball.js';
 import { mapApiFootballEvent } from '../lib/map.js';
-import { teamSlugByApiFootballId } from '../lib/ids.js';
+import { teamName, teamSlugByApiFootballId } from '../lib/ids.js';
 import { API_FOOTBALL_DAILY_BUDGET, apiFootballHasBudget, apiFootballUsedToday } from '../lib/budget.js';
+import { pushLineup } from '../notify.js';
 
 /**
  * Post-match enrichment from API-Football (api-research.md §3.2 / §6.5–§6.7):
@@ -44,6 +45,11 @@ export function syncMatchDetail(
       const lineups = await getFixtureLineups(apiFootballFixtureId);
       const n = await upsertLineups(fixtureId, lineups);
       console.log(`[syncMatchDetail] ${fixtureId} lineups: ${n} rows`);
+      // NOTE: API-Football's free tier only returns lineups once the match is
+      // already live (~15-20' in — see docs/endpoint-check-2026-08-27.md),
+      // never pre-kickoff. The LINEUP push lands once the confirmed XI is in,
+      // not "before kickoff" as fans might expect from other apps.
+      if (n > 0) await pushLineupNotifications(fixtureId, lineups);
       return PHASE_COST.lineups;
     }
 
@@ -140,6 +146,21 @@ async function upsertLineups(fixtureId: string, lineups: AfLineup[]): Promise<nu
       .upsert(rows, { onConflict: 'fixture_id,team_id,player_name,is_starting' });
   }
   return rows.length;
+}
+
+async function pushLineupNotifications(fixtureId: string, lineups: AfLineup[]): Promise<void> {
+  for (const block of lineups) {
+    const teamId = teamSlugByApiFootballId(block.team?.id);
+    if (!teamId) continue;
+    const label = teamName(teamId) ?? teamId;
+    const starters = (block.startXI ?? []).length;
+    await pushLineup({
+      fixtureId,
+      teamId,
+      title: `Once inicial del ${label}`,
+      body: [block.formation, starters ? `${starters} titulares` : null].filter(Boolean).join(' · '),
+    });
+  }
 }
 
 function lineupRow(
@@ -270,17 +291,20 @@ export function runDueMatchDetails() {
       const kickoffMs = new Date(f.kickoff_at).getTime();
 
       if ((f.status === 'LIVE' || f.status === 'PAUSED') && nowMs >= kickoffMs + 15 * 60_000) {
-        // Richer live timeline from API-Football (player + assist names). The
-        // adapter TTL throttles the real fetch; each dispatch costs 1 budget unit.
-        await syncMatchDetail(f.id, afId, 'events');
-        dispatched++;
-
+        // Confirmed XI only — NOT the 'events' phase. With all 20 LaLiga clubs
+        // synced, dispatching 'events' on every 5-min sweep for every
+        // simultaneously-live fixture blows the free 100/day budget (see
+        // docs/handoff-schema-notify.md §6); TheSportsDB's timeline already
+        // feeds `match_events` live via liveLoop, so it's redundant here.
         const { count } = await db
           .from('lineups')
           .select('id', { count: 'exact', head: true })
           .eq('fixture_id', f.id)
           .eq('source', 'apiFootball');
-        if (!count) await syncMatchDetail(f.id, afId, 'lineups');
+        if (!count) {
+          await syncMatchDetail(f.id, afId, 'lineups');
+          dispatched++;
+        }
         continue;
       }
 

@@ -1,7 +1,8 @@
 # ManOfTheMatch — arquitectura
 
-PWA para iPhone sobre LaLiga. MVP: solo **Real Madrid** y **FC Barcelona**;
-competiciones **LaLiga** + **Champions**; temporada actual (2026/27).
+PWA para iPhone sobre LaLiga. Los **20 clubes de LaLiga** están sincronizados;
+cada dispositivo elige un equipo favorito (sin login) para sus notificaciones.
+Competiciones **LaLiga** + **Champions**; temporada actual (2026/27).
 
 ## Flujo de datos
 
@@ -43,7 +44,7 @@ Números afinados en `docs/api-research.md` (lo genera el workstream de APIs).
 
 ```bash
 npm install                                   # raíz (workspaces)
-# Supabase: crear proyecto, correr supabase/migrations 0001→0002→0003 + seed.sql
+# Supabase: crear proyecto, correr supabase/migrations 0001→0002→0003→0004 + seed.sql
 cp apps/web/.env.example  apps/web/.env.local  # rellenar
 cp apps/ingest/.env.example apps/ingest/.env   # rellenar
 npm run dev                                    # front (azul) + back (rojo) a la vez

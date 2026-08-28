@@ -36,6 +36,13 @@ export function getSeasonEvents(leagueId: string, season: string) {
   });
 }
 
+/** All teams in a league — used one-off by scripts/resolveTeamIds.ts. */
+export function getAllTeamsInLeague(leagueId: string) {
+  return cachedJson<TsdbAllTeamsResponse>(`${BASE}/lookup_all_teams.php?id=${leagueId}`, {
+    ttlSeconds: 24 * 3600,
+  });
+}
+
 /** League table (fallback to football-data.org — not wired). */
 export function getLeagueTable(leagueId: string, season: string) {
   return cachedJson<TsdbTableResponse>(`${BASE}/lookuptable.php?l=${leagueId}&s=${season}`, {
@@ -119,6 +126,15 @@ export type TsdbEvent = {
 };
 
 export type TsdbEventsResponse = { events: TsdbEvent[] | null };
+
+export type TsdbTeam = {
+  idTeam: string;
+  strTeam: string;
+  strTeamShort: string | null;
+  strAlternate: string | null;
+};
+
+export type TsdbAllTeamsResponse = { teams: TsdbTeam[] | null };
 
 export type TsdbTableRow = {
   intRank: string;
