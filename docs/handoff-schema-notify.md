@@ -1,6 +1,6 @@
 # Handoff — schema + notificaciones (20 equipos + favorito por dispositivo)
 
-Contrato fijado antes de tocar `apps/ingest` / `apps/web`, siguiendo la misma
+Contrato fijado antes de tocar `backend` / `frontend`, siguiendo la misma
 convención que `handoff-backend.md` / `handoff-frontend.md`. Ampliación del MVP:
 de 2 equipos "tracked" (Real Madrid + Barça) a los 20 de LaLiga, favorito por
 dispositivo (sin login) y 4 tipos de notificación.
@@ -30,7 +30,7 @@ preveía: la columna `teams.source_ids jsonb`, hoy sin usar por el código.
 
 - `packages/shared/TEAMS` pasa a llevar solo `id` / `tla` / `name` (estático,
   sin red, tipado en compilación).
-- `apps/ingest/src/lib/ids.ts` carga `teams.source_ids` de Supabase a un caché
+- `backend/src/lib/ids.ts` carga `teams.source_ids` de Supabase a un caché
   en memoria (`refreshTeamCache()`), refrescado al arrancar y en cada
   `syncFixtures` (dos veces al día). Los `teamSlugByFootballDataId` /
   `teamSlugByApiFootballId` / `teamSlugByTsdbId` resuelven contra ese caché.
@@ -38,7 +38,7 @@ preveía: la columna `teams.source_ids jsonb`, hoy sin usar por el código.
   fixtures se guardan igual (columnas `home_team_name`/`crest` de `0002`), solo
   sin alineaciones/eventos de API-Football hasta que se resuelva. Degrada bien,
   no rompe nada.
-- `apps/ingest/src/scripts/resolveTeamIds.ts` (nuevo, ejecución manual una vez
+- `backend/src/scripts/resolveTeamIds.ts` (nuevo, ejecución manual una vez
   desplegado con claves reales) llama a las 3 fuentes, cruza por nombre y
   escribe `teams.source_ids` en Supabase. Imprime qué equipos NO pudo casar con
   confianza — esos se rellenan a mano por SQL.
@@ -61,7 +61,7 @@ solo si `prefs.<clave>` es `true`.
 ## 5. Payload de push — sin cambios
 
 `{ title: string, body: string, tag?: string, url?: string }`, tal cual
-`apps/web/src/sw.ts` ya lo espera.
+`frontend/src/sw.ts` ya lo espera.
 
 ## 6. Presupuesto API-Football — decisión
 

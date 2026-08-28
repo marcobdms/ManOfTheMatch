@@ -8,7 +8,7 @@ Competiciones **LaLiga** + **Champions**; temporada actual (2026/27).
 
 ```
 football-data.org ─┐
-API-Football ──────┼─►  apps/ingest (Coolify, cron)  ──►  Supabase (Postgres)  ──►  apps/web (Vercel)
+API-Football ──────┼─►  backend (Coolify, cron)  ──►  Supabase (Postgres)  ──►  frontend (Vercel)
 Understat (opc.) ──┘         · cachea en http_cache            · RLS: lectura pública        · PWA, solo lee Supabase
                              · Web Push (VAPID)                 · el worker escribe (service role)
 ```
@@ -20,11 +20,15 @@ mostrando lo último ingerido.
 
 | Ruta | Qué es | Deploy |
 |---|---|---|
-| `apps/web` | Vite + React + TS, `vite-plugin-pwa`, React Router, TanStack Query, Framer Motion, Phosphor icons | Vercel |
-| `apps/ingest` | Worker Node + TS (`tsx`), scheduler `croner`, `web-push` | Coolify (contenedor con `Dockerfile`) |
-| `packages/shared` | Constantes y tipos (`COMPETITIONS`, `TEAMS`, `MatchEventType`, `POLL`) usados por web e ingest | — |
+| `frontend` | Vite + React + TS, `vite-plugin-pwa`, React Router, TanStack Query, Framer Motion, Phosphor icons | Vercel |
+| `backend` | Worker Node + TS (`tsx`), scheduler `croner`, `web-push` | Coolify (contenedor con `Dockerfile`) |
 | `supabase/` | `migrations/0001_init.sql`, `seed.sql` | Supabase (hosted) |
 | `design/` | Mockups `.dc.html` de Claude Design (vista En vivo) | Artifact |
+
+`frontend` y `backend` despliegan por separado, sin dependencia entre carpetas:
+las constantes compartidas (`COMPETITIONS`, `TEAMS`, `POLL`, ...) están
+duplicadas en `frontend/src/lib/shared.ts` y `backend/src/lib/shared.ts` — al
+tocar una, tocar la otra.
 
 ## Cadencia de sincronización (dentro de tiers gratis)
 
@@ -37,19 +41,19 @@ Números afinados en `docs/api-research.md` (lo genera el workstream de APIs).
 
 ## Variables de entorno
 
-- `apps/web/.env.local`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-- `apps/ingest/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FOOTBALL_DATA_TOKEN`, `API_FOOTBALL_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+- `frontend/.env.local`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- `backend/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FOOTBALL_DATA_TOKEN`, `API_FOOTBALL_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
 
 ## Puesta en marcha local
 
 ```bash
-npm install                                   # raíz (workspaces)
+npm install && npm --prefix frontend install && npm --prefix backend install
 # Supabase: crear proyecto, correr supabase/migrations 0001→0002→0003→0004 + seed.sql
-cp apps/web/.env.example  apps/web/.env.local  # rellenar
-cp apps/ingest/.env.example apps/ingest/.env   # rellenar
+cp frontend/.env.example  frontend/.env.local  # rellenar
+cp backend/.env.example backend/.env   # rellenar
 npm run dev                                    # front (azul) + back (rojo) a la vez
 ```
 
 `npm run dev` usa `concurrently`: front en http://localhost:5173, worker en
-paralelo. Sin `apps/ingest/.env` el worker se queda en espera y avisa; el front
+paralelo. Sin `backend/.env` el worker se queda en espera y avisa; el front
 funciona igual. `npm run dev:front` / `npm run dev:back` los arrancan por separado.
