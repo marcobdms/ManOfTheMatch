@@ -1,6 +1,6 @@
 # Handoff — frontend → backend / infra
 
-Notes from wiring the **En vivo** view (`apps/web`). Nothing here blocks the
+Notes from wiring the **En vivo** view (`frontend`). Nothing here blocks the
 frontend build; each item is a backend/infra follow-up. No new shared types or
 npm dependencies were required.
 
@@ -14,16 +14,16 @@ currently blocks silently.
 Pick one:
 - add `create policy push_delete on push_subscriptions for delete using (true);`, or
 - leave it: the browser-side `subscription.unsubscribe()` still stops delivery to
-  that device, and `apps/ingest/src/notify.ts` already prunes dead endpoints on
+  that device, and `backend/src/notify.ts` already prunes dead endpoints on
   `410/404`. The client `delete` is written but treated as best-effort (see the
-  comment in `apps/web/src/lib/push.ts`).
+  comment in `frontend/src/lib/push.ts`).
 
 `upsert` (enable path) works today — it needs `INSERT` + `UPDATE`, both present.
 No `SELECT` policy is required because we don't chain `.select()`.
 
 ## 2. Realtime publication
 
-`useLiveRealtime()` (`apps/web/src/lib/queries.ts`) subscribes to
+`useLiveRealtime()` (`frontend/src/lib/queries.ts`) subscribes to
 `postgres_changes` on `fixtures` and `match_events`. That requires them in the
 `supabase_realtime` publication:
 
@@ -36,15 +36,15 @@ Without it the app still updates via the 60s poll while a match is LIVE/PAUSED
 
 ## 3. VAPID keys
 
-Added `VITE_VAPID_PUBLIC_KEY` to `apps/web/.env.example`. It must be the **same**
-key as `apps/ingest` `VAPID_PUBLIC_KEY`. Generate a pair with
+Added `VITE_VAPID_PUBLIC_KEY` to `frontend/.env.example`. It must be the **same**
+key as `backend` `VAPID_PUBLIC_KEY`. Generate a pair with
 `npx web-push generate-vapid-keys`.
 
 ## 4. Push payload contract
 
-`apps/web/src/sw.ts` `push` handler expects a JSON body:
+`frontend/src/sw.ts` `push` handler expects a JSON body:
 `{ title: string, body: string, tag?: string, url?: string }` — missing `url`
-defaults to `/`. `apps/ingest/src/notify.ts` already sends this shape.
+defaults to `/`. `backend/src/notify.ts` already sends this shape.
 
 ## 5. Column-name assumptions (from `0001_init.sql`)
 

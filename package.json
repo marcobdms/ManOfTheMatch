@@ -3,17 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "concurrently -n front,back -c blue,red \"npm:dev:front\" \"npm:dev:back\"",
-    "dev:front": "npm run dev -w @motm/web",
-    "dev:back": "npm run dev -w @motm/ingest",
-    "build": "npm run build -w @motm/web",
-    "ingest": "npm run start -w @motm/ingest",
-    "typecheck": "npm run --workspaces --if-present typecheck"
+    "dev": "concurrently -n front,back -c blue,red \"npm run dev:front\" \"npm run dev:back\"",
+    "dev:front": "npm --prefix frontend run dev",
+    "dev:back": "npm --prefix backend run dev",
+    "typecheck": "npm --prefix frontend run typecheck && npm --prefix backend run typecheck"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

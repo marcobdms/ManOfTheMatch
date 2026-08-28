@@ -5,7 +5,7 @@ node_modules/
 dist/
 build/
 .vercel/
-apps/web/dev-dist/
+frontend/dev-dist/
 *.tsbuildinfo
 
 # env & secrets

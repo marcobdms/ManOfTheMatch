@@ -1,6 +1,6 @@
 # Backend workstream — handoff
 
-Owner: ingest worker (`apps/ingest`) + `supabase/`. Written for the frontend /
+Owner: ingest worker (`backend`) + `supabase/`. Written for the frontend /
 schema owner and whoever runs the deploy. Nothing here blocks the current build:
 `npm run typecheck -w @motm/ingest` passes.
 
@@ -26,7 +26,7 @@ Run order: `0001_init.sql` → `0002_ingest_additions.sql` → `seed.sql`.
 
 ## Requests for `packages/shared` (read-only for this workstream)
 
-`apps/ingest/src/lib/ids.ts` currently hard-codes data that would be cleaner in
+`backend/src/lib/ids.ts` currently hard-codes data that would be cleaner in
 `@motm/shared`. Not urgent — the worker is fully functional as-is.
 
 1. **TheSportsDB ids.** Add `theSportsDb` to each entry:
@@ -72,7 +72,7 @@ spent only by `syncMatchDetail`, per tracked fixture:
 - Idle day: **0 / day**
 
 All far under the 100/day free cap. Hard stop: `API_FOOTBALL_DAILY_BUDGET = 75`
-in `apps/ingest/src/lib/budget.ts`, enforced before every dispatch (and once more
+in `backend/src/lib/budget.ts`, enforced before every dispatch (and once more
 inside `syncMatchDetail`) by summing today's `sync_runs` rows where
 `source = 'api-football'`: successful runs contribute their recorded `items`
 (request count, counted by attempt so over-counting is safe); a run that errored
@@ -108,7 +108,7 @@ that number assumed API-Football live polling we don't do.
   `source_ids.apiFootball` stays empty and `syncMatchDetail` simply skips that
   fixture until the id appears. Seed fallback (`GET /fixtures?team=…`, 2 calls)
   is intentionally **not** wired, to keep idle-day API-Football spend at zero.
-- **`cachedJson` gained an optional `assertOk` hook** (`apps/ingest/src/lib/http.ts`,
+- **`cachedJson` gained an optional `assertOk` hook** (`backend/src/lib/http.ts`,
   additive, backward-compatible). API-Football returns quota/param failures as
   HTTP 200 with a populated `errors` object; `assertOk` throws on those so the
   bad body is never written to `http_cache`.
