@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowsLeftRight,
   FlagPennant,
@@ -34,6 +35,14 @@ function badge(type: MatchEventType): { cls: string; node: JSX.Element } {
   }
 }
 
+// Un evento nuevo (gol recién llegado por realtime) entra deslizándose desde
+// la izquierda — llama la atención sin ser un simple fade genérico.
+const eventVariants = {
+  initial: { opacity: 0, x: -10 },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
+  exit: { opacity: 0, transition: { duration: 0.12 } },
+}
+
 export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <div className="motm-timeline">
@@ -41,19 +50,31 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
         Histórico del partido
       </span>
       <div style={{ marginTop: 8 }}>
-        {events.map((e) => {
-          const b = badge(e.type)
-          const isGoal = e.type.includes('GOAL')
-          return (
-            <div className="motm-ev" key={e.id}>
-              <span className={'motm-ev__badge' + b.cls}>{b.node}</span>
-              <span className={'motm-ev__min' + (isGoal ? ' motm-ev__min--goal' : '')}>
-                {e.minuteLabel}
-              </span>
-              <span className="motm-ev__txt">{e.text}</span>
-            </div>
-          )
-        })}
+        <AnimatePresence initial={false}>
+          {events.map((e) => {
+            const b = badge(e.type)
+            const isGoal = e.type.includes('GOAL')
+            return (
+              // Sin `layout`: los eventos nuevos entran por arriba y los demás
+              // solo se desplazan hacia abajo. Animar esa recolocación en las
+              // 20-30 filas a la vez se veía como que la lista entera "salta".
+              <motion.div
+                className="motm-ev"
+                key={e.id}
+                variants={eventVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <span className={'motm-ev__badge' + b.cls}>{b.node}</span>
+                <span className={'motm-ev__min' + (isGoal ? ' motm-ev__min--goal' : '')}>
+                  {e.minuteLabel}
+                </span>
+                <span className="motm-ev__txt">{e.text}</span>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
       </div>
     </div>
   )

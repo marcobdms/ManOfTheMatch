@@ -140,3 +140,41 @@ export const GOAL_EVENT_TYPES: ReadonlySet<MatchEventType> = new Set<MatchEventT
   'PENALTY_GOAL',
   'OWN_GOAL',
 ]);
+
+// ---------------------------------------------------------------------------
+// Fotmob `horizontalLayout{x,y}` → etiqueta de posición en español.
+// ---------------------------------------------------------------------------
+
+/**
+ * Fotmob no documenta públicamente su `positionId`, así que NO lo usamos para
+ * inventar una etiqueta — solo `x` (la línea, portero→delantero) e `y` (el
+ * carril, izquierda→derecha), que sí están verificados en vivo
+ * (docs/plan-2026-08-29.md §A2). `x` viene en 0..1 con 0 = línea de fondo
+ * propia; los cortes de línea de abajo reproducen un campo típico de 4-3-3 /
+ * 4-4-2 / 4-2-3-1 con 4-6 franjas según cuántos jugadores caen en cada banda.
+ * Si no hay coordenada, devuelve `null` — la carta se coloca al final de su
+ * línea en vez de inventar una posición (regla explícita del plan).
+ */
+export function fotmobPositionLabel(x: number | null, y: number | null): string | null {
+  if (x == null || !Number.isFinite(x)) return null;
+
+  if (x < 0.12) return 'POR';
+
+  const lane = y == null || !Number.isFinite(y) ? 0.5 : y;
+  const isWide = lane < 0.22 || lane > 0.78;
+
+  if (x < 0.32) {
+    if (isWide) return lane < 0.5 ? 'LI' : 'LD';
+    return 'DFC';
+  }
+  if (x < 0.55) {
+    if (isWide) return lane < 0.5 ? 'CI' : 'CD'; // carrilero
+    return x < 0.44 ? 'MCD' : 'MC';
+  }
+  if (x < 0.78) {
+    if (isWide) return lane < 0.5 ? 'EI' : 'ED';
+    return 'MCO';
+  }
+  if (isWide) return lane < 0.5 ? 'EI' : 'ED';
+  return 'DC';
+}

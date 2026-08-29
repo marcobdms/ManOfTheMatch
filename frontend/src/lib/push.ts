@@ -4,9 +4,14 @@
 // iOS reality: Safari only exposes Web Push when the site runs as an installed
 // PWA (Add to Home Screen). When that isn't the case we return a state the UI
 // turns into an inline explainer instead of throwing.
+//
+// Favorite team + prefs live in `profiles` now (no more on-device fallback —
+// see lib/AuthProvider.tsx). This module doesn't read them itself: callers
+// pass the current session's user id / favorite / prefs in, so push.ts stays
+// framework-agnostic and testable without a React context.
 
 import { supabase } from './supabase'
-import { getStoredFavoriteTeam, getStoredPrefs, type PushPrefs } from './favorite'
+import type { PushPrefs } from './AuthProvider'
 
 export type PushStatus =
   | 'unsupported' // no serviceWorker / PushManager / Notification
@@ -61,8 +66,16 @@ export async function getPushStatus(): Promise<PushStatus> {
   }
 }
 
-/** Request permission, subscribe, and persist the subscription row. */
-export async function enablePush(): Promise<PushStatus> {
+/**
+ * Request permission, subscribe, and persist the subscription row.
+ * `userId`/`favoriteTeamId`/`prefs` come from the caller's `useAuth()` — null
+ * when there's no session (a device can still subscribe before signing in).
+ */
+export async function enablePush(
+  userId: string | null,
+  favoriteTeamId: string | null,
+  prefs: PushPrefs,
+): Promise<PushStatus> {
   if (!pushSupported()) return 'unsupported'
   if (!isStandalone()) return 'needs-install'
   if (!VAPID_PUBLIC_KEY) return 'no-vapid'
@@ -85,8 +98,9 @@ export async function enablePush(): Promise<PushStatus> {
       p256dh: json.keys?.p256dh ?? '',
       auth: json.keys?.auth ?? '',
       user_agent: navigator.userAgent,
-      favorite_team_id: getStoredFavoriteTeam(),
-      prefs: getStoredPrefs(),
+      user_id: userId,
+      favorite_team_id: favoriteTeamId,
+      prefs,
     },
     { onConflict: 'endpoint' },
   )
@@ -98,13 +112,17 @@ export async function enablePush(): Promise<PushStatus> {
 }
 
 /**
- * Best-effort mirror of the on-device favorite team / prefs (source of truth:
- * localStorage, see lib/favorite.ts) onto this device's `push_subscriptions`
- * row, so the ingest worker's per-type/per-team targeting picks up a change
- * without the user re-enabling push. A no-op if push was never enabled on
- * this device — the values still apply the next time `enablePush()` runs.
+ * Best-effort mirror of the signed-in user / favorite team / prefs onto this
+ * device's `push_subscriptions` row, so the ingest worker's targeting picks up
+ * a change without the user re-enabling push. A no-op if push was never
+ * enabled on this device — the values still apply the next time
+ * `enablePush()` runs.
  */
-export async function syncPushProfile(favoriteTeamId: string | null, prefs: PushPrefs): Promise<void> {
+export async function syncPushProfile(
+  userId: string | null,
+  favoriteTeamId: string | null,
+  prefs: PushPrefs,
+): Promise<void> {
   if (!pushSupported()) return
   try {
     const reg = await navigator.serviceWorker.ready
@@ -112,7 +130,7 @@ export async function syncPushProfile(favoriteTeamId: string | null, prefs: Push
     if (!sub) return
     await supabase
       .from('push_subscriptions')
-      .update({ favorite_team_id: favoriteTeamId, prefs })
+      .update({ user_id: userId, favorite_team_id: favoriteTeamId, prefs })
       .eq('endpoint', sub.endpoint)
   } catch {
     // no service worker / no subscription yet — nothing to mirror

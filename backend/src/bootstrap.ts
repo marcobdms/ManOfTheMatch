@@ -5,6 +5,7 @@ import { syncFixtures } from './jobs/syncFixtures.js';
 import { syncStandings } from './jobs/syncStandings.js';
 import { liveLoop } from './jobs/liveLoop.js';
 import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
+import { syncLineups } from './jobs/syncLineups.js';
 
 console.log('[ingest] worker ManOfTheMatch arrancando…');
 
@@ -23,6 +24,14 @@ new Cron('* * * * *', guard(liveLoop));
 // API-Football post-match / confirmed-lineup enrichment. Cheap scan every 5 min;
 // each dispatch is budget-guarded (100 req/day free tier).
 new Cron('*/5 * * * *', guard(runDueMatchDetails));
+
+// Alineaciones Fotmob (posiciones x/y reales) cada 30 min. `sources/fotmob.ts`
+// ya serializa + throttlea + circuit-breakea cada petición real a nivel de
+// módulo (cola de un solo carril, ≥3s entre fetches), así que el "nunca en
+// paralelo a Fotmob" queda garantizado ahí pase lo que pase aquí arriba.
+// `protect: true` además evita que Croner solape dos pasadas del propio job
+// si una tardase más de 30 min (p.ej. con el circuit breaker abierto).
+new Cron('*/30 * * * *', { protect: true }, guard(syncLineups));
 
 // Kick one calendar sync on boot so a fresh deploy isn't empty.
 guard(syncFixtures)();

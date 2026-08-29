@@ -39,14 +39,45 @@ async function sendToSubs(subs: PushSub[], payload: Payload): Promise<void> {
  * per-type preference (`prefs.<prefKey>`). Replaces the old "broadcast to
  * every subscription" behaviour now that favorites exist
  * (docs/handoff-schema-notify.md §3-4).
+ *
+ * Two sources of "favorite team" now coexist (docs/plan-2026-08-29.md §B3):
+ *  - `push_subscriptions.favorite_team_id` — the original per-device value,
+ *    still written for anonymous (signed-out) subscriptions.
+ *  - `profiles.favorite_team_id` — the signed-in source of truth, joined
+ *    through `push_subscriptions.user_id` when present. This can differ from
+ *    the row's own `favorite_team_id` if the user changed their favorite on
+ *    another device; the profile wins for any row that has a `user_id`.
+ * `prefs` still lives on `push_subscriptions` either way — the profile only
+ * supplies the favorite team, not notification prefs.
  */
 async function pushToTeamFollowers(teamId: string, prefKey: PushPrefKey, payload: Payload): Promise<void> {
-  const { data: subs } = await db
+  const prefFilter = `prefs->>${prefKey}`;
+
+  // 1) Anonymous / legacy path: favorite recorded directly on the subscription.
+  const byDevice = await db
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
     .eq('favorite_team_id', teamId)
-    .eq(`prefs->>${prefKey}`, 'true');
-  await sendToSubs((subs ?? []) as PushSub[], payload);
+    .eq(prefFilter, 'true');
+
+  // 2) Signed-in path: favorite comes from the user's profile. Subscriptions
+  //    without a user_id are irrelevant here regardless of what their own
+  //    favorite_team_id says (case 1 already covers the anonymous ones).
+  const byProfile = await db
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth, user_id, profiles!inner(favorite_team_id)')
+    .not('user_id', 'is', null)
+    .eq('profiles.favorite_team_id', teamId)
+    .eq(prefFilter, 'true');
+
+  const seen = new Set<string>();
+  const subs: PushSub[] = [];
+  for (const row of [...(byDevice.data ?? []), ...(byProfile.data ?? [])] as PushSub[]) {
+    if (seen.has(row.endpoint)) continue;
+    seen.add(row.endpoint);
+    subs.push(row);
+  }
+  await sendToSubs(subs, payload);
 }
 
 async function logNotification(args: {

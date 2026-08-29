@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellRinging, Check } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import { StaggerItem, StaggerList } from '../components/StaggerList'
+import TeamCrest from '../components/TeamCrest'
 import { useTeams } from '../lib/queries'
 import { disablePush, enablePush, getPushStatus, syncPushProfile, type PushStatus } from '../lib/push'
-import {
-  getStoredFavoriteTeam,
-  getStoredPrefs,
-  setStoredFavoriteTeam,
-  setStoredPrefs,
-  type PushPrefs,
-} from '../lib/favorite'
+import { signOut } from '../lib/auth'
+import { useAuth, type PushPrefs } from '../lib/AuthProvider'
 
 const PREF_ROWS: Array<{ key: keyof PushPrefs; label: string; note: string }> = [
   { key: 'matchday', label: 'Hoy hay partido', note: 'Aviso la mañana del partido' },
@@ -26,12 +24,36 @@ const PUSH_EXPLAINER: Partial<Record<PushStatus, string>> = {
   'no-vapid': 'Las notificaciones aún no están configuradas en este entorno.',
 }
 
+/** Sin sesión: invitación a entrar o registrarse — no hay favorito sin cuenta. */
+function SignedOutProfile() {
+  return (
+    <>
+      <AppHeader />
+      <div className="motm-profile">
+        <h1 className="motm-profile__title">Perfil</h1>
+        <div className="motm-auth__banner" role="status">
+          <b>Necesitas una cuenta</b>
+          Entra o regístrate para elegir tu equipo favorito y recibir sus avisos.
+        </div>
+        <div className="motm-auth__form">
+          <Link className="motm-btn motm-auth__submit" to="/entrar">
+            Entrar
+          </Link>
+          <Link className="motm-btn motm-btn--muted motm-auth__submit" to="/registro">
+            Crear cuenta
+          </Link>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function Profile() {
+  const { session, profile, profileLoading, updateProfile } = useAuth()
   const teamsQuery = useTeams()
-  const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(() => getStoredFavoriteTeam())
-  const [prefs, setPrefs] = useState<PushPrefs>(() => getStoredPrefs())
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
+  const [savingFavorite, setSavingFavorite] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -43,27 +65,40 @@ export default function Profile() {
     }
   }, [])
 
+  if (!session) return <SignedOutProfile />
+
+  const favoriteTeamId = profile?.favorite_team_id ?? null
+  const prefs = profile?.prefs
   const pushEnabled = pushStatus === 'enabled'
 
-  function pickFavorite(teamId: string) {
+  async function pickFavorite(teamId: string) {
+    if (savingFavorite) return
     const next = teamId === favoriteTeamId ? null : teamId
-    setFavoriteTeamId(next)
-    setStoredFavoriteTeam(next)
-    void syncPushProfile(next, prefs)
+    setSavingFavorite(true)
+    try {
+      await updateProfile({ favorite_team_id: next })
+      void syncPushProfile(session!.user.id, next, prefs ?? { matchday: true, kickoff: true, lineup: true, goals: true })
+    } finally {
+      setSavingFavorite(false)
+    }
   }
 
-  function togglePref(key: keyof PushPrefs) {
+  async function togglePref(key: keyof PushPrefs) {
+    if (!prefs) return
     const next = { ...prefs, [key]: !prefs[key] }
-    setPrefs(next)
-    setStoredPrefs(next)
-    void syncPushProfile(favoriteTeamId, next)
+    await updateProfile({ prefs: next })
+    void syncPushProfile(session!.user.id, favoriteTeamId, next)
   }
 
   async function toggleBell() {
     if (pushBusy) return
     setPushBusy(true)
     try {
-      setPushStatus(pushEnabled ? await disablePush() : await enablePush())
+      setPushStatus(
+        pushEnabled
+          ? await disablePush()
+          : await enablePush(session!.user.id, favoriteTeamId, prefs ?? { matchday: true, kickoff: true, lineup: true, goals: true }),
+      )
     } catch {
       setPushStatus(await getPushStatus())
     } finally {
@@ -76,38 +111,38 @@ export default function Profile() {
       <AppHeader />
       <div className="motm-profile">
         <h1 className="motm-profile__title">Perfil</h1>
+        <p className="motm-note motm-profile__hint">
+          {profile?.display_name ? `${profile.display_name} · ` : ''}
+          {session.user.email}
+        </p>
 
         <section>
           <h2 className="motm-label motm-profile__h2">Equipo favorito</h2>
-          <p className="motm-note motm-profile__hint">
-            Recibirás sus avisos en este dispositivo — sin cuenta, sin contraseña.
-          </p>
-          {teamsQuery.isLoading && <div className="motm-skel" style={{ height: 240 }} aria-hidden="true" />}
-          {teamsQuery.data && (
-            <ul className="motm-team-list">
+          <p className="motm-note motm-profile__hint">Recibirás sus avisos en este dispositivo.</p>
+          {(teamsQuery.isLoading || profileLoading) && (
+            <div className="motm-skel" style={{ height: 240 }} aria-hidden="true" />
+          )}
+          {teamsQuery.data && !profileLoading && (
+            <StaggerList className="motm-team-list">
               {teamsQuery.data.map((t) => {
                 const active = t.id === favoriteTeamId
                 return (
-                  <li key={t.id}>
+                  <StaggerItem key={t.id}>
                     <button
                       type="button"
                       className={'motm-team-row' + (active ? ' is-active' : '')}
                       aria-pressed={active}
+                      disabled={savingFavorite}
                       onClick={() => pickFavorite(t.id)}
                     >
-                      <span
-                        className="motm-team-row__swatch"
-                        style={{ background: t.primary_color ?? 'var(--muted)' }}
-                      >
-                        {t.tla}
-                      </span>
+                      <TeamCrest teamId={t.id} tla={t.tla} color={t.primary_color} size={32} />
                       <span className="motm-team-row__name">{t.short_name}</span>
                       {active && <Check size={18} weight="bold" className="motm-team-row__check" />}
                     </button>
-                  </li>
+                  </StaggerItem>
                 )
               })}
-            </ul>
+            </StaggerList>
           )}
         </section>
 
@@ -133,26 +168,36 @@ export default function Profile() {
             </p>
           )}
 
-          <ul className="motm-pref-list">
-            {PREF_ROWS.map((row) => (
-              <li key={row.key} className="motm-pref-row">
-                <div>
-                  <div className="motm-pref-row__label">{row.label}</div>
-                  <div className="motm-pref-row__note">{row.note}</div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={prefs[row.key]}
-                  className={'motm-switch' + (prefs[row.key] ? ' is-on' : '')}
-                  onClick={() => togglePref(row.key)}
-                >
-                  <span className="motm-switch__thumb" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          {prefs && (
+            <ul className="motm-pref-list">
+              {PREF_ROWS.map((row) => (
+                <li key={row.key} className="motm-pref-row">
+                  <div>
+                    <div className="motm-pref-row__label">{row.label}</div>
+                    <div className="motm-pref-row__note">{row.note}</div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={prefs[row.key]}
+                    className={'motm-switch' + (prefs[row.key] ? ' is-on' : '')}
+                    onClick={() => togglePref(row.key)}
+                  >
+                    <span className="motm-switch__thumb" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
+
+        <button
+          type="button"
+          className="motm-btn motm-btn--muted motm-profile__signout"
+          onClick={() => void signOut()}
+        >
+          Cerrar sesión
+        </button>
       </div>
     </>
   )

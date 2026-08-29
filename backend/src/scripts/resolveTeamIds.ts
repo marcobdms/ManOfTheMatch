@@ -37,7 +37,7 @@ const { COMPETITIONS } = await import('../lib/shared.js');
 const { db } = await import('../db.js');
 const { getCompetitionTeams } = await import('../sources/footballData.js');
 const { getLeagueTeams } = await import('../sources/apiFootball.js');
-const { getAllTeamsInLeague } = await import('../sources/theSportsDB.js');
+const { searchTeams } = await import('../sources/theSportsDB.js');
 
 const DIACRITICS = /[\u0300-\u036f]/g;
 
@@ -90,16 +90,47 @@ async function main() {
   }
 
   // --- TheSportsDB -----------------------------------------------------
-  try {
-    const tsdb = await getAllTeamsInLeague(COMPETITIONS.laliga.theSportsDb);
-    for (const t of teams as TeamRow[]) {
-      const hit = (tsdb.teams ?? []).find(
-        (x) => matches(x.strTeam, t.name) || (x.strTeamShort && matches(x.strTeamShort, t.short_name)),
-      );
+  // ⚠️ `lookup_all_teams.php?id=4335` (LaLiga) returns the wrong roster
+  // (confirmed 2026-08-29 — see sources/theSportsDB.ts). `searchteams.php` by
+  // name is reliable instead, one request per team, filtered to LaLiga so a
+  // same-named club in another country/league never gets picked by mistake.
+  // Three name variants tried in order — TheSportsDB wants a "canonical"
+  // short-ish name, not the legal name or the too-bare short_name:
+  //   1. full `name` ("Deportivo Alavés") — works for most
+  //   2. `name` minus common suffixes ("Real Betis" from "Real Betis
+  //      Balompié") — the full legal name with a suffix like "Balompié"/"CF"
+  //      sometimes matches a lower-division filial squad instead
+  //   3. bare `short_name` — last resort, ambiguous on its own (confirmed:
+  //      "Betis" alone hits a women's team, "Deportivo" hits Deportivo Cali)
+  const LALIGA_LABEL = 'Spanish La Liga';
+  // Anchored to the END of the string (not `\b`) — JS's `\w` doesn't include
+  // accented letters, so `\bBalompié\b` never matches the trailing "é".
+  const SUFFIX_RE = /\s+(Balompié|Balompie|CF|C\.F\.|FC|F\.C\.|SAD|S\.A\.D\.|Club de Fútbol)\s*$/i;
+
+  async function findInLaLiga(name: string) {
+    const res = await searchTeams(name);
+    return (res.teams ?? []).find((x) => x.strLeague === LALIGA_LABEL);
+  }
+
+  for (const t of teams as TeamRow[]) {
+    if ((t.source_ids as Record<string, unknown> | null)?.theSportsDb != null) continue;
+    try {
+      let hit = await findInLaLiga(t.name);
+      const trimmedName = t.name.replace(SUFFIX_RE, '').replace(/\s+/g, ' ').trim();
+      if (!hit && trimmedName !== t.name) {
+        await new Promise((r) => setTimeout(r, 250));
+        hit = await findInLaLiga(trimmedName);
+      }
+      if (!hit) {
+        await new Promise((r) => setTimeout(r, 250));
+        hit = await findInLaLiga(t.short_name);
+      }
       if (hit) (resolved[t.id] ??= {}).theSportsDb = hit.idTeam;
+    } catch (err) {
+      console.warn(`[resolveTeamIds] TheSportsDB search failed for ${t.id}`, err);
     }
-  } catch (err) {
-    console.warn('[resolveTeamIds] TheSportsDB teams fetch failed', err);
+    // TheSportsDB free tier: 30 req/min — one request per team, small pause is plenty.
+    await new Promise((r) => setTimeout(r, 250));
   }
 
   // --- merge + report --------------------------------------------------

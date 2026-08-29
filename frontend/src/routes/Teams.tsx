@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import { StaggerItem, StaggerList } from '../components/StaggerList'
+import TeamCrest from '../components/TeamCrest'
 import { useTeams } from '../lib/queries'
 
 /** Browse the 20 LaLiga clubs. Squad + live standings are a follow-up —
@@ -19,18 +21,16 @@ export default function Teams() {
 
         {teamsQuery.isLoading && <div className="motm-skel" style={{ height: 320 }} aria-hidden="true" />}
         {teamsQuery.data && (
-          <ul className="motm-team-list">
+          <StaggerList className="motm-team-list">
             {teamsQuery.data.map((t) => (
-              <li key={t.id}>
-                <div className="motm-team-row">
-                  <span className="motm-team-row__swatch" style={{ background: t.primary_color ?? 'var(--muted)' }}>
-                    {t.tla}
-                  </span>
+              <StaggerItem key={t.id}>
+                <Link to={`/equipos/${t.id}`} className="motm-team-row">
+                  <TeamCrest teamId={t.id} tla={t.tla} color={t.primary_color} size={32} />
                   <span className="motm-team-row__name">{t.name}</span>
-                </div>
-              </li>
+                </Link>
+              </StaggerItem>
             ))}
-          </ul>
+          </StaggerList>
         )}
       </div>
     </>

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
   Broadcast,
   CalendarDots,
@@ -30,7 +31,19 @@ export default function BottomNav() {
           {({ isActive }) => (
             <>
               <span className="motm-nav__ico">
-                <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+                {/* Cada pestaña anima SU propio fondo (escala + opacidad), sin
+                    `layoutId` compartido: ese modo mide la posición del
+                    resaltado viejo y el nuevo para interpolar, y esa medición
+                    caía justo en el frame en que AnimatePresence monta/desmonta
+                    la página — con el layout aún moviéndose, salía descuadrado
+                    y "llegando tarde". Esto es local, así que es exacto. */}
+                <motion.span
+                  className="motm-nav__ico-bg"
+                  initial={false}
+                  animate={{ opacity: isActive ? 1 : 0, scale: isActive ? 1 : 0.7 }}
+                  transition={{ duration: 0.16, ease: 'easeOut' }}
+                />
+                <Icon size={22} weight={isActive ? 'fill' : 'regular'} style={{ position: 'relative' }} />
               </span>
               {label}
             </>

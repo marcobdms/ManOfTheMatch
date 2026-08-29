@@ -36,10 +36,14 @@ type FixtureRow = {
   home_score: number | null;
   away_score: number | null;
   last_synced_at: string | null;
+  minute: number | null;
+  half_started_at: string | null;
+  half_number: number | null;
 };
 
 const SELECT =
-  'id, source_ids, status, kickoff_at, home_team_id, away_team_id, home_team_name, away_team_name, home_score, away_score, last_synced_at';
+  'id, source_ids, status, kickoff_at, home_team_id, away_team_id, home_team_name, away_team_name, ' +
+  'home_score, away_score, last_synced_at, minute, half_started_at, half_number';
 
 export function liveLoop() {
   return withRun('liveLoop', 'football-data', async () => {
@@ -61,11 +65,11 @@ export function liveLoop() {
         .lt('kickoff_at', dayEnd.toISOString()),
     ]);
 
-    await pushScheduledNotifications(nowMs, (soon ?? []) as FixtureRow[], (today ?? []) as FixtureRow[]);
+    await pushScheduledNotifications(nowMs, (soon ?? []) as unknown as FixtureRow[], (today ?? []) as unknown as FixtureRow[]);
 
     const byId = new Map<string, FixtureRow>();
-    for (const f of (playing ?? []) as FixtureRow[]) byId.set(f.id, f);
-    for (const f of (soon ?? []) as FixtureRow[]) {
+    for (const f of (playing ?? []) as unknown as FixtureRow[]) byId.set(f.id, f);
+    for (const f of (soon ?? []) as unknown as FixtureRow[]) {
       if (!SKIP_STATUSES.has(f.status)) byId.set(f.id, f);
     }
     const active = [...byId.values()];
@@ -207,6 +211,13 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
     patch.home_score_ht = htHome;
     patch.away_score_ht = htAway;
   }
+
+  const clock = nextClockAnchor(f, status, minute, Date.parse(now));
+  if (clock) {
+    patch.half_started_at = clock.startedAt;
+    patch.half_number = clock.half;
+  }
+
   await db.from('fixtures').update(patch).eq('id', f.id);
 
   // 5) GOAL notifications — only once we've seen this fixture before (avoids a
@@ -214,6 +225,51 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
   if (f.last_synced_at != null) {
     await maybePushGoals(f, home, away, freshGoals);
   }
+}
+
+// Tolerancia antes de mover la ancla del reloj nativo: un jitter normal entre
+// fuentes (±1-2') no debe reiniciar el reloj del cliente cada minuto, solo un
+// desfase real (inicio de parte, tiempo añadido, o VAR) lo hace.
+const CLOCK_DRIFT_TOLERANCE_MIN = 2;
+
+/**
+ * Decide si mover la ancla `half_started_at`/`half_number` del reloj nativo
+ * que corre en el cliente (`minuto = ancla + segundos transcurridos`, sin
+ * llamar al backend en cada tick — pedido explícito: no todo el rato por API).
+ * Solo se mueve cuando:
+ *   - no había ancla todavía (primer minuto real que llega), o
+ *   - cambia de parte (minute cruza 45 tras el descanso), o
+ *   - el minuto real difiere de lo que la ancla actual predeciría en más de
+ *     `CLOCK_DRIFT_TOLERANCE_MIN` (tiempo añadido, VAR, corrección de fuente).
+ * Nunca se mueve en PAUSED (el reloj del cliente se congela ahí) ni sin un
+ * `minute` real que ancle contra algo.
+ */
+function nextClockAnchor(
+  f: FixtureRow,
+  status: string,
+  minute: number | null,
+  nowMs: number,
+): { startedAt: string; half: number } | null {
+  if (status !== 'LIVE' || minute == null) return null;
+
+  const half = minute > 45 ? 2 : 1;
+  const halfBaseMinute = half === 2 ? 45 : 0;
+  const predictedStart = nowMs - (minute - halfBaseMinute) * 60_000;
+
+  const hasAnchor = f.half_started_at != null && f.half_number != null;
+  const changedHalf = hasAnchor && f.half_number !== half;
+
+  if (!hasAnchor || changedHalf) {
+    return { startedAt: new Date(predictedStart).toISOString(), half };
+  }
+
+  const predictedMinuteNow = halfBaseMinute + (nowMs - Date.parse(f.half_started_at!)) / 60_000;
+  const drift = Math.abs(predictedMinuteNow - minute);
+  if (drift > CLOCK_DRIFT_TOLERANCE_MIN) {
+    return { startedAt: new Date(predictedStart).toISOString(), half };
+  }
+
+  return null; // ancla actual sigue siendo válida — no reescribir en cada tick
 }
 
 /**

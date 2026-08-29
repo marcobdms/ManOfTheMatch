@@ -36,9 +36,22 @@ export function getSeasonEvents(leagueId: string, season: string) {
   });
 }
 
-/** All teams in a league — used one-off by scripts/resolveTeamIds.ts. */
+/** All teams in a league — used one-off by scripts/resolveTeamIds.ts.
+ *  ⚠️ CONFIRMED 2026-08-29: `lookup_all_teams.php?id=4335` (LaLiga) returns the
+ *  wrong roster (English lower-league clubs) — a bug/inconsistency on
+ *  TheSportsDB's side, not ours (`lookupleague.php?id=4335` correctly reports
+ *  "Spanish La Liga" for that same id). Kept for reference; resolveTeamIds.ts
+ *  uses `searchTeams()` below instead. */
 export function getAllTeamsInLeague(leagueId: string) {
   return cachedJson<TsdbAllTeamsResponse>(`${BASE}/lookup_all_teams.php?id=${leagueId}`, {
+    ttlSeconds: 24 * 3600,
+  });
+}
+
+/** Search teams by name — verified reliable where `lookup_all_teams.php` isn't
+ *  (see note above). Used one-off by scripts/resolveTeamIds.ts. */
+export function searchTeams(name: string) {
+  return cachedJson<TsdbAllTeamsResponse>(`${BASE}/searchteams.php?t=${encodeURIComponent(name)}`, {
     ttlSeconds: 24 * 3600,
   });
 }
@@ -132,6 +145,7 @@ export type TsdbTeam = {
   strTeam: string;
   strTeamShort: string | null;
   strAlternate: string | null;
+  strLeague: string | null;
 };
 
 export type TsdbAllTeamsResponse = { teams: TsdbTeam[] | null };

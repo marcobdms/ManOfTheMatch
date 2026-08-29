@@ -47,6 +47,15 @@ body,
   height: 100%;
 }
 
+/* Durante el cruce de dos páginas en la transición de ruta (App.tsx), la
+   saliente y la entrante coexisten un instante con `transform: translateX`
+   — sin esto el navegador computa un ancho de documento momentáneamente mayor
+   y muestra la scrollbar horizontal (visible como un "salto" de layout). */
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);

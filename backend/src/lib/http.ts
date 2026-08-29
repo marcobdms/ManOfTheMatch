@@ -12,6 +12,15 @@ type FetchOpts = {
    * failures as HTTP 200 with a populated `errors` object (see api-research.md §3.2).
    */
   assertOk?: (body: unknown) => void;
+  /**
+   * Optional hook awaited immediately before the real network `fetch` — never on
+   * a cache hit or a 304 revalidation. Used by `sources/fotmob.ts` to serialize +
+   * throttle + circuit-break requests to a host with no published rate limit
+   * (api-research.md / docs/plan-2026-08-29.md §A2). Throwing here aborts the
+   * request before any network call and propagates to the caller, same as a
+   * fetch failure.
+   */
+  beforeFetch?: () => Promise<void>;
 };
 
 /**
@@ -37,6 +46,7 @@ export async function cachedJson<T>(url: string, opts: FetchOpts = {}): Promise<
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (cached?.etag) headers['If-None-Match'] = cached.etag;
 
+  await opts.beforeFetch?.();
   const res = await fetch(url, { headers });
 
   if (res.status === 304 && cached) {

@@ -14,7 +14,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { POLL, TRACKED_TEAM_IDS } from './shared'
 import type { MatchEventType, MatchStatus } from './shared'
 import { supabase } from './supabase'
-import type { GoalChip, LiveMatch, TeamLite, TimelineEvent } from '../types/view'
+import type {
+  GoalChip,
+  LineupFreshness,
+  LineupPlayer,
+  LiveMatch,
+  NewsItem,
+  PlayerStat,
+  StandingRow,
+  TeamLite,
+  TeamLineupSnapshot,
+  TimelineEvent,
+  UpcomingMatch,
+} from '../types/view'
 
 export const hasSupabaseEnv = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -53,15 +65,25 @@ export function isLiveStatus(status: MatchStatus | undefined): boolean {
 
 // --- row shapes (we cast query output to these; the client is untyped) --------
 
-type RawTeam = { id: string; tla: string; name: string }
+type RawTeam = { id: string; tla: string; name: string; short_name: string }
 
-export type TeamRow = { id: string; name: string; short_name: string; tla: string; primary_color: string | null }
+export type TeamRow = {
+  id: string
+  name: string
+  short_name: string
+  tla: string
+  primary_color: string | null
+  crest_url?: string | null
+}
 
 type FixtureRow = {
   id: string
   status: string
   minute: number | null
+  half_started_at: string | null
+  half_number: number | null
   kickoff_at: string
+  matchday: number | null
   home_score: number | null
   away_score: number | null
   // inline identity for the non-tracked side (0002 columns — no `teams` row exists for it)
@@ -70,6 +92,15 @@ type FixtureRow = {
   home: RawTeam | RawTeam[] | null
   away: RawTeam | RawTeam[] | null
   competition: { short_name: string } | { short_name: string }[] | null
+}
+
+type StandingsQueryRow = {
+  team_id: string | null
+  team_name: string
+  position: number
+  played: number | null
+  points: number | null
+  team: { tla: string } | { tla: string }[] | null
 }
 
 type EventRow = {
@@ -93,10 +124,10 @@ function preferApiFootball(rows: EventRow[]): EventRow[] {
 }
 
 const FIXTURE_SELECT =
-  'id, status, minute, kickoff_at, home_score, away_score, ' +
+  'id, status, minute, half_started_at, half_number, kickoff_at, matchday, home_score, away_score, ' +
   'home_team_name, away_team_name, ' +
-  'home:teams!home_team_id ( id, tla, name ), ' +
-  'away:teams!away_team_id ( id, tla, name ), ' +
+  'home:teams!home_team_id ( id, tla, name, short_name ), ' +
+  'away:teams!away_team_id ( id, tla, name, short_name ), ' +
   'competition:competitions ( short_name )'
 
 const EVENT_SELECT =
@@ -130,18 +161,29 @@ function fixtureMinuteLabel(status: string, minute: number | null): string {
   return "0'"
 }
 
+/** Strips common club-suffix words ("FC", "CF", "de Barcelona"...) — shared by
+ *  `deriveTla` and `deriveShortName` for a non-tracked club with no `teams` row. */
+function stripClubSuffixes(name: string): string {
+  return name.replace(/\b(FC|CF|CD|UD|SD|RC|CA|AC|SC|RCD|Club|de)\b/gi, '').replace(/\s+/g, ' ').trim()
+}
+
 /** 3-letter code for a non-tracked club that has no `teams.tla`. */
 function deriveTla(name: string): string {
-  const core = name.replace(/\b(FC|CF|CD|UD|SD|RC|CA|AC|SC|RCD)\b/gi, '').replace(/[^\p{L} ]/gu, '').trim()
+  const core = stripClubSuffixes(name).replace(/[^\p{L} ]/gu, '').trim()
   return (core || name).slice(0, 3).toUpperCase()
+}
+
+/** Short display name for a non-tracked club that has no `teams.short_name`. */
+function deriveShortName(name: string): string {
+  return stripClubSuffixes(name) || name
 }
 
 /** Prefer the joined tracked-team row; fall back to the inline opponent name. */
 function teamFrom(joined: RawTeam | null, inlineName: string | null): TeamLite {
-  if (joined) return { id: joined.id, tla: joined.tla, name: joined.name }
+  if (joined) return { id: joined.id, tla: joined.tla, name: joined.name, shortName: joined.short_name }
   const name = inlineName?.trim()
-  if (name) return { id: `ext:${name}`, tla: deriveTla(name), name }
-  return { id: 'tbd', tla: '—', name: 'Rival' }
+  if (name) return { id: `ext:${name}`, tla: deriveTla(name), name, shortName: deriveShortName(name) }
+  return { id: 'tbd', tla: '—', name: 'Rival', shortName: 'Rival' }
 }
 
 function toLiveMatch(row: FixtureRow): LiveMatch {
@@ -150,11 +192,24 @@ function toLiveMatch(row: FixtureRow): LiveMatch {
     competitionShort: asOne(row.competition)?.short_name ?? 'LaLiga',
     status: normalizeStatus(row.status),
     minuteLabel: fixtureMinuteLabel(row.status, row.minute),
+    halfStartedAt: row.status === 'LIVE' ? row.half_started_at : null,
+    halfNumber: row.status === 'LIVE' ? row.half_number : null,
     kickoffAt: row.kickoff_at,
     home: teamFrom(asOne(row.home), row.home_team_name),
     away: teamFrom(asOne(row.away), row.away_team_name),
     homeScore: row.home_score ?? 0,
     awayScore: row.away_score ?? 0,
+  }
+}
+
+function toUpcomingMatch(row: FixtureRow): UpcomingMatch {
+  return {
+    id: row.id,
+    competitionShort: asOne(row.competition)?.short_name ?? 'LaLiga',
+    kickoffAt: row.kickoff_at,
+    matchday: row.matchday,
+    home: teamFrom(asOne(row.home), row.home_team_name),
+    away: teamFrom(asOne(row.away), row.away_team_name),
   }
 }
 
@@ -243,6 +298,79 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
   return null
 }
 
+/** Next `limit` LaLiga+Champions fixtures still to be played, soonest first.
+ *  `favoriteTeamId` narrows to that club only (Próximos "solo mi equipo"). */
+async function fetchUpcomingFixtures(
+  limit: number,
+  favoriteTeamId?: string | null,
+): Promise<UpcomingMatch[]> {
+  let query = supabase
+    .from('fixtures')
+    .select(FIXTURE_SELECT)
+    .eq('status', 'SCHEDULED')
+    .order('kickoff_at', { ascending: true })
+    .limit(limit)
+
+  if (favoriteTeamId) {
+    query = query.or(`home_team_id.eq.${favoriteTeamId},away_team_id.eq.${favoriteTeamId}`)
+  }
+
+  const { data, error } = await query.returns<FixtureRow[]>()
+  if (error) throw error
+  return (data ?? []).map(toUpcomingMatch)
+}
+
+/** Latest snapshot (max `captured_at`) of a competition's table, top `limit` rows. */
+async function fetchStandings(competitionId: string, limit: number): Promise<StandingRow[]> {
+  const latest = await supabase
+    .from('standings')
+    .select('captured_at')
+    .eq('competition_id', competitionId)
+    .order('captured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ captured_at: string }>()
+  if (latest.error) throw latest.error
+  if (!latest.data) return []
+
+  const { data, error } = await supabase
+    .from('standings')
+    .select('team_id, team_name, position, played, points, team:teams!team_id ( tla )')
+    .eq('competition_id', competitionId)
+    .eq('captured_at', latest.data.captured_at)
+    .order('position', { ascending: true })
+    .limit(limit)
+    .returns<StandingsQueryRow[]>()
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    teamId: row.team_id,
+    teamName: row.team_name,
+    tla: asOne(row.team)?.tla ?? null,
+    position: row.position,
+    played: row.played,
+    points: row.points,
+  }))
+}
+
+async function fetchNews(limit: number): Promise<NewsItem[]> {
+  const { data, error } = await supabase
+    .from('news')
+    .select('id, title, summary, url, image_url, published_at')
+    .order('published_at', { ascending: false })
+    .limit(limit)
+    .returns<
+      { id: string; title: string; summary: string | null; url: string | null; image_url: string | null; published_at: string | null }[]
+    >()
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    summary: row.summary,
+    url: row.url,
+    imageUrl: row.image_url,
+    publishedAt: row.published_at,
+  }))
+}
+
 async function fetchGoalChips(fixtureId: string): Promise<GoalChip[]> {
   const { data, error } = await supabase
     .from('match_events')
@@ -310,6 +438,55 @@ export function useTeams() {
   })
 }
 
+/** Próximos partidos (Home usa `limit: 3`, Próximos pide ~30). */
+export function useUpcomingFixtures(limit: number, favoriteTeamId?: string | null) {
+  return useQuery({
+    queryKey: ['upcomingFixtures', limit, favoriteTeamId ?? null],
+    queryFn: () => fetchUpcomingFixtures(limit, favoriteTeamId),
+    enabled: hasSupabaseEnv,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Top `limit` de la clasificación de una competición (Home usa LaLiga, top 5). */
+export function useStandings(competitionId: string, limit: number) {
+  return useQuery({
+    queryKey: ['standings', competitionId, limit],
+    queryFn: () => fetchStandings(competitionId, limit),
+    enabled: hasSupabaseEnv,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+/** `news` está vacía hoy — Home comprueba `data.length` para omitir la sección. */
+export function useNews(limit: number) {
+  return useQuery({
+    queryKey: ['news', limit],
+    queryFn: () => fetchNews(limit),
+    enabled: hasSupabaseEnv,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+/** Un equipo por id — cabecera de `routes/TeamLineup.tsx`. */
+export function useTeam(teamId: string | undefined) {
+  return useQuery({
+    queryKey: ['team', teamId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name, short_name, tla, primary_color, crest_url')
+        .eq('id', teamId as string)
+        .maybeSingle()
+        .returns<TeamRow>()
+      if (error) throw error
+      return data
+    },
+    enabled: hasSupabaseEnv && !!teamId,
+    staleTime: 6 * 60 * 60 * 1000,
+  })
+}
+
 export function useGoalChips(
   fixtureId: string | undefined,
   opts: { enabled?: boolean; live?: boolean } = {},
@@ -331,6 +508,114 @@ export function useTimeline(
     queryFn: () => fetchTimeline(fixtureId as string),
     enabled: (opts.enabled ?? true) && hasSupabaseEnv && !!fixtureId,
     refetchInterval: opts.live ? LIVE_MS : false,
+  })
+}
+
+type PlayerStatRow = {
+  player_name: string
+  team_id: string
+  minutes: number | null
+  rating: number | null
+  goals: number | null
+  assists: number | null
+  shots: number | null
+  shots_on: number | null
+  passes: number | null
+  pass_accuracy: number | null
+  tackles: number | null
+}
+
+/** `player_match_stats` solo existe post-partido (sync de API-Football, no en
+ *  vivo) — vacío es un estado normal, no un error. */
+async function fetchPlayerStats(fixtureId: string): Promise<PlayerStat[]> {
+  const { data, error } = await supabase
+    .from('player_match_stats')
+    .select(
+      'player_name, team_id, minutes, rating, goals, assists, shots, shots_on, passes, pass_accuracy, tackles',
+    )
+    .eq('fixture_id', fixtureId)
+    .order('rating', { ascending: false, nullsFirst: false })
+    .returns<PlayerStatRow[]>()
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    playerName: row.player_name,
+    teamId: row.team_id,
+    minutes: row.minutes,
+    rating: row.rating,
+    goals: row.goals ?? 0,
+    assists: row.assists ?? 0,
+    shots: row.shots ?? 0,
+    shotsOn: row.shots_on ?? 0,
+    passes: row.passes ?? 0,
+    passAccuracy: row.pass_accuracy,
+    tackles: row.tackles ?? 0,
+  }))
+}
+
+export function usePlayerStats(fixtureId: string | undefined, opts: { live?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['playerStats', fixtureId],
+    queryFn: () => fetchPlayerStats(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    refetchInterval: opts.live ? LIVE_MS : false,
+  })
+}
+
+// --- alineación de un equipo (routes/TeamLineup.tsx) -----------------------
+
+type LineupSnapshotRow = {
+  team_id: string
+  opponent_name: string | null
+  opponent_crest: string | null
+  is_home: boolean | null
+  kickoff_at: string | null
+  formation: string | null
+  coach: string | null
+  lineup_type: string
+  players: LineupPlayer[]
+  updated_at: string
+}
+
+const ALL_FRESHNESS: LineupFreshness[] = ['confirmed', 'predicted', 'last_played']
+
+function normalizeFreshness(value: string): LineupFreshness {
+  return (ALL_FRESHNESS as string[]).includes(value) ? (value as LineupFreshness) : 'last_played'
+}
+
+async function fetchTeamLineup(teamId: string): Promise<TeamLineupSnapshot | null> {
+  const { data, error } = await supabase
+    .from('team_lineup_snapshots')
+    .select(
+      'team_id, opponent_name, opponent_crest, is_home, kickoff_at, formation, coach, lineup_type, players, updated_at',
+    )
+    .eq('team_id', teamId)
+    .maybeSingle()
+    .returns<LineupSnapshotRow>()
+  if (error) throw error
+  if (!data) return null
+
+  return {
+    teamId: data.team_id,
+    opponentName: data.opponent_name,
+    opponentCrest: data.opponent_crest,
+    isHome: data.is_home,
+    kickoffAt: data.kickoff_at,
+    formation: data.formation,
+    coach: data.coach,
+    lineupType: normalizeFreshness(data.lineup_type),
+    players: data.players ?? [],
+    updatedAt: data.updated_at,
+  }
+}
+
+/** Alineación (titulares + suplentes) del equipo, ya lista para pintar —
+ *  una lectura, sin joins. Ver docs/plan-2026-08-29.md §A1/§A4. */
+export function useTeamLineup(teamId: string | undefined) {
+  return useQuery({
+    queryKey: ['teamLineup', teamId],
+    queryFn: () => fetchTeamLineup(teamId as string),
+    enabled: hasSupabaseEnv && !!teamId,
+    staleTime: 10 * 60 * 1000,
   })
 }
 

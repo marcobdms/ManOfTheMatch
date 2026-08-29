@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Bell, BellRinging, ChartBar } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
+import { ChartBar } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
+import AnimatedBell from '../components/AnimatedBell'
 import ScoreboardCard from '../components/ScoreboardCard'
 import MatchTimeline from '../components/MatchTimeline'
 import type { GoalChip, LiveMatch, TimelineEvent } from '../types/view'
@@ -13,7 +15,7 @@ import {
   useTimeline,
 } from '../lib/queries'
 import { disablePush, enablePush, getPushStatus, type PushStatus } from '../lib/push'
-import { getStoredFavoriteTeam } from '../lib/favorite'
+import { useAuth } from '../lib/AuthProvider'
 
 // Dev-only fallback: used exclusively when running `vite` with no Supabase URL.
 const USE_MOCK = import.meta.env.DEV && !import.meta.env.VITE_SUPABASE_URL
@@ -23,9 +25,11 @@ const MOCK_MATCH: LiveMatch = {
   competitionShort: 'LaLiga',
   status: 'LIVE',
   minuteLabel: "74'",
+  halfStartedAt: new Date(Date.now() - 74 * 60_000).toISOString(),
+  halfNumber: 2,
   kickoffAt: new Date().toISOString(),
-  home: { id: 'real-madrid', tla: 'RMA', name: 'Real Madrid' },
-  away: { id: 'barcelona', tla: 'BAR', name: 'Barcelona' },
+  home: { id: 'real-madrid', tla: 'RMA', name: 'Real Madrid CF', shortName: 'Real Madrid' },
+  away: { id: 'barcelona', tla: 'BAR', name: 'FC Barcelona', shortName: 'Barcelona' },
   homeScore: 2,
   awayScore: 1,
 }
@@ -88,13 +92,11 @@ function EmptyState({ note, hasFavorite }: { note?: string; hasFavorite: boolean
 }
 
 function PrematchNote({ match, hasFavorite }: { match: LiveMatch; hasFavorite: boolean }) {
-  const subject = hasFavorite ? 'Tu equipo' : 'LaLiga'
+  const subject = hasFavorite ? 'Tu equipo no juega ahora' : 'Ningún equipo juega ahora'
   const text =
     match.status === 'FINISHED'
-      ? `${subject} no juega en directo — último: ${match.home.tla} ${match.homeScore}–${match.awayScore} ${match.away.tla}`
-      : `${subject} no juega ahora — próximo: ${match.home.tla}–${match.away.tla} · ${formatKickoff(
-          match.kickoffAt,
-        )}`
+      ? `${subject} — último: ${match.home.tla} ${match.homeScore}–${match.awayScore} ${match.away.tla}`
+      : `${subject} — próximo: ${match.home.tla}–${match.away.tla} · ${formatKickoff(match.kickoffAt)}`
   return (
     <p className="motm-note" role="note">
       {text}
@@ -103,6 +105,7 @@ function PrematchNote({ match, hasFavorite }: { match: LiveMatch; hasFavorite: b
 }
 
 export default function Live() {
+  const { session, profile } = useAuth()
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
 
@@ -121,12 +124,21 @@ export default function Live() {
   }, [])
 
   const pushEnabled = pushStatus === 'enabled'
+  const favoriteTeamId = USE_MOCK ? null : profile?.favorite_team_id ?? null
 
   async function toggleBell() {
     if (pushBusy) return
     setPushBusy(true)
     try {
-      setPushStatus(pushEnabled ? await disablePush() : await enablePush())
+      setPushStatus(
+        pushEnabled
+          ? await disablePush()
+          : await enablePush(
+              session?.user.id ?? null,
+              favoriteTeamId,
+              profile?.prefs ?? { matchday: true, kickoff: true, lineup: true, goals: true },
+            ),
+      )
     } catch {
       setPushStatus(await getPushStatus())
     } finally {
@@ -134,7 +146,6 @@ export default function Live() {
     }
   }
 
-  const favoriteTeamId = USE_MOCK ? null : getStoredFavoriteTeam()
   const liveQuery = useLiveMatch({ enabled: !USE_MOCK, favoriteTeamId })
   const match: LiveMatch | null | undefined = USE_MOCK ? MOCK_MATCH : liveQuery.data
   const fixtureId = USE_MOCK ? undefined : match?.id
@@ -170,10 +181,10 @@ export default function Live() {
           <ScoreboardCard match={match} goals={goals} />
 
           <div className="motm-actions">
-            <button className="motm-btn" style={{ flex: 1 }}>
+            <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/estadisticas`}>
               <ChartBar size={16} />
               Ver estadísticas
-            </button>
+            </Link>
             <button
               className="motm-btn motm-btn--icon"
               aria-pressed={pushEnabled}
@@ -187,7 +198,7 @@ export default function Live() {
               onClick={toggleBell}
             >
               {pushEnabled && <span className="motm-dot" />}
-              {pushEnabled ? <BellRinging size={20} /> : <Bell size={20} />}
+              <AnimatedBell active={pushEnabled} />
             </button>
           </div>
 

@@ -1,0 +1,200 @@
+// Adapter: Fotmob (no oficial, sin auth) — fuente primaria de alineaciones con
+// posiciones reales x/y. Verificado en vivo 2026-08-29 (docs/plan-2026-08-29.md):
+//   - GET https://www.fotmob.com/api/data/matches?date=YYYYMMDD
+//     -> leagues[] con id === 87 (LaLiga), matches[].id
+//   - GET https://www.fotmob.com/api/data/matchDetails?matchId={id}
+//     -> content.lineup, lineupType 'predicted' | 'standard',
+//        homeTeam/awayTeam: formation, coach, starters[], subs[]
+//   - Cada jugador: id, name, firstName, lastName, age, shirtNumber,
+//     countryName, countryCode, positionId, marketValue, horizontalLayout{x,y}
+//     (0..1) + performance.rating / performance.seasonRating.
+//   - Requiere header User-Agent de navegador. La ruta correcta es /api/data/...
+//     ('/api/...' a secas devuelve HTML 404).
+//
+// Fotmob NO publica límite de rate ni cabeceras X-RateLimit-*/Retry-After
+// (ráfaga de prueba: 6 peticiones seguidas, todas 200, sin cabecera de cuota).
+// Sin contrato del proveedor -> nos lo autoimponemos aquí con tres capas. Esto
+// NO es opcional: es la parte que más le preocupa a Marco (que esto tumbe el
+// servicio o cause un baneo por "too many requests").
+//
+//   1) Throttle de salida: cola secuencial en el módulo, mínimo 3s entre
+//      peticiones REALES a Fotmob (nunca en paralelo). El caché de `http_cache`
+//      (vía `cachedJson`) evita re-pedir lo que ya tenemos dentro del TTL —
+//      solo un cache-miss dispara este throttle.
+//   2) Backoff en 429/403/503: no se reintenta en el momento. Se registra el
+//      fallo y se devuelve `null` al llamador (que cae a "usar el snapshot
+//      anterior" — nunca lanza ni bloquea el resto del sweep).
+//   3) Circuit breaker por proceso: 3 fallos (429/403/503) seguidos -> el
+//      adapter se "abre" y devuelve `null` sin tocar la red durante 30 min
+//      (log explícito). Pasado ese tiempo se cierra solo y reintenta.
+//
+// Con ~10 fixtures por jornada y TTLs de minutos/horas, el uso real es un
+// puñado de peticiones cada 30 min — margen de seguridad amplio a propósito.
+
+import { cachedJson } from '../lib/http.js';
+
+const BASE = 'https://www.fotmob.com/api/data';
+
+// Header de navegador real, obligatorio (api-research.md / plan §A2).
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+// --- capa 1: throttle secuencial ------------------------------------------
+
+const MIN_GAP_MS = 3_000;
+/** Cola de un solo carril: cada `run()` espera a que termine el anterior Y a
+ *  que hayan pasado ≥3s desde el último fetch real antes de arrancar. Así
+ *  nunca hay dos peticiones a Fotmob en paralelo ni más rápido que 1 cada 3s. */
+let queueTail: Promise<void> = Promise.resolve();
+let lastFetchAt = 0;
+
+function throttledRun<T>(fn: () => Promise<T>): Promise<T> {
+  const result = queueTail.then(async () => {
+    const wait = MIN_GAP_MS - (Date.now() - lastFetchAt);
+    if (wait > 0) await sleep(wait);
+    lastFetchAt = Date.now();
+    return fn();
+  });
+  // La cola avanza pase lo que pase (éxito o error) — un fallo no la atasca.
+  queueTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// --- capas 2+3: backoff sin reintento + circuit breaker por proceso -------
+
+const FAILURE_THRESHOLD = 3;
+const CIRCUIT_COOLDOWN_MS = 30 * 60_000; // 30 min
+
+let consecutiveFailures = 0;
+let circuitOpenUntil = 0;
+
+/** Códigos que cuentan como señal de bloqueo/limitación — nunca se reintentan
+ *  en el momento, solo se cuentan hacia el circuit breaker. */
+const THROTTLE_STATUSES = new Set([429, 403, 503]);
+
+function circuitIsOpen(): boolean {
+  return Date.now() < circuitOpenUntil;
+}
+
+function recordFailure(status: number): void {
+  consecutiveFailures++;
+  console.warn(`[fotmob] fallo ${status} (${consecutiveFailures}/${FAILURE_THRESHOLD} seguidos)`);
+  if (consecutiveFailures >= FAILURE_THRESHOLD) {
+    circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
+    console.error(
+      `[fotmob] circuit abierto — pausando 30min (hasta ${new Date(circuitOpenUntil).toISOString()})`,
+    );
+  }
+}
+
+function recordSuccess(): void {
+  consecutiveFailures = 0;
+}
+
+/**
+ * GET a través de `cachedJson`, con throttle + circuit breaker aplicados solo
+ * al fetch de red real (nunca a un cache-hit ni a una revalidación 304 — ver
+ * `beforeFetch` en lib/http.ts). Nunca lanza: cualquier fallo se registra y
+ * devuelve `null`, para que el llamador caiga al snapshot anterior sin
+ * interrumpir el resto del sweep.
+ */
+async function fotmobGet<T>(url: string, ttlSeconds: number): Promise<T | null> {
+  if (circuitIsOpen()) {
+    console.warn(`[fotmob] circuito abierto — se omite ${url} sin tocar la red`);
+    return null;
+  }
+
+  try {
+    const body = await cachedJson<T>(url, {
+      headers: { 'User-Agent': BROWSER_UA },
+      ttlSeconds,
+      beforeFetch: () => throttledRun(async () => {}),
+    });
+    recordSuccess();
+    return body;
+  } catch (err) {
+    const status = extractStatus(err);
+    if (status != null && THROTTLE_STATUSES.has(status)) {
+      recordFailure(status);
+    } else {
+      // Error de red / parseo / timeout: no es necesariamente un bloqueo de
+      // Fotmob, pero tampoco reintentamos aquí — el llamador cae al snapshot.
+      console.warn(`[fotmob] error no-HTTP en ${url}`, err);
+    }
+    return null;
+  }
+}
+
+function extractStatus(err: unknown): number | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  const m = /->\s*(\d{3})\s/.exec(msg);
+  return m ? Number(m[1]) : null;
+}
+
+// --- endpoints (verificado en vivo 2026-08-29) ------------------------------
+
+/** Calendario de un día. TTL 1800s (30 min) — suficiente para el cron A3. */
+export function getMatchesByDate(yyyymmdd: string) {
+  return fotmobGet<FotmobMatchesByDate>(`${BASE}/matches?date=${yyyymmdd}`, 1800);
+}
+
+/** Detalle de un partido (incluye `content.lineup`).
+ *  TTL corto (5 min) si está en juego, largo (6h) si ya terminó — el llamador
+ *  decide según el estado conocido del fixture. */
+export function getMatchDetails(matchId: number | string, opts: { live: boolean }) {
+  const ttl = opts.live ? 300 : 6 * 3600;
+  return fotmobGet<FotmobMatchDetails>(`${BASE}/matchDetails?matchId=${matchId}`, ttl);
+}
+
+// --- shapes (solo lo que consumimos, igual que apiFootball.ts) -------------
+
+export const LALIGA_LEAGUE_ID = 87;
+
+export type FotmobMatchesByDate = {
+  leagues?: Array<{
+    id: number;
+    matches?: Array<{
+      id: number;
+      home: { id: number; name: string };
+      away: { id: number; name: string };
+      status?: { utcTime?: string | null; finished?: boolean; started?: boolean };
+    }>;
+  }> | null;
+};
+
+export type FotmobPlayer = {
+  id: number;
+  name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  age?: number | null;
+  shirtNumber?: number | null;
+  countryName?: string | null;
+  countryCode?: string | null;
+  positionId?: number | null;
+  marketValue?: number | null;
+  horizontalLayout?: { x: number; y: number } | null;
+  performance?: { rating?: number | null; seasonRating?: number | null } | null;
+};
+
+export type FotmobLineupTeam = {
+  formation?: string | null;
+  coach?: { name?: string | null } | null;
+  starters?: FotmobPlayer[] | null;
+  subs?: FotmobPlayer[] | null;
+};
+
+export type FotmobMatchDetails = {
+  content?: {
+    lineup?: {
+      lineupType?: 'predicted' | 'standard' | null;
+      homeTeam?: FotmobLineupTeam | null;
+      awayTeam?: FotmobLineupTeam | null;
+    } | null;
+  } | null;
+};
