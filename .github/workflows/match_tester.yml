@@ -1,8 +1,8 @@
-﻿name: Match Tester
+name: Match Tester
 
 on:
   # Cada 15 min en horario de partidos LaLiga (14:00-23:59 UTC = 16:00-01:59 CEST)
-  # Si no hay partido inminente -> termina en ~30s (barato)
+  # Si no hay partido inminente -> termina en ~10s (barato)
   schedule:
     - cron: '0,15,30,45 14-23 * * *'
 
@@ -19,29 +19,24 @@ on:
         default: false
 
 jobs:
-  match-tester:
-    name: ${{ github.event.inputs.fixture_id != '' && 'Fixture forzado' || 'Auto-detectar partido' }}
+  # ── 1. Detectar si hay partido inminente (rapido, sin deps pesadas) ─────────
+  detect:
+    name: Detectar partido
     runs-on: ubuntu-latest
-    # 115 min partido + 15 min setup/deps = 130 min max
-    timeout-minutes: 130
-
+    timeout-minutes: 3
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+      fixture_id: ${{ steps.detect.outputs.fixture_id }}
+      kickoff_at: ${{ steps.detect.outputs.kickoff_at }}
+      home: ${{ steps.detect.outputs.home }}
+      away: ${{ steps.detect.outputs.away }}
+      run_now: ${{ steps.detect.outputs.run_now }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
-      - name: Install Python deps
-        run: pip install httpx playwright
-
-      - name: Install Chromium
-        run: playwright install chromium --with-deps
-
-      # ── 1. Detectar si hay partido inminente ────────────────────────────
       - name: Detect upcoming fixture
         id: detect
         env:
@@ -116,28 +111,96 @@ jobs:
               f.write(f"run_now={'true' if run_now else 'false'}\n")
           PYEOF
 
-      - name: Skip (no match found)
-        if: steps.detect.outputs.should_run != 'true'
-        run: echo "Sin partido inminente. Terminando."
+  # ── 2. Correr el tester completo (todo el partido) ──────────────────────────
+  # concurrency por fixture: si el cron dispara de nuevo mientras este fixture
+  # sigue LIVE, el nuevo run se ENCOLA en vez de lanzar un tester duplicado en
+  # paralelo (eso pasaba antes: ~7 runs solapados por partido). Partidos
+  # distintos tienen grupos distintos y sí corren en paralelo.
+  run:
+    name: "Tester: ${{ needs.detect.outputs.home }} vs ${{ needs.detect.outputs.away }}"
+    needs: detect
+    if: needs.detect.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    # 115 min partido + 15 min setup/build/deps = 130 min max
+    timeout-minutes: 130
+    concurrency:
+      group: match-tester-${{ needs.detect.outputs.fixture_id }}
+      cancel-in-progress: false
 
-      # ── 2. Correr el tester completo (todo el partido) ──────────────────
-      - name: Run full match tester
-        if: steps.detect.outputs.should_run == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python deps
+        run: pip install httpx playwright
+
+      - name: Install Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── Servir el frontend en el propio runner para las capturas ──────────
+      # No hay despliegue publico; se compila y se sirve localmente con las
+      # credenciales anon (publicas por diseno). Desactivable mas adelante
+      # con la variable de repo MOTM_SCREENSHOTS=false, sin tocar el workflow.
+      - name: Build frontend
+        working-directory: frontend
         env:
-          FIXTURE_ID: ${{ steps.detect.outputs.fixture_id }}
-          RUN_NOW: ${{ steps.detect.outputs.run_now }}
+          VITE_SUPABASE_URL: https://jmavllfamaflchxjvwmh.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30.JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y
+        run: |
+          npm ci
+          npm run build
+
+      - name: Serve frontend (vite preview)
+        working-directory: frontend
+        run: |
+          nohup npx vite preview --port 4173 --strictPort > ../vite-preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4173/ > /dev/null; then
+              echo "Frontend listo tras ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Frontend no respondio a tiempo, se continua sin capturas"
+          cat ../vite-preview.log || true
+
+      # ── Correr el tester completo ────────────────────────────────────────
+      - name: Run full match tester
+        id: run_tester
+        if: always()
+        env:
+          FIXTURE_ID: ${{ needs.detect.outputs.fixture_id }}
+          RUN_NOW: ${{ needs.detect.outputs.run_now }}
+          SCREENSHOTS_ENABLED: ${{ vars.MOTM_SCREENSHOTS }}
         run: |
           mkdir -p tester/reports/screenshots
           NOW_FLAG=""
           if [ "$RUN_NOW" = "true" ]; then NOW_FLAG="--now"; fi
-          python tester/match_tester.py --fixture "$FIXTURE_ID" $NOW_FLAG
+          SHOTS_FLAG="--screenshots"
+          if [ "$SCREENSHOTS_ENABLED" = "false" ]; then SHOTS_FLAG="--no-screenshots"; fi
+          set +e
+          python tester/match_tester.py --fixture "$FIXTURE_ID" $NOW_FLAG --app-url http://localhost:4173 $SHOTS_FLAG
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       # ── 3. Subir reporte como artifact descargable ──────────────────────
       - name: Upload report artifact
-        if: steps.detect.outputs.should_run == 'true' && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: "report-${{ steps.detect.outputs.home }}-vs-${{ steps.detect.outputs.away }}-run${{ github.run_number }}"
+          name: "report-${{ needs.detect.outputs.home }}-vs-${{ needs.detect.outputs.away }}-run${{ github.run_number }}"
           path: |
             tester/reports/*.html
             tester/reports/*.json
@@ -146,7 +209,7 @@ jobs:
 
       # ── 4. Resumen en la UI de GitHub Actions ───────────────────────────
       - name: Job summary
-        if: steps.detect.outputs.should_run == 'true' && always()
+        if: always()
         run: |
           python - << 'PYEOF'
           import json, glob, os
@@ -159,8 +222,9 @@ jobs:
               failed  = d.get("failed_checks", 0)
               samples = len(d.get("samples", []))
               delay   = d.get("first_live_delay_s")
+              warnings = d.get("warnings") or []
               last    = (d.get("samples") or [{}])[-1]
-              result  = "✅ PASÓ" if failed == 0 else f"❌ {failed} FALLOS"
+              result  = "✅ PASÓ" if failed == 0 and not warnings else f"❌ {failed} FALLOS"
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
                   f.write(f"## {result} — {d['home']} vs {d['away']}\n\n")
                   f.write(f"| Kickoff | Checks | Fallos | Muestras | Delay LIVE | Status final | Score final |\n")
@@ -169,5 +233,27 @@ jobs:
                   last_score = f"{last.get('home_score','?')}-{last.get('away_score','?')}"
                   delay_str = f"{delay:.0f}s" if delay else "N/A"
                   f.write(f"| {d['kickoff_at']} | {total} | {failed} | {samples} | {delay_str} | {last_s} | {last_score} |\n\n")
+                  if warnings:
+                      f.write("### Avisos\n\n")
+                      for w in warnings:
+                          f.write(f"- {w.splitlines()[0]}\n")
+                      f.write("\n")
                   f.write("> 📥 Descarga el reporte HTML completo en **Artifacts** (panel derecho).\n")
           PYEOF
+
+      - name: Fail job if tester reported failures
+        if: always()
+        run: |
+          if [ "${{ steps.run_tester.outputs.exit_code }}" != "0" ]; then
+            echo "Tester salio con codigo ${{ steps.run_tester.outputs.exit_code }}"
+            exit 1
+          fi
+
+  skip:
+    name: Sin partido inminente
+    needs: detect
+    if: needs.detect.outputs.should_run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: echo "Sin partido inminente. Terminando."

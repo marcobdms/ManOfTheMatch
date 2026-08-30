@@ -25,3 +25,6 @@ __pycache__/
 *.pyc
 .DS_Store
 .claude/settings.local.json
+
+# reportes locales del tester (en CI van como artifact)
+tester/reports/
