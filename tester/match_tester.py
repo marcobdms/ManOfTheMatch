@@ -254,8 +254,9 @@ def espn_goals(comp: dict) -> list[dict]:
         if "goal" not in t.lower() or "disallowed" in t.lower():
             continue
         clock = d.get("clock") or {}
+        secs = clock.get("value")
         out.append({
-            "minute": clock.get("value"),
+            "minute": round(secs / 60) if secs is not None else None,
             "display": clock.get("displayValue"),
             "type": t,
             "espn_team_id": (d.get("team") or {}).get("id"),
