@@ -216,6 +216,7 @@ export type FotmobLineupTeam = {
  *  `type` decide qué campos importan (ver `mapFotmobTickerEvent` en map.ts). */
 export type FotmobTickerEvent = {
   type: 'Goal' | 'Card' | 'Substitution' | 'Half' | 'AddedTime' | 'Penalty' | string;
+  eventId?: number | null;
   time: number | null;
   overloadTime?: number | null;
   isHome?: boolean | null;

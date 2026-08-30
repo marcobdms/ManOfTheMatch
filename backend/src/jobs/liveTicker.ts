@@ -93,10 +93,12 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
       type === 'SUB' ? (e.swap?.[1]?.name ?? null) : (e.player?.name ?? null);
     const assistName = type === 'SUB' ? (e.swap?.[0]?.name ?? null) : null;
 
-    // Fotmob no da un id de evento estable en todos los tipos (Half/AddedTime
-    // no traen `eventId`) — hash determinista por (tipo, minuto, jugador,
-    // índice) para que un re-fetch del mismo minuto no duplique la fila.
-    const sourceEventId = `${e.type}:${e.time ?? 'x'}:${e.overloadTime ?? 0}:${e.player?.id ?? playerName ?? i}`;
+    // Fotmob corrige goles despues (autogol reatribuido, VAR) cambiando el
+    // jugador — usar `eventId` (estable) cuando existe, no el jugador, o la
+    // correccion crea una fila duplicada en vez de reemplazar la vieja.
+    const sourceEventId = e.eventId != null
+      ? String(e.eventId)
+      : `${e.type}:${e.time ?? 'x'}:${e.overloadTime ?? 0}:${e.player?.id ?? playerName ?? i}`;
 
     rows.push({
       fixture_id: f.id,
@@ -117,7 +119,7 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
   if (!rows.length) return 0;
   const { error } = await db
     .from('match_events')
-    .upsert(rows, { onConflict: 'fixture_id,source,source_event_id', ignoreDuplicates: true });
+    .upsert(rows, { onConflict: 'fixture_id,source,source_event_id' });
   if (error) throw error;
   return rows.length;
 }

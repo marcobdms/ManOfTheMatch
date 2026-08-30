@@ -120,7 +120,12 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
   if (fdId != null) {
     try {
       const m = await getMatch(fdId);
-      status = mapFootballDataStatus(m.status);
+      const fdStatus = mapFootballDataStatus(m.status);
+      // football-data solo usa PAUSED para el descanso; una vez confirmada la
+      // 2a parte (half_number=2) un PAUSED aqui es un dato viejo/cacheado, no
+      // un descanso real (no existe descanso en la 2a parte) — se ignora en
+      // vez de pisar el LIVE ya fijado por liveTickerEspn.
+      if (!(fdStatus === 'PAUSED' && f.half_number === 2)) status = fdStatus;
       if (typeof m.minute === 'number') minute = m.minute;
       home = m.score?.fullTime?.home ?? home;
       away = m.score?.fullTime?.away ?? away;
