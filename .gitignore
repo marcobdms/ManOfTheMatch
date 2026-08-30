@@ -25,6 +25,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .claude/settings.local.json
+.claude/skills/ui-ux-pro-max/
 
 # reportes locales del tester (en CI van como artifact)
 tester/reports/
