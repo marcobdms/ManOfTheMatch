@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChartLineUp } from '@phosphor-icons/react'
+import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import { useUpcomingFixtures } from '../lib/queries'
@@ -74,10 +74,16 @@ function MatchRow({ match, showPredictions }: { match: UpcomingMatch; showPredic
         </span>
       </Link>
       {showPredictions && (
-        <Link to={`/partidos/${match.id}/previsiones`} className="motm-fixture-row__predict">
-          <ChartLineUp size={14} weight="bold" />
-          Previsiones
-        </Link>
+        <div className="motm-fixture-row__actions">
+          <Link to={`/partidos/${match.id}/previsiones`} className="motm-fixture-row__action">
+            <ChartLineUp size={14} weight="bold" />
+            Previsiones
+          </Link>
+          <Link to={`/partidos/${match.id}/alineaciones`} className="motm-fixture-row__action">
+            <UsersThree size={14} weight="bold" />
+            Alineaciones
+          </Link>
+        </div>
       )}
     </div>
   )

@@ -3,20 +3,11 @@ import { ArrowLeft, Bell } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import AnimatedBell from '../components/AnimatedBell'
 import AppHeader from '../components/AppHeader'
-import LineupSkeleton from '../components/LineupSkeleton'
-import PitchLineup from '../components/PitchLineup'
-import PlayerCard from '../components/PlayerCard'
 import TeamCrest from '../components/TeamCrest'
+import TeamLineupBody from '../components/TeamLineupBody'
 import { useTeam, useTeamLineup } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
 import { enablePush, disablePush, getPushStatus } from '../lib/push'
-import type { LineupFreshness } from '../types/view'
-
-const FRESHNESS_LABEL: Record<LineupFreshness, string> = {
-  confirmed: 'Alineación confirmada',
-  predicted: 'Alineación probable',
-  last_played: 'Sin alineación reciente',
-}
 
 /** Ficha de equipo: cancha con el once + banquillo. Fuente de datos:
  *  `team_lineup_snapshots` (Fotmob, plan §A1/§A3-A4). Una lectura, sin joins. */
@@ -30,9 +21,6 @@ export default function TeamLineup() {
 
   const team = teamQuery.data
   const snapshot = lineupQuery.data
-  const starters = snapshot?.players.filter((p) => p.isStarter) ?? []
-  const subs = snapshot?.players.filter((p) => !p.isStarter) ?? []
-
   const loading = teamQuery.isLoading || lineupQuery.isLoading
 
   // El sistema de avisos es "un dispositivo, un equipo favorito" (perfil).
@@ -113,59 +101,8 @@ export default function TeamLineup() {
           )}
         </div>
 
-        {snapshot && (
-          <div className={`motm-freshness motm-freshness--${snapshot.lineupType}`}>
-            {FRESHNESS_LABEL[snapshot.lineupType]}
-            {snapshot.lineupType === 'last_played' && snapshot.opponentName && (
-              <span className="motm-freshness__detail">
-                {' '}
-                — último once ante {snapshot.opponentName}
-                {snapshot.kickoffAt ? `, ${formatDate(snapshot.kickoffAt)}` : ''}
-              </span>
-            )}
-            {snapshot.lineupType !== 'last_played' && snapshot.opponentName && (
-              <span className="motm-freshness__detail">
-                {' '}
-                — {snapshot.isHome ? 'vs' : '@'} {snapshot.opponentName}
-                {snapshot.kickoffAt ? `, ${formatDate(snapshot.kickoffAt)}` : ''}
-              </span>
-            )}
-          </div>
-        )}
-
-        {loading && <LineupSkeleton />}
-
-        {!loading && lineupQuery.isError && (
-          <div className="motm-empty">
-            <b>No se pudo cargar</b>
-            Inténtalo de nuevo en unos minutos.
-          </div>
-        )}
-
-        {!loading && !lineupQuery.isError && !snapshot && (
-          <div className="motm-empty">
-            <b>Sin alineación todavía</b>
-            Todavía no tenemos la alineación de este equipo.
-          </div>
-        )}
-
-        {!loading && snapshot && starters.length > 0 && <PitchLineup starters={starters} />}
-
-        {!loading && snapshot && subs.length > 0 && (
-          <div className="motm-subs">
-            <h2 className="motm-label motm-subs__title">Suplentes</h2>
-            <div className="motm-subs__row">
-              {subs.map((p, i) => (
-                <PlayerCard key={`${p.name}-${i}`} player={p} variant="sub" />
-              ))}
-            </div>
-          </div>
-        )}
+        <TeamLineupBody snapshot={snapshot} loading={loading} isError={lineupQuery.isError} />
       </div>
     </>
   )
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
 }

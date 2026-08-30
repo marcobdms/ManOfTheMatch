@@ -987,6 +987,10 @@
 }
 .motm-segmented__btn {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
   background: transparent;
   border-radius: var(--r-btn);
@@ -1045,13 +1049,18 @@
 }
 /* Mismo pill oscuro que "Ver estadísticas" (.motm-btn), a escala reducida
    para caber dentro de la tarjeta de partido en vez de una franja plana. */
-.motm-fixture-row__predict {
+.motm-fixture-row__actions {
+  display: flex;
+  gap: 8px;
+  margin: 2px 14px 14px;
+}
+.motm-fixture-row__action {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   height: 36px;
-  margin: 2px 14px 14px;
   border: 0;
   border-radius: var(--r-btn);
   background: var(--btn);

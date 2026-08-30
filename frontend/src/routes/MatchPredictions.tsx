@@ -5,7 +5,7 @@ import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import StatCompareRow from '../components/StatCompareRow'
 import { useFixtureById, useMatchOdds, useMatchPrediction } from '../lib/queries'
-import { translateFact } from '../lib/predictions'
+import { impliedResultPercent, translateFact } from '../lib/predictions'
 import type { TeamStatPair } from '../types/view'
 
 /** Previsión pre-partido: consenso, argumentos de Fotmob, comparativa y
@@ -24,7 +24,13 @@ export default function MatchPredictions() {
   const activeBookmaker = odds.find((o) => o.bookmakerId === bookmakerId) ?? odds[0]
 
   const loading = matchQuery.isLoading || predictionQuery.isLoading || oddsQuery.isLoading
-  const hasPercent = pred?.percentHome != null || pred?.percentDraw != null || pred?.percentAway != null
+  // Preferimos la probabilidad implícita de las cuotas reales al "percent" de
+  // API-Football (ver lib/predictions.ts) — solo caemos a ese si no hay cuotas.
+  const implied = impliedResultPercent(odds)
+  const percentHome = implied?.home ?? pred?.percentHome ?? null
+  const percentDraw = implied?.draw ?? pred?.percentDraw ?? null
+  const percentAway = implied?.away ?? pred?.percentAway ?? null
+  const hasPercent = percentHome != null || percentDraw != null || percentAway != null
   const hasComparison = pred?.formHome != null
   const hasAnything = hasPercent || hasComparison || (pred?.facts.length ?? 0) > 0 || odds.length > 0
 
@@ -69,9 +75,9 @@ export default function MatchPredictions() {
               <TeamCrest teamId={match.away.id} tla={match.away.tla} size={28} />
             </div>
             <div className="motm-predict-percent">
-              <span className="motm-predict-percent__val">{pred?.percentHome ?? '—'}%</span>
-              <span className="motm-predict-percent__val motm-predict-percent__val--draw">{pred?.percentDraw ?? '—'}%</span>
-              <span className="motm-predict-percent__val">{pred?.percentAway ?? '—'}%</span>
+              <span className="motm-predict-percent__val">{percentHome ?? '—'}%</span>
+              <span className="motm-predict-percent__val motm-predict-percent__val--draw">{percentDraw ?? '—'}%</span>
+              <span className="motm-predict-percent__val">{percentAway ?? '—'}%</span>
             </div>
           </div>
         )}

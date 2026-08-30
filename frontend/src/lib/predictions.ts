@@ -1,4 +1,4 @@
-import type { PredictionFact } from '../types/view'
+import type { MatchOdds, PredictionFact } from '../types/view'
 
 // Plantillas verificadas contra datos reales de Fotmob (2026-08-30/31). Un
 // TextTemplateId no listado aquí se omite — nunca se muestra en inglés ni se
@@ -24,4 +24,28 @@ export function translateFact(fact: PredictionFact, homeName: string, awayName: 
     if (raw === 'away_team') return awayName
     return raw ?? ''
   })
+}
+
+/**
+ * "Quién gana" a partir de las cuotas reales (implied probability = 1/cuota,
+ * normalizada para quitar el margen de la casa), promediado entre casas.
+ * Más fiable que el `percent` que da API-Football gratis — ese motor a
+ * veces suelta cosas como 50/50/0% con un H2H claramente a favor de uno de
+ * los dos (visto en producción con Barça–Rayo el 2026-08-30).
+ */
+export function impliedResultPercent(odds: MatchOdds[]): { home: number; draw: number; away: number } | null {
+  if (!odds.length) return null
+  const probs = odds.map((o) => {
+    const h = 1 / o.home
+    const d = 1 / o.draw
+    const a = 1 / o.away
+    const total = h + d + a
+    return { home: h / total, draw: d / total, away: a / total }
+  })
+  const avg = (key: 'home' | 'draw' | 'away') => probs.reduce((sum, p) => sum + p[key], 0) / probs.length
+  return {
+    home: Math.round(avg('home') * 100),
+    draw: Math.round(avg('draw') * 100),
+    away: Math.round(avg('away') * 100),
+  }
 }
