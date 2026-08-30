@@ -10,11 +10,12 @@
 //   teams(id, tla, name, ...)   competitions(id, short_name, ...)
 
 import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { POLL, TRACKED_TEAM_IDS } from './shared'
 import type { MatchEventType, MatchStatus } from './shared'
 import { supabase } from './supabase'
 import type {
+  AiPrediction,
   GoalChip,
   LineupFreshness,
   LineupPlayer,
@@ -947,5 +948,75 @@ export function useMatchPrediction(fixtureId: string | undefined) {
     queryFn: () => fetchMatchPrediction(fixtureId as string),
     enabled: hasSupabaseEnv && !!fixtureId,
     retry: false,
+  })
+}
+
+type AiPredictionRow = {
+  fixture_id: string
+  paragraph: string
+  predicted_result: 'home' | 'draw' | 'away'
+  pros: string[] | null
+  cons: string[] | null
+  model: string
+  generated_at: string
+}
+
+function mapAiPredictionRow(row: AiPredictionRow): AiPrediction {
+  return {
+    fixtureId: row.fixture_id,
+    paragraph: row.paragraph,
+    predictedResult: row.predicted_result,
+    pros: row.pros ?? [],
+    cons: row.cons ?? [],
+    model: row.model,
+    generatedAt: row.generated_at,
+  }
+}
+
+/** `match_ai_predictions` — supabase/migrations/0011_ai_predictions.sql.
+ *  Se cachea al generarla (frontend/api/predict.ts); esta query solo lee. */
+async function fetchAiPrediction(fixtureId: string): Promise<AiPrediction | null> {
+  const { data, error } = await supabase
+    .from('match_ai_predictions')
+    .select('fixture_id, paragraph, predicted_result, pros, cons, model, generated_at')
+    .eq('fixture_id', fixtureId)
+    .maybeSingle()
+    .returns<AiPredictionRow>()
+  if (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
+  return data ? mapAiPredictionRow(data) : null
+}
+
+export function useAiPrediction(fixtureId: string | undefined) {
+  return useQuery({
+    queryKey: ['aiPrediction', fixtureId],
+    queryFn: () => fetchAiPrediction(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+/** Dispara la generación (POST /api/predict, Vercel function → Groq) y deja
+ *  el resultado en caché de React Query bajo la misma key que useAiPrediction
+ *  — no hace falta refetch, la próxima visita ya la lee de match_ai_predictions. */
+export function useGenerateAiPrediction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (fixtureId: string): Promise<AiPrediction> => {
+      const res = await fetch('/api/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fixtureId }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error ?? 'No se pudo generar la previsión')
+      return json as AiPrediction
+    },
+    onSuccess: (data, fixtureId) => {
+      qc.setQueryData(['aiPrediction', fixtureId], data)
+    },
   })
 }

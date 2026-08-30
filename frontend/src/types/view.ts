@@ -192,3 +192,16 @@ export type MatchPrediction = {
   defAway: number | null
   facts: PredictionFact[]
 }
+
+/** Previsión generada por IA (Groq, frontend/api/predict.ts) a partir solo
+ *  de match_odds/match_predictions — cacheada en match_ai_predictions,
+ *  una vez por partido (supabase/migrations/0011_ai_predictions.sql). */
+export type AiPrediction = {
+  fixtureId: string
+  paragraph: string
+  predictedResult: 'home' | 'draw' | 'away'
+  pros: string[]
+  cons: string[]
+  model: string
+  generatedAt: string
+}

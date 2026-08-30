@@ -1621,3 +1621,45 @@
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+
+/* ===== Previsión con IA (Groq, frontend/api/predict.ts) ===== */
+.motm-ai__generate {
+  width: 100%;
+}
+.motm-ai__paragraph {
+  margin: 4px 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.motm-ai__list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.motm-ai__list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.motm-ai__list li::before {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-weight: 800;
+}
+.motm-ai__list--pro li {
+  color: var(--good);
+}
+.motm-ai__list--pro li::before {
+  content: '+';
+}
+.motm-ai__list--con li {
+  color: var(--brand);
+}
+.motm-ai__list--con li::before {
+  content: '–';
+}

@@ -17,6 +17,7 @@
   --score-bg: #101114;
   --yellow-tint: #fff7da;
   --yellow-ink: #b8860b;
+  --good: #1a7f37;
 
   --r-card: 20px;
   --r-btn: 999px;
@@ -59,6 +60,7 @@
     --score-bg: #1e1e22;
     --yellow-tint: #3a2f10;
     --yellow-ink: #e0b34d;
+    --good: #4ade80;
   }
 }
 :root[data-theme='dark'] {
@@ -75,6 +77,7 @@
   --score-bg: #1e1e22;
   --yellow-tint: #3a2f10;
   --yellow-ink: #e0b34d;
+  --good: #4ade80;
 }
 
 * {
