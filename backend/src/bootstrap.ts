@@ -4,6 +4,9 @@ import { refreshTeamCache } from './lib/ids.js';
 import { syncFixtures } from './jobs/syncFixtures.js';
 import { syncStandings } from './jobs/syncStandings.js';
 import { liveLoop } from './jobs/liveLoop.js';
+import { liveTicker } from './jobs/liveTicker.js';
+import { liveTickerEspnTick } from './jobs/liveTickerEspn.js';
+import { syncMatchFacts } from './jobs/syncMatchFacts.js';
 import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
 import { syncLineups } from './jobs/syncLineups.js';
 
@@ -20,6 +23,19 @@ new Cron('30 6,18 * * *', guard(syncStandings));
 
 // Live loop: every minute (POLL.liveSeconds), cheap when nothing is in play.
 new Cron('* * * * *', guard(liveLoop));
+
+// Marcador + goles/tarjetas con la mínima latencia posible: ESPN cada 2s.
+// Su CDN sirve `max-age=1`, así que sondear rápido SÍ aporta aquí (a
+// diferencia de Fotmob, ver abajo). El job consulta primero si hay algún
+// fixture LIVE/PAUSED; si no hay, no toca la red.
+new Cron('*/2 * * * * *', { protect: true }, guard(liveTickerEspnTick));
+
+// Histórico y stats de Fotmob: cada 60s, no más rápido. Su `matchDetails`
+// viene con `cache-control: max-age=300` (5 min) y llega con `age` de hasta
+// ~100s, así que pedirlo cada 10s gastaba peticiones sin traer nada nuevo.
+// Los goles urgentes ya los cubre ESPN arriba.
+new Cron('* * * * *', { protect: true }, guard(liveTicker));
+new Cron('* * * * *', { protect: true }, guard(syncMatchFacts));
 
 // API-Football post-match / confirmed-lineup enrichment. Cheap scan every 5 min;
 // each dispatch is budget-guarded (100 req/day free tier).

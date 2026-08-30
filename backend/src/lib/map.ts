@@ -79,6 +79,30 @@ export function mapTheSportsDbStatus(s: string | null | undefined): MatchStatus 
   return 'SCHEDULED';
 }
 
+/** ESPN `status.type.name` / `state` (site.api.espn.com scoreboard). Nombres
+ *  estándar de ESPN, consistentes entre deportes; `state` como respaldo si
+ *  `name` cambia de valor no documentado. */
+export function mapEspnStatus(name: string | null | undefined, state: string | null | undefined): MatchStatus {
+  const n = (name ?? '').toUpperCase();
+  if (n === 'STATUS_HALFTIME') return 'PAUSED';
+  if (n === 'STATUS_FULL_TIME' || n === 'STATUS_FINAL') return 'FINISHED';
+  if (n === 'STATUS_POSTPONED') return 'POSTPONED';
+  if (n === 'STATUS_CANCELED' || n === 'STATUS_ABANDONED' || n === 'STATUS_SUSPENDED') return 'SUSPENDED';
+  if (n === 'STATUS_SCHEDULED') return 'SCHEDULED';
+  if (n === 'STATUS_IN_PROGRESS') return 'LIVE';
+
+  switch ((state ?? '').toLowerCase()) {
+    case 'pre':
+      return 'SCHEDULED';
+    case 'in':
+      return 'LIVE';
+    case 'post':
+      return 'FINISHED';
+    default:
+      return 'SCHEDULED';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // §6.5 — event → MatchEventType  (null = ignore this row)
 // ---------------------------------------------------------------------------
@@ -134,6 +158,30 @@ export function mapTheSportsDbEvent(
   return null;
 }
 
+/** ESPN `details[]` — flags booleanos planos (`redCard`,`yellowCard`,`ownGoal`,
+ *  `penaltyKick`) en vez de un `detail` de texto libre como API-Football. El
+ *  `type.text` variable ("Goal - Header", "Goal - Volley") solo importa para
+ *  distinguir sustitución/goal/tarjeta, el resto lo dan los flags. */
+export function mapEspnEvent(d: {
+  type?: { text?: string | null } | null;
+  redCard?: boolean | null;
+  yellowCard?: boolean | null;
+  ownGoal?: boolean | null;
+  penaltyKick?: boolean | null;
+  scoringPlay?: boolean | null;
+}): MatchEventType | null {
+  const text = (d.type?.text ?? '').toLowerCase();
+  if (d.ownGoal) return 'OWN_GOAL';
+  if (text.startsWith('goal') || d.scoringPlay) return d.penaltyKick ? 'PENALTY_GOAL' : 'GOAL';
+  if (text.includes('missed penalty') || (d.penaltyKick && !d.scoringPlay && text.includes('penalty'))) {
+    return 'PENALTY_MISS';
+  }
+  if (d.redCard) return 'RED'; // ESPN no distingue 2ª amarilla de roja directa
+  if (d.yellowCard) return 'YELLOW';
+  if (text.includes('substitution')) return 'SUB';
+  return null;
+}
+
 /** Goal-family event types — a score-changing event for one side. */
 export const GOAL_EVENT_TYPES: ReadonlySet<MatchEventType> = new Set<MatchEventType>([
   'GOAL',
@@ -177,4 +225,35 @@ export function fotmobPositionLabel(x: number | null, y: number | null): string 
   }
   if (isWide) return lane < 0.5 ? 'EI' : 'ED';
   return 'DC';
+}
+
+// ---------------------------------------------------------------------------
+// Fotmob matchFacts.events → MatchEventType (histórico en vivo, plan §liveTicker)
+// ---------------------------------------------------------------------------
+
+/** `FotmobTickerEvent.type` → nuestro `MatchEventType`, o `null` si no nos
+ *  interesa mostrarlo (Fotmob no manda tipos que no reconozcamos hoy). */
+export function mapFotmobTickerEvent(
+  type: string,
+  card: string | null | undefined,
+  ownGoal: boolean | null | undefined,
+  goalDescriptionKey: string | null | undefined,
+): MatchEventType | null {
+  switch (type) {
+    case 'Goal':
+      if (ownGoal) return 'OWN_GOAL';
+      if (goalDescriptionKey === 'penalty') return 'PENALTY_GOAL';
+      return 'GOAL';
+    case 'Card':
+      if (card === 'Red' || card === 'YellowRed') return card === 'YellowRed' ? 'SECOND_YELLOW' : 'RED';
+      return 'YELLOW';
+    case 'Substitution':
+      return 'SUB';
+    case 'Half':
+      return 'PERIOD';
+    default:
+      // AddedTime, Penalty (fallado — no confirmado el shape), VAR sin
+      // verificar en vivo todavía: se ignoran en vez de adivinar su forma.
+      return null;
+  }
 }

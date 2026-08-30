@@ -93,16 +93,29 @@ async function upsertFixture(
 
   const { data: found } = await db
     .from('fixtures')
-    .select('id, source_ids')
+    .select('id, source_ids, status')
     .filter('source_ids->>footballData', 'eq', String(m.id))
     .limit(1);
-  const existing = (found ?? [])[0] as { id: string; source_ids: Record<string, unknown> | null } | undefined;
+  const existing = (found ?? [])[0] as
+    | { id: string; source_ids: Record<string, unknown> | null; status: string }
+    | undefined;
 
   if (existing?.id) {
-    await db
-      .from('fixtures')
-      .update({ ...row, source_ids: { ...(existing.source_ids ?? {}), footballData: m.id } })
-      .eq('id', existing.id);
+    // Este job corre a las 06:00 y 18:00 UTC con datos de football-data
+    // cacheados hasta 1 h — justo cuando puede haber partido en juego. Si el
+    // fixture está en vivo, NO se tocan marcador/estado/minuto: eso es
+    // territorio de liveLoop/liveTicker, que van con fuentes frescas. Pisarlo
+    // aquí revive el bug de "el gol no sube al marcador".
+    const isLive = existing.status === 'LIVE' || existing.status === 'PAUSED';
+    const patch = { ...row, source_ids: { ...(existing.source_ids ?? {}), footballData: m.id } };
+    if (isLive) {
+      delete (patch as Partial<typeof row>).status;
+      delete (patch as Partial<typeof row>).home_score;
+      delete (patch as Partial<typeof row>).away_score;
+      delete (patch as Partial<typeof row>).home_score_ht;
+      delete (patch as Partial<typeof row>).away_score_ht;
+    }
+    await db.from('fixtures').update(patch).eq('id', existing.id);
   } else {
     await db.from('fixtures').insert({ ...row, source_ids: { footballData: m.id } });
   }

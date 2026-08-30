@@ -1309,3 +1309,207 @@
   font-weight: 800;
   color: var(--brand);
 }
+
+/* comparativa: barra partida en dos mitades (local/visitante), en vez de una
+   sola barra rellenada — dos colores, no solo posición, para no depender del
+   color como único código (accesibilidad). */
+.motm-compare-row__bar--split {
+  display: flex;
+}
+.motm-compare-row__bar-fill--away {
+  background: var(--ink);
+}
+
+.motm-compare__rows {
+  margin-top: 4px;
+}
+
+/* ===== Momentum (gráfico estrella, arriba del todo) ===== */
+.motm-momentum {
+  margin: 16px 16px 0;
+  padding: 16px 16px 10px;
+  background: var(--muted);
+  border-radius: var(--r-card);
+}
+.motm-momentum__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.motm-momentum__team {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.motm-momentum__team--away {
+  color: var(--ink);
+}
+.motm-momentum__title {
+  font-size: 11px;
+}
+.motm-momentum__svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  overflow: visible;
+}
+.motm-momentum__axis {
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.motm-momentum__axis-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* ===== Disparos (match_shots) ===== */
+.motm-shot-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.motm-shot {
+  display: grid;
+  grid-template-columns: 30px 3px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.motm-shot:last-child {
+  border-bottom: 0;
+}
+.motm-shot__min {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.motm-shot__side {
+  align-self: stretch;
+  border-radius: 999px;
+  background: var(--brand);
+}
+.motm-shot__side--away {
+  background: var(--ink);
+}
+.motm-shot__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.motm-shot__player {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.motm-shot__meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.motm-shot__xg {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.motm-shot--goal .motm-shot__xg {
+  color: var(--brand);
+}
+.motm-shot--goal .motm-shot__player {
+  color: var(--brand);
+}
+
+/* ===== Menú hamburguesa (panel lateral) ===== */
+.motm-drawer__veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.44);
+  z-index: 40;
+}
+.motm-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(84vw, 320px);
+  background: #fff;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-shadow: var(--sh-dark);
+  /* Sin esto, un iPhone con notch tapa la cabecera y el botón de cerrar con
+     la barra de estado — el panel es lo primero que se toca al abrir. */
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(16px, var(--safe-b));
+}
+.motm-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.motm-drawer__nav {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+.motm-drawer__link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 13px 8px;
+  min-height: 44px;
+  border-radius: 12px;
+  font-family: var(--f-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.motm-drawer__link:hover {
+  background: var(--muted);
+}
+.motm-drawer__link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.motm-drawer__link--danger {
+  color: var(--brand);
+}
+.motm-drawer__divider {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0;
+}
+.motm-drawer__auth {
+  padding: 4px 8px 8px;
+}
+.motm-drawer__auth-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.motm-drawer__auth-btn {
+  flex: 1;
+  height: 44px;
+  font-size: 13px;
+}
+.motm-drawer__footer {
+  margin-top: auto;
+  padding: 8px;
+}

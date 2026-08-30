@@ -1,0 +1,173 @@
+﻿name: Match Tester
+
+on:
+  # Cada 15 min en horario de partidos LaLiga (14:00-23:59 UTC = 16:00-01:59 CEST)
+  # Si no hay partido inminente -> termina en ~30s (barato)
+  schedule:
+    - cron: '0,15,30,45 14-23 * * *'
+
+  # Disparo manual: util para testear ahora o forzar un fixture concreto
+  workflow_dispatch:
+    inputs:
+      fixture_id:
+        description: 'ID del fixture (dejar vacio = auto-detectar)'
+        required: false
+        default: ''
+      run_now:
+        description: 'Empezar inmediatamente sin esperar kickoff'
+        type: boolean
+        default: false
+
+jobs:
+  match-tester:
+    name: ${{ github.event.inputs.fixture_id != '' && 'Fixture forzado' || 'Auto-detectar partido' }}
+    runs-on: ubuntu-latest
+    # 115 min partido + 15 min setup/deps = 130 min max
+    timeout-minutes: 130
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python deps
+        run: pip install httpx playwright
+
+      - name: Install Chromium
+        run: playwright install chromium --with-deps
+
+      # ── 1. Detectar si hay partido inminente ────────────────────────────
+      - name: Detect upcoming fixture
+        id: detect
+        env:
+          INPUT_FIXTURE_ID: ${{ github.event.inputs.fixture_id }}
+          INPUT_RUN_NOW: ${{ github.event.inputs.run_now }}
+        run: |
+          python - << 'PYEOF'
+          import os, sys, json, urllib.request
+          from datetime import datetime, timezone, timedelta
+          from urllib.parse import urlencode
+
+          URL = "https://jmavllfamaflchxjvwmh.supabase.co/rest/v1"
+          KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30.JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y"
+          H = {"apikey": KEY, "Authorization": f"Bearer {KEY}"}
+
+          def get(path, params):
+              req = urllib.request.Request(f"{URL}/{path}?{urlencode(params)}", headers=H)
+              return json.loads(urllib.request.urlopen(req, timeout=15).read())
+
+          fid = os.environ.get("INPUT_FIXTURE_ID", "").strip()
+          run_now = os.environ.get("INPUT_RUN_NOW", "false").lower() == "true"
+          now = datetime.now(timezone.utc)
+          fixture = None
+
+          if fid:
+              rows = get("fixtures", {
+                  "select": "id,kickoff_at,status,home_team_name,away_team_name",
+                  "id": f"eq.{fid}", "limit": "1"
+              })
+              fixture = rows[0] if rows else None
+              run_now = True  # fixture forzado = empezar ya
+              print(f"Fixture forzado: {fixture}")
+          else:
+              # Buscar partido LIVE/PAUSED activo
+              live = get("fixtures", {
+                  "select": "id,kickoff_at,status,home_team_name,away_team_name",
+                  "status": "in.(LIVE,PAUSED)", "limit": "1"
+              })
+              if live:
+                  fixture = live[0]
+                  run_now = True
+                  print(f"Partido LIVE detectado: {fixture['home_team_name']} vs {fixture['away_team_name']}")
+              else:
+                  # Buscar partido que empiece en los proximos 16 min
+                  lo = (now - timedelta(minutes=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                  hi = (now + timedelta(minutes=16)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                  rows = get("fixtures", {
+                      "select": "id,kickoff_at,status,home_team_name,away_team_name",
+                      "kickoff_at": f"gte.{lo}",
+                      "order": "kickoff_at.asc", "limit": "5"
+                  })
+                  soon = [r for r in (rows or []) if r.get("kickoff_at", "") <= hi
+                          and r.get("status") not in ("FINISHED", "POSTPONED", "SUSPENDED")]
+                  fixture = soon[0] if soon else None
+                  if fixture:
+                      print(f"Partido en {fixture['kickoff_at']}: {fixture['home_team_name']} vs {fixture['away_team_name']}")
+                  else:
+                      print("No hay partido en los proximos 16 min — nada que hacer.")
+
+          out = os.environ["GITHUB_OUTPUT"]
+          if not fixture:
+              with open(out, "a") as f:
+                  f.write("should_run=false\n")
+              sys.exit(0)
+
+          with open(out, "a") as f:
+              f.write("should_run=true\n")
+              f.write(f"fixture_id={fixture['id']}\n")
+              f.write(f"kickoff_at={fixture['kickoff_at']}\n")
+              f.write(f"home={fixture.get('home_team_name','Home')}\n")
+              f.write(f"away={fixture.get('away_team_name','Away')}\n")
+              f.write(f"run_now={'true' if run_now else 'false'}\n")
+          PYEOF
+
+      - name: Skip (no match found)
+        if: steps.detect.outputs.should_run != 'true'
+        run: echo "Sin partido inminente. Terminando."
+
+      # ── 2. Correr el tester completo (todo el partido) ──────────────────
+      - name: Run full match tester
+        if: steps.detect.outputs.should_run == 'true'
+        env:
+          FIXTURE_ID: ${{ steps.detect.outputs.fixture_id }}
+          RUN_NOW: ${{ steps.detect.outputs.run_now }}
+        run: |
+          mkdir -p tester/reports/screenshots
+          NOW_FLAG=""
+          if [ "$RUN_NOW" = "true" ]; then NOW_FLAG="--now"; fi
+          python tester/match_tester.py --fixture "$FIXTURE_ID" $NOW_FLAG
+
+      # ── 3. Subir reporte como artifact descargable ──────────────────────
+      - name: Upload report artifact
+        if: steps.detect.outputs.should_run == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "report-${{ steps.detect.outputs.home }}-vs-${{ steps.detect.outputs.away }}-run${{ github.run_number }}"
+          path: |
+            tester/reports/*.html
+            tester/reports/*.json
+            tester/reports/screenshots/*.png
+          retention-days: 30
+
+      # ── 4. Resumen en la UI de GitHub Actions ───────────────────────────
+      - name: Job summary
+        if: steps.detect.outputs.should_run == 'true' && always()
+        run: |
+          python - << 'PYEOF'
+          import json, glob, os
+          files = sorted(glob.glob("tester/reports/*.json"))
+          if not files:
+              print("Sin reporte JSON.")
+          else:
+              d = json.loads(open(files[-1]).read())
+              total   = d.get("total_checks", 0)
+              failed  = d.get("failed_checks", 0)
+              samples = len(d.get("samples", []))
+              delay   = d.get("first_live_delay_s")
+              last    = (d.get("samples") or [{}])[-1]
+              result  = "✅ PASÓ" if failed == 0 else f"❌ {failed} FALLOS"
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                  f.write(f"## {result} — {d['home']} vs {d['away']}\n\n")
+                  f.write(f"| Kickoff | Checks | Fallos | Muestras | Delay LIVE | Status final | Score final |\n")
+                  f.write(f"|---------|--------|--------|----------|------------|--------------|-------------|\n")
+                  last_s = last.get("status","?")
+                  last_score = f"{last.get('home_score','?')}-{last.get('away_score','?')}"
+                  delay_str = f"{delay:.0f}s" if delay else "N/A"
+                  f.write(f"| {d['kickoff_at']} | {total} | {failed} | {samples} | {delay_str} | {last_s} | {last_score} |\n\n")
+                  f.write("> 📥 Descarga el reporte HTML completo en **Artifacts** (panel derecho).\n")
+          PYEOF

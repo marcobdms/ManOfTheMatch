@@ -116,3 +116,55 @@ export type TeamLineupSnapshot = {
   players: LineupPlayer[]
   updatedAt: string
 }
+
+// ---- Estadísticas ampliadas del partido (pendiente de ingesta del Agente A) ----
+// Tablas todavía no confirmadas — ver docs/plan-2026-08-29.md. Los hooks que
+// consumen estos tipos (lib/queries.ts) toleran que la tabla no exista aún.
+
+/** Un punto del gráfico de momentum: +valor domina el local, -valor el visitante. */
+export type MomentumPoint = {
+  minute: number
+  value: number
+}
+
+/** Periodo al que se refiere una comparativa de equipo. */
+export type StatPeriod = 'total' | 'first' | 'second'
+
+/** Un par local/visitante para una métrica concreta, de `match_team_stats`. */
+export type TeamStatPair = {
+  key: string // ej. 'possession', 'shots', 'xg'
+  label: string
+  home: number
+  away: number
+  /** true → mostrar con un decimal (xG); false → entero (tiros, pases...) */
+  isDecimal?: boolean
+  /** true → valor en porcentaje (posesión, precisión de pase) */
+  isPercent?: boolean
+}
+
+/** Comparativa de equipo completa de un partido, ya separada por periodo. */
+export type TeamStatsComparison = {
+  [period in StatPeriod]: TeamStatPair[]
+}
+
+export type ShotType = 'Goal' | 'Miss' | 'AttemptSaved' | 'BlockedShot' | 'Post'
+export type ShotSituation =
+  | 'OpenPlay'
+  | 'SetPiece'
+  | 'FastBreak'
+  | 'Corner'
+  | 'Penalty'
+  | 'DirectFreekick'
+
+/** Una fila de `match_shots` (supabase/migrations/0008_shot_events.sql). */
+export type MatchShot = {
+  id: string
+  minute: number
+  teamId: string
+  playerName: string
+  type: ShotType
+  situation: ShotSituation | null
+  isOnTarget: boolean
+  isBlocked: boolean
+  xg: number | null
+}

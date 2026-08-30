@@ -81,6 +81,16 @@ function circuitIsOpen(): boolean {
   return Date.now() < circuitOpenUntil;
 }
 
+/** Estado observable del circuit breaker — para que un caller (liveTicker.ts)
+ *  pueda dejarlo escrito en `sync_runs.error` y sea visible sin mirar logs. */
+export function fotmobCircuitStatus(): { open: boolean; openUntil: string | null; consecutiveFailures: number } {
+  return {
+    open: circuitIsOpen(),
+    openUntil: circuitOpenUntil > 0 ? new Date(circuitOpenUntil).toISOString() : null,
+    consecutiveFailures,
+  };
+}
+
 function recordFailure(status: number): void {
   consecutiveFailures++;
   console.warn(`[fotmob] fallo ${status} (${consecutiveFailures}/${FAILURE_THRESHOLD} seguidos)`);
@@ -103,7 +113,7 @@ function recordSuccess(): void {
  * devuelve `null`, para que el llamador caiga al snapshot anterior sin
  * interrumpir el resto del sweep.
  */
-async function fotmobGet<T>(url: string, ttlSeconds: number): Promise<T | null> {
+async function fotmobGet<T>(url: string, ttlSeconds: number, maxAgeSeconds?: number): Promise<T | null> {
   if (circuitIsOpen()) {
     console.warn(`[fotmob] circuito abierto — se omite ${url} sin tocar la red`);
     return null;
@@ -113,6 +123,7 @@ async function fotmobGet<T>(url: string, ttlSeconds: number): Promise<T | null> 
     const body = await cachedJson<T>(url, {
       headers: { 'User-Agent': BROWSER_UA },
       ttlSeconds,
+      maxAgeSeconds,
       beforeFetch: () => throttledRun(async () => {}),
     });
     recordSuccess();
@@ -143,12 +154,24 @@ export function getMatchesByDate(yyyymmdd: string) {
   return fotmobGet<FotmobMatchesByDate>(`${BASE}/matches?date=${yyyymmdd}`, 1800);
 }
 
-/** Detalle de un partido (incluye `content.lineup`).
- *  TTL corto (5 min) si está en juego, largo (6h) si ya terminó — el llamador
- *  decide según el estado conocido del fixture. */
+/** Detalle de un partido: `content.lineup`, `content.matchFacts.events`
+ *  (goles/tarjetas/cambios/descanso/tiempo añadido) y `content.shotmap.shots`
+ *  (disparos con minuto/jugador/tipo/situación).
+ *
+ *  Todos los llamadores comparten `cache_key` (misma URL), así que en vivo NO
+ *  basta con pedir un TTL corto: si `syncLineups` ya dejó una entrada con TTL
+ *  de 6 h (partido aún no empezado), esa entrada seguiría sirviéndose "fresca"
+ *  y el histórico se congelaría en el estado previo al partido — es
+ *  exactamente el bug que dejó el timeline parado en el minuto 55.
+ *  `maxAgeSeconds` corta ese caso: en vivo nunca se acepta un body de más de
+ *  10 s, sea cual sea el `expires_at` que dejó otro llamador. */
 export function getMatchDetails(matchId: number | string, opts: { live: boolean }) {
-  const ttl = opts.live ? 300 : 6 * 3600;
-  return fotmobGet<FotmobMatchDetails>(`${BASE}/matchDetails?matchId=${matchId}`, ttl);
+  const url = `${BASE}/matchDetails?matchId=${matchId}`;
+  // 60s en vivo: el CDN de Fotmob cachea esto 5 min, así que bajar de ahí solo
+  // gasta peticiones. El marcador urgente lo lleva ESPN (liveTickerEspn).
+  return opts.live
+    ? fotmobGet<FotmobMatchDetails>(url, 60, 60)
+    : fotmobGet<FotmobMatchDetails>(url, 6 * 3600);
 }
 
 // --- shapes (solo lo que consumimos, igual que apiFootball.ts) -------------
@@ -189,12 +212,105 @@ export type FotmobLineupTeam = {
   subs?: FotmobPlayer[] | null;
 };
 
+/** Un evento del histórico (`content.matchFacts.events.events`). Union laxa:
+ *  `type` decide qué campos importan (ver `mapFotmobTickerEvent` en map.ts). */
+export type FotmobTickerEvent = {
+  type: 'Goal' | 'Card' | 'Substitution' | 'Half' | 'AddedTime' | 'Penalty' | string;
+  time: number | null;
+  overloadTime?: number | null;
+  isHome?: boolean | null;
+  player?: { id: number | null; name?: string | null } | null;
+  // Goal
+  ownGoal?: boolean | null;
+  goalDescriptionKey?: string | null; // p.ej. "penalty"
+  assistStr?: string | null;
+  // Card
+  card?: 'Yellow' | 'YellowRed' | 'Red' | string | null;
+  // Half
+  halfStrShort?: string | null; // "HT" | "FT"
+  // AddedTime
+  minutesAddedInput?: number | null;
+  // Substitution
+  swap?: Array<{ name: string | null; id: string | null }> | null;
+};
+
+export type FotmobStatItem = {
+  title: string;
+  key?: string;
+  stats?: [unknown, unknown] | unknown[]; // [home, away] — a veces string "290 (81%)"
+};
+
+export type FotmobStatGroup = {
+  title: string; // 'Top stats' | 'Shots' | 'Expected goals (xG)' | 'Passes' | 'Defence' | 'Duels'
+  key?: string;
+  stats?: FotmobStatItem[];
+};
+
+export type FotmobPeriodStats = { stats?: FotmobStatGroup[] };
+
+export type FotmobPlayerStatEntry = { key?: string | null; stat?: { value?: unknown; total?: unknown; type?: string } };
+export type FotmobPlayerStatGroup = { title: string; key?: string; stats?: Record<string, FotmobPlayerStatEntry> };
+
+export type FotmobPlayerStatsEntry = {
+  name: string;
+  id: number;
+  teamId?: number | null;
+  isGoalkeeper?: boolean | null;
+  stats?: FotmobPlayerStatGroup[] | null;
+};
+
+export type FotmobShot = {
+  id?: number | string | null;
+  eventType: string; // 'Goal' | 'Miss' | 'AttemptSaved' | ...
+  teamId?: number | null;
+  playerId?: number | null;
+  playerName?: string | null;
+  min?: number | null;
+  minAdded?: number | null;
+  isOnTarget?: boolean | null;
+  isBlocked?: boolean | null;
+  isFromInsideBox?: boolean | null;
+  expectedGoals?: number | null;
+  shotType?: string | null;
+  situation?: string | null;
+};
+
+export type FotmobRefereeStat = { type: string; value?: number | null; valueType?: string | null };
+
+export type FotmobMatchFacts = {
+  /** Histórico del partido — lo consume `jobs/liveTicker.ts`. */
+  events?: { events?: FotmobTickerEvent[] | null } | null;
+  playerOfTheMatch?: {
+    name?: { fullName?: string | null } | null;
+    rating?: { num?: string | null } | null;
+  } | null;
+  infoBox?: {
+    Stadium?: { name?: string | null; city?: string | null; capacity?: number | null; surface?: string | null } | null;
+    Referee?: { text?: string | null; stats?: FotmobRefereeStat[] | null } | null;
+    Attendance?: number | null;
+  } | null;
+  insights?: unknown[] | null;
+  topPlayers?: unknown | null;
+} | null;
+
 export type FotmobMatchDetails = {
+  header?: {
+    teams?: Array<{ id: number; name: string; score?: number | null }> | null; // [0]=local, [1]=visitante
+  } | null;
   content?: {
     lineup?: {
       lineupType?: 'predicted' | 'standard' | null;
       homeTeam?: FotmobLineupTeam | null;
       awayTeam?: FotmobLineupTeam | null;
     } | null;
+    momentum?: { main?: { data?: Array<{ minute: number; value: number }> | null } | null } | null;
+    stats?: { Periods?: { All?: FotmobPeriodStats; FirstHalf?: FotmobPeriodStats; SecondHalf?: FotmobPeriodStats } } | null;
+    playerStats?: Record<string, FotmobPlayerStatsEntry> | null;
+    shotmap?: { shots?: FotmobShot[] | null } | null;
+    matchFacts?: FotmobMatchFacts;
+    attackingZones?: unknown | null;
+    weather?: unknown | null;
+    h2h?: unknown | null;
+    heatmapUrl?: string | null;
   } | null;
 };

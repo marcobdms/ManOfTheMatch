@@ -38,6 +38,7 @@ const { db } = await import('../db.js');
 const { getCompetitionTeams } = await import('../sources/footballData.js');
 const { getLeagueTeams } = await import('../sources/apiFootball.js');
 const { searchTeams } = await import('../sources/theSportsDB.js');
+const { getTeams: getEspnTeams } = await import('../sources/espn.js');
 
 const DIACRITICS = /[\u0300-\u036f]/g;
 
@@ -63,7 +64,7 @@ async function main() {
   const { data: teams, error } = await db.from('teams').select('id, name, short_name, tla, source_ids');
   if (error || !teams) throw error ?? new Error('no teams rows');
 
-  const resolved: Record<string, { footballData?: number; apiFootball?: number; theSportsDb?: string }> = {};
+  const resolved: Record<string, { footballData?: number; apiFootball?: number; theSportsDb?: string; espn?: string }> = {};
   const unresolved: Record<string, string[]> = {};
 
   // --- football-data.org --------------------------------------------------
@@ -87,6 +88,25 @@ async function main() {
     }
   } catch (err) {
     console.warn('[resolveTeamIds] API-Football teams fetch failed (free plan may reject season 2026 — see docs/endpoint-check-2026-08-27.md)', err);
+  }
+
+  // --- ESPN --------------------------------------------------------------
+  // site.api.espn.com/.../esp.1/teams -> 20 equipos, id string estable.
+  // Ojo: `\b` en regex de JS no cubre acentos (mordió antes en este mismo
+  // archivo) — reutilizamos `matches()` (normaliza acentos) en vez de `\b`.
+  try {
+    const espn = await getEspnTeams();
+    const list = (espn?.sports?.[0]?.leagues?.[0]?.teams ?? [])
+      .map((t) => t.team)
+      .filter((t): t is { id?: string; displayName?: string; abbreviation?: string } => Boolean(t));
+    for (const t of teams as TeamRow[]) {
+      const hit = list.find(
+        (x) => (x.displayName && matches(x.displayName, t.name)) || (x.abbreviation && matches(x.abbreviation, t.tla)),
+      );
+      if (hit?.id) (resolved[t.id] ??= {}).espn = hit.id;
+    }
+  } catch (err) {
+    console.warn('[resolveTeamIds] ESPN teams fetch failed', err);
   }
 
   // --- TheSportsDB -----------------------------------------------------
@@ -136,7 +156,7 @@ async function main() {
   // --- merge + report --------------------------------------------------
   for (const t of teams as TeamRow[]) {
     const found = resolved[t.id] ?? {};
-    const missingKeys = (['footballData', 'apiFootball', 'theSportsDb'] as const).filter(
+    const missingKeys = (['footballData', 'apiFootball', 'theSportsDb', 'espn'] as const).filter(
       (k) => found[k] == null && (t.source_ids as Record<string, unknown> | null)?.[k] == null,
     );
     if (missingKeys.length) unresolved[t.id] = missingKeys;

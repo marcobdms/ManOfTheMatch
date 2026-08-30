@@ -17,12 +17,18 @@ export const COMP_TSDB_ID: Record<CompetitionId, string> = {
 
 const COMP_LIST = Object.values(COMPETITIONS);
 
-type TeamSourceIds = { footballData?: number | string; apiFootball?: number | string; theSportsDb?: string };
+type TeamSourceIds = {
+  footballData?: number | string;
+  apiFootball?: number | string;
+  theSportsDb?: string;
+  espn?: string;
+};
 
 let byFootballData = new Map<number, TeamId>();
 let byApiFootball = new Map<number, TeamId>();
 let byTsdb = new Map<string, TeamId>();
 let tsdbByTeam = new Map<TeamId, string>();
+let byEspn = new Map<string, TeamId>();
 
 /** (Re)loads `teams.source_ids` for all 20 known slugs. Call at boot, and
  *  again on every `syncFixtures` run so a freshly resolved id (e.g. after
@@ -38,6 +44,7 @@ export async function refreshTeamCache(): Promise<void> {
   const na = new Map<number, TeamId>();
   const nt = new Map<string, TeamId>();
   const tt = new Map<TeamId, string>();
+  const ne = new Map<string, TeamId>();
 
   for (const row of (data ?? []) as { id: string; source_ids: TeamSourceIds | null }[]) {
     if (!(row.id in TEAMS)) continue; // defensive: ignore rows outside the known 20 slugs
@@ -49,12 +56,14 @@ export async function refreshTeamCache(): Promise<void> {
       nt.set(String(sids.theSportsDb), slug);
       tt.set(slug, String(sids.theSportsDb));
     }
+    if (sids.espn) ne.set(String(sids.espn), slug);
   }
 
   byFootballData = nf;
   byApiFootball = na;
   byTsdb = nt;
   tsdbByTeam = tt;
+  byEspn = ne;
 }
 
 const toNum = (v: number | string | null | undefined): number | null => {
@@ -80,6 +89,10 @@ export function teamSlugByTsdbId(id: string | null | undefined): TeamId | null {
 /** TheSportsDB team id for a slug, once resolved — null until then. */
 export function tsdbIdForTeam(slug: TeamId): string | null {
   return tsdbByTeam.get(slug) ?? null;
+}
+
+export function teamSlugByEspnId(id: string | null | undefined): TeamId | null {
+  return id ? (byEspn.get(id) ?? null) : null;
 }
 
 export function compSlugByFootballDataCode(code: string | null | undefined): CompetitionId | null {

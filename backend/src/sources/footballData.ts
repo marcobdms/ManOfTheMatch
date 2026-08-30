@@ -43,11 +43,15 @@ export function getStandings(code: 'PD' | 'CL', season = 2026) {
   );
 }
 
-/** Single match — used by the live loop for near-live score/status. Delayed on free. */
+/** Single match — used by the live loop for near-live score/status. Delayed on free.
+ *  TTL 45 s (antes 90): con 90 s el marcador cacheado podía ir hasta minuto y
+ *  medio por detrás, y como no es null ganaba a TheSportsDB en `liveLoop`, así
+ *  que los goles tardaban varios minutos en subir. 45 s va sobrado de cuota
+ *  (10 req/min, y solo se pide por partido activo). */
 export function getMatch(id: number | string) {
   return cachedJson<FootballDataMatch>(`${BASE}/matches/${id}`, {
     headers: authHeaders(),
-    ttlSeconds: 90,
+    ttlSeconds: 45,
   });
 }
 

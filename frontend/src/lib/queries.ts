@@ -19,11 +19,16 @@ import type {
   LineupFreshness,
   LineupPlayer,
   LiveMatch,
+  MatchShot,
+  MomentumPoint,
   NewsItem,
   PlayerStat,
   StandingRow,
+  StatPeriod,
   TeamLite,
   TeamLineupSnapshot,
+  TeamStatPair,
+  TeamStatsComparison,
   TimelineEvent,
   UpcomingMatch,
 } from '../types/view'
@@ -57,6 +62,7 @@ const ALL_EVENT_TYPES: MatchEventType[] = [
   'CORNER',
   'KEY_PASS',
   'CHANCE',
+  'WOODWORK',
 ]
 
 export function isLiveStatus(status: MatchStatus | undefined): boolean {
@@ -116,11 +122,33 @@ type EventRow = {
   team: { name: string; tla: string } | { name: string; tla: string }[] | null
 }
 
-/** Same goal shows up from both 'theSportsDb' (live) and 'apiFootball' (richer).
- *  Prefer the API-Football rows when present. */
-function preferApiFootball(rows: EventRow[]): EventRow[] {
-  const af = rows.filter((r) => r.source === 'apiFootball')
-  return af.length ? af : rows
+/** Prioridad de fuentes para el histórico. Fotmob es la más completa (14
+ *  eventos vs 5 de TheSportsDB en el mismo partido) y la que refresca cada
+ *  10s, así que manda cuando está presente. */
+const EVENT_SOURCE_PRIORITY = ['fotmob', 'apiFootball', 'theSportsDb']
+
+/**
+ * El mismo gol llega por varias fuentes a la vez, así que se elige UNA sola
+ * (la de mayor prioridad disponible) en vez de mezclarlas.
+ *
+ * Además deduplica dentro de esa fuente: TheSportsDB llegó a emitir el mismo
+ * gol con dos `idTimeline` distintos (visto en vivo: Álex Baena, min 4, ids
+ * 1869881 y 1869902), y como la clave única de la tabla incluye
+ * `source_event_id`, esas dos filas son legítimamente distintas para la BD
+ * pero el mismo evento para el usuario. Aquí se colapsan por
+ * (tipo, minuto, jugador).
+ */
+function preferBestSource(rows: EventRow[]): EventRow[] {
+  const source = EVENT_SOURCE_PRIORITY.find((s) => rows.some((r) => r.source === s))
+  const chosen = source ? rows.filter((r) => r.source === source) : rows
+
+  const seen = new Set<string>()
+  return chosen.filter((r) => {
+    const fingerprint = `${r.type}:${r.minute ?? 'x'}:${(r.player_name ?? '').trim().toLowerCase()}`
+    if (seen.has(fingerprint)) return false
+    seen.add(fingerprint)
+    return true
+  })
 }
 
 const FIXTURE_SELECT =
@@ -381,7 +409,7 @@ async function fetchGoalChips(fixtureId: string): Promise<GoalChip[]> {
     .order('sort_key', { ascending: true })
     .returns<EventRow[]>()
   if (error) throw error
-  return preferApiFootball(data ?? []).map((row) => ({
+  return preferBestSource(data ?? []).map((row) => ({
     minuteLabel: eventMinuteLabel(row.minute, row.minute_extra),
     player: row.player_name?.trim() || '—',
   }))
@@ -397,7 +425,7 @@ async function fetchTimeline(fixtureId: string): Promise<TimelineEvent[]> {
     .returns<EventRow[]>()
   if (error) throw error
   // Query is ascending by minute+sort_key; the mockup lists newest first.
-  return preferApiFootball(data ?? [])
+  return preferBestSource(data ?? [])
     .map((row) => ({
       id: row.id,
       type: normalizeEventType(row.type),
@@ -662,4 +690,137 @@ export function useLiveRealtime(fixtureId: string | undefined, enabled = true) {
       void supabase.removeChannel(channel)
     }
   }, [fixtureId, enabled, qc])
+}
+
+// no existan, `42P01` (undefined_table de Postgres) se trata como "sin datos
+// todavía", no como error: la vista debe verse vacía, nunca romper.
+
+/** true si el error de Supabase es "la tabla no existe" — no una tabla vacía. */
+function isMissingTableError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === 'PGRST205' || code === 'PGRST200'
+}
+
+type MomentumRow = { minute: number; value: number }
+
+/** 94 puntos `{minute, value}` de `match_momentum` — positivo domina el local. */
+async function fetchMatchMomentum(fixtureId: string): Promise<MomentumPoint[]> {
+  const { data, error } = await supabase
+    .from('match_momentum')
+    .select('minute, value')
+    .eq('fixture_id', fixtureId)
+    .order('minute', { ascending: true })
+    .returns<MomentumRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return []
+    throw error
+  }
+  return data ?? []
+}
+
+export function useMatchMomentum(fixtureId: string | undefined, opts: { live?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['matchMomentum', fixtureId],
+    queryFn: () => fetchMatchMomentum(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    refetchInterval: opts.live ? LIVE_MS : false,
+    retry: false,
+  })
+}
+
+type TeamStatRow = {
+  period: string
+  stat_key: string
+  label: string
+  home_value: number
+  away_value: number
+  is_decimal: boolean | null
+  is_percent: boolean | null
+}
+
+const EMPTY_COMPARISON: TeamStatsComparison = { total: [], first: [], second: [] }
+
+/** Comparativa de equipo de `match_team_stats`, separada por periodo. Forma de
+ *  fila esperada — a confirmar con el Agente A cuando exista la tabla real. */
+async function fetchTeamStats(fixtureId: string): Promise<TeamStatsComparison> {
+  const { data, error } = await supabase
+    .from('match_team_stats')
+    .select('period, stat_key, label, home_value, away_value, is_decimal, is_percent')
+    .eq('fixture_id', fixtureId)
+    .returns<TeamStatRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return EMPTY_COMPARISON
+    throw error
+  }
+  const out: TeamStatsComparison = { total: [], first: [], second: [] }
+  for (const row of data ?? []) {
+    const period = (row.period === 'first' || row.period === 'second' ? row.period : 'total') as StatPeriod
+    const pair: TeamStatPair = {
+      key: row.stat_key,
+      label: row.label,
+      home: row.home_value,
+      away: row.away_value,
+      isDecimal: row.is_decimal ?? false,
+      isPercent: row.is_percent ?? false,
+    }
+    out[period].push(pair)
+  }
+  return out
+}
+
+export function useTeamMatchStats(fixtureId: string | undefined, opts: { live?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['teamMatchStats', fixtureId],
+    queryFn: () => fetchTeamStats(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    refetchInterval: opts.live ? LIVE_MS : false,
+    retry: false,
+  })
+}
+
+type ShotRow = {
+  id: string
+  minute: number
+  team_id: string
+  player_name: string
+  event_type: string
+  situation: string | null
+  is_on_target: boolean | null
+  is_blocked: boolean | null
+  expected_goals: number | null
+}
+
+/** `match_shots` — ver supabase/migrations/0008_shot_events.sql (Agente A). */
+async function fetchMatchShots(fixtureId: string): Promise<MatchShot[]> {
+  const { data, error } = await supabase
+    .from('match_shots')
+    .select('id, minute, team_id, player_name, event_type, situation, is_on_target, is_blocked, expected_goals')
+    .eq('fixture_id', fixtureId)
+    .order('minute', { ascending: true })
+    .returns<ShotRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return []
+    throw error
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    minute: row.minute,
+    teamId: row.team_id,
+    playerName: row.player_name,
+    type: row.event_type as MatchShot['type'],
+    situation: row.situation as MatchShot['situation'],
+    isOnTarget: row.is_on_target ?? false,
+    isBlocked: row.is_blocked ?? false,
+    xg: row.expected_goals,
+  }))
+}
+
+export function useMatchShots(fixtureId: string | undefined, opts: { live?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['matchShots', fixtureId],
+    queryFn: () => fetchMatchShots(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    refetchInterval: opts.live ? LIVE_MS : false,
+    retry: false,
+  })
 }

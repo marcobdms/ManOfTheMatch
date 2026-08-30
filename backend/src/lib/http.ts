@@ -6,6 +6,18 @@ type FetchOpts = {
   /** Serve from cache while younger than this. */
   ttlSeconds?: number;
   /**
+   * Edad máxima aceptable de una entrada YA guardada, en segundos. Sirve para
+   * que un llamador que necesita datos frescos no quede atrapado tras el TTL
+   * largo que dejó otro llamador sobre la misma URL (misma `cache_key`).
+   *
+   * Caso real que esto arregla: `syncLineups` pedía el `matchDetails` de un
+   * partido aún no empezado con TTL de 6 h; cuando el partido arrancaba, el
+   * `liveTicker` (TTL 10 s) encontraba esa entrada de 6 h "fresca" y nunca
+   * hacía un fetch real, así que el histórico se quedaba congelado en el
+   * estado previo al partido.
+   */
+  maxAgeSeconds?: number;
+  /**
    * Optional guard run on a freshly fetched body *before* it is cached. Throw to
    * reject the response — nothing is written to `http_cache` and the error
    * propagates to the caller. Needed for API-Football, which returns quota / param
@@ -40,8 +52,15 @@ export async function cachedJson<T>(url: string, opts: FetchOpts = {}): Promise<
     .eq('cache_key', key)
     .maybeSingle();
 
-  const fresh = cached?.expires_at && new Date(cached.expires_at) > new Date();
-  if (fresh) return cached.body as T;
+  const notExpired = Boolean(cached?.expires_at && new Date(cached.expires_at) > new Date());
+  // `maxAgeSeconds` manda sobre el `expires_at` guardado: aunque la entrada no
+  // haya expirado, si es más vieja de lo que este llamador tolera se refresca.
+  const withinMaxAge =
+    opts.maxAgeSeconds == null ||
+    (cached?.fetched_at != null &&
+      Date.now() - new Date(cached.fetched_at).getTime() <= opts.maxAgeSeconds * 1000);
+
+  if (notExpired && withinMaxAge) return cached.body as T;
 
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (cached?.etag) headers['If-None-Match'] = cached.etag;

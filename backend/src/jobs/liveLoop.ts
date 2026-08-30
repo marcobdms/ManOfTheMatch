@@ -24,6 +24,13 @@ import { isTrackedSlug, teamName, teamSlugByTsdbId } from '../lib/ids.js';
 const WINDOW_MS = 2 * 60 * 60 * 1000;
 const SKIP_STATUSES = new Set(['FINISHED', 'POSTPONED', 'SUSPENDED']);
 
+/** TheSportsDB devuelve todo como string (o null / ""). */
+function toScore(v: string | null | undefined): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 type FixtureRow = {
   id: string;
   source_ids: Record<string, string | number> | null;
@@ -127,7 +134,16 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
     }
   }
 
-  // 2) TheSportsDB livescore — fill gaps only (minute, and score if fd has none).
+  // 2) TheSportsDB livescore. Rellena huecos (minuto, marcador si fd no dio
+  //    nada) Y ADEMÁS adelanta el marcador cuando va por delante.
+  //
+  //    Por qué "el más alto gana": football-data se cachea 90 s y encima llega
+  //    con retraso propio, así que durante ~2 min sirve un marcador viejo pero
+  //    NO nulo — con la regla anterior ("solo si fd no dio nada") ese valor
+  //    obsoleto ganaba siempre y el gol tardaba minutos en subir aunque
+  //    TheSportsDB (TTL 50 s) ya lo tuviera. Un marcador no baja en un partido,
+  //    así que quedarse con el máximo de ambas fuentes es seguro: adelanta el
+  //    gol sin poder inventar uno que no existe.
   const ls = tsdbId ? livescore.find((x) => x.idEvent === tsdbId) : undefined;
   if (ls) {
     const lsStatus = mapTheSportsDbStatus(ls.strStatus);
@@ -136,8 +152,10 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
       const p = Number.parseInt(ls.strProgress ?? '', 10);
       if (Number.isFinite(p)) minute = p;
     }
-    if (home == null && ls.intHomeScore != null && ls.intHomeScore !== '') home = Number(ls.intHomeScore);
-    if (away == null && ls.intAwayScore != null && ls.intAwayScore !== '') away = Number(ls.intAwayScore);
+    const lsHome = toScore(ls.intHomeScore);
+    const lsAway = toScore(ls.intAwayScore);
+    if (lsHome != null) home = home == null ? lsHome : Math.max(home, lsHome);
+    if (lsAway != null) away = away == null ? lsAway : Math.max(away, lsAway);
   }
 
   // 3) Timeline → diff match_events (source = theSportsDb).
@@ -157,7 +175,11 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
         for (const it of timeline) {
           const type = mapTheSportsDbEvent(it.strTimeline, it.strTimelineDetail);
           if (!type) continue;
-          const seid = it.idTimeline || `${it.intTime}:${it.strTimeline}:${it.strPlayer ?? ''}`;
+          // Clave derivada del CONTENIDO, nunca de `idTimeline`: TheSportsDB
+          // reemite el mismo evento con otro id entre polls (confirmado en
+          // vivo: gol de Baena al 4', ids 1869881 y 1869902), y usar ese id
+          // volátil metía el mismo gol dos veces en el histórico.
+          const seid = `${it.intTime ?? 'x'}:${it.strTimeline ?? ''}:${(it.strPlayer ?? '').trim().toLowerCase()}`;
           if (seen.has(seid)) continue;
 
           const isHome = (it.strHome ?? '').toLowerCase() === 'yes';

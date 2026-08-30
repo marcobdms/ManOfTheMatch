@@ -67,7 +67,8 @@ export type MatchEventType =
   | 'PERIOD'
   | 'CORNER'
   | 'KEY_PASS'
-  | 'CHANCE';
+  | 'CHANCE'
+  | 'WOODWORK';
 
 export type NotificationType = 'MATCHDAY' | 'KICKOFF_SOON' | 'LINEUP' | 'GOAL';
 
