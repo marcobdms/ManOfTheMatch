@@ -29,6 +29,7 @@ function ScoreNumber({ value }: { value: number }) {
 
 export default function ScoreboardCard({ match, goals }: Props) {
   const isLive = match.status === 'LIVE' || match.status === 'PAUSED'
+  const statusLabel = isLive ? 'En directo' : match.status === 'FINISHED' ? 'Finalizado' : 'Previa'
   // Reloj nativo si hay ancla; si no (recién LIVE, o PAUSED — el reloj se
   // congela en el descanso), cae al minuteLabel que ya trae el backend.
   const liveMinute = useLiveMinute(match.halfStartedAt, match.halfNumber)
@@ -44,7 +45,7 @@ export default function ScoreboardCard({ match, goals }: Props) {
           {match.competitionShort === 'LaLiga' && (
             <img src={laligaLogo} alt="" className="motm-score__comp-logo" aria-hidden="true" />
           )}
-          {match.competitionShort} · {isLive ? 'En directo' : 'Previa'}
+          {match.competitionShort} · {statusLabel}
         </span>
         {isLive && (
           <span

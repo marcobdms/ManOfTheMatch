@@ -14,6 +14,9 @@ import Upcoming from './routes/Upcoming'
 import Teams from './routes/Teams'
 import TeamLineup from './routes/TeamLineup'
 import MatchStats from './routes/MatchStats'
+import MatchDetail from './routes/MatchDetail'
+import HistoryTeams from './routes/HistoryTeams'
+import TeamHistory from './routes/TeamHistory'
 import Profile from './routes/Profile'
 import SignIn from './routes/SignIn'
 import SignUp from './routes/SignUp'
@@ -29,6 +32,9 @@ const router = createBrowserRouter([
       { path: 'equipos', element: <Teams /> },
       { path: 'equipos/:teamId', element: <TeamLineup /> },
       { path: 'partidos/:fixtureId/estadisticas', element: <MatchStats /> },
+      { path: 'partidos/:fixtureId', element: <MatchDetail /> },
+      { path: 'historial', element: <HistoryTeams /> },
+      { path: 'historial/:teamId', element: <TeamHistory /> },
       { path: 'perfil', element: <Profile /> },
       { path: 'entrar', element: <SignIn /> },
       { path: 'registro', element: <SignUp /> },

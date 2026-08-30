@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react'
+import { ClockCounterClockwise, ChartBar } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
-import { ChartBar } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
-import AnimatedBell from '../components/AnimatedBell'
 import ScoreboardCard from '../components/ScoreboardCard'
 import MatchTimeline from '../components/MatchTimeline'
 import type { GoalChip, LiveMatch, TimelineEvent } from '../types/view'
@@ -14,7 +12,6 @@ import {
   useLiveRealtime,
   useTimeline,
 } from '../lib/queries'
-import { disablePush, enablePush, getPushStatus, type PushStatus } from '../lib/push'
 import { useAuth } from '../lib/AuthProvider'
 
 // Dev-only fallback: used exclusively when running `vite` with no Supabase URL.
@@ -50,15 +47,6 @@ const MOCK_EVENTS: TimelineEvent[] = [
   { id: '7', type: 'YELLOW', minuteLabel: "34'", text: 'Tarjeta amarilla a Gavi' },
   { id: '8', type: 'GOAL', minuteLabel: "12'", text: 'GOL del Real Madrid — Vinícius Jr.' },
 ]
-
-const PUSH_EXPLAINER: Partial<Record<PushStatus, string>> = {
-  'needs-install':
-    'Para recibir avisos de goles, añade ManOfTheMatch a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrela desde ahí.',
-  denied:
-    'Has bloqueado las notificaciones. Actívalas en los ajustes del navegador para recibir avisos de goles.',
-  unsupported: 'Este dispositivo no admite notificaciones push.',
-  'no-vapid': 'Las notificaciones aún no están configuradas en este entorno.',
-}
 
 function formatKickoff(iso: string): string {
   const date = new Date(iso)
@@ -105,46 +93,8 @@ function PrematchNote({ match, hasFavorite }: { match: LiveMatch; hasFavorite: b
 }
 
 export default function Live() {
-  const { session, profile } = useAuth()
-  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
-  const [pushBusy, setPushBusy] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    getPushStatus()
-      .then((status) => {
-        if (alive) setPushStatus(status)
-      })
-      .catch(() => {
-        if (alive) setPushStatus('unsupported')
-      })
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  const pushEnabled = pushStatus === 'enabled'
+  const { profile } = useAuth()
   const favoriteTeamId = USE_MOCK ? null : profile?.favorite_team_id ?? null
-
-  async function toggleBell() {
-    if (pushBusy) return
-    setPushBusy(true)
-    try {
-      setPushStatus(
-        pushEnabled
-          ? await disablePush()
-          : await enablePush(
-              session?.user.id ?? null,
-              favoriteTeamId,
-              profile?.prefs ?? { matchday: true, kickoff: true, lineup: true, goals: true },
-            ),
-      )
-    } catch {
-      setPushStatus(await getPushStatus())
-    } finally {
-      setPushBusy(false)
-    }
-  }
 
   const liveQuery = useLiveMatch({ enabled: !USE_MOCK, favoriteTeamId })
   const match: LiveMatch | null | undefined = USE_MOCK ? MOCK_MATCH : liveQuery.data
@@ -185,28 +135,10 @@ export default function Live() {
               <ChartBar size={16} />
               Ver estadísticas
             </Link>
-            <button
-              className="motm-btn motm-btn--icon"
-              aria-pressed={pushEnabled}
-              aria-label={
-                pushEnabled
-                  ? 'Desactivar notificaciones del partido'
-                  : 'Activar notificaciones del partido'
-              }
-              aria-busy={pushBusy}
-              disabled={pushBusy}
-              onClick={toggleBell}
-            >
-              {pushEnabled && <span className="motm-dot" />}
-              <AnimatedBell active={pushEnabled} />
-            </button>
+            <Link className="motm-btn motm-btn--icon" to="/historial" aria-label="Histórico de partidos">
+              <ClockCounterClockwise size={20} />
+            </Link>
           </div>
-
-          {pushStatus && PUSH_EXPLAINER[pushStatus] && (
-            <p className="motm-note" role="note">
-              {PUSH_EXPLAINER[pushStatus]}
-            </p>
-          )}
 
           <MatchTimeline events={events} />
         </>

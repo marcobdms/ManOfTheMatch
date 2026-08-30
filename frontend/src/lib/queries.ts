@@ -448,6 +448,43 @@ export function useLiveMatch(opts: { enabled?: boolean; favoriteTeamId?: string 
   })
 }
 
+/** Un fixture concreto por id — para el histórico (partido ya jugado, sin polling). */
+export function useFixtureById(fixtureId: string | undefined) {
+  return useQuery({
+    queryKey: ['fixtureById', fixtureId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('fixtures')
+        .select(FIXTURE_SELECT)
+        .eq('id', fixtureId as string)
+        .returns<FixtureRow[]>()
+      if (error) throw error
+      return data?.[0] ? toLiveMatch(data[0]) : null
+    },
+    enabled: hasSupabaseEnv && !!fixtureId,
+  })
+}
+
+/** Partidos ya jugados de un equipo, más reciente primero. */
+export function useTeamMatchHistory(teamId: string | undefined, limit = 20) {
+  return useQuery({
+    queryKey: ['teamHistory', teamId, limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('fixtures')
+        .select(FIXTURE_SELECT)
+        .eq('status', 'FINISHED')
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .order('kickoff_at', { ascending: false })
+        .limit(limit)
+        .returns<FixtureRow[]>()
+      if (error) throw error
+      return (data ?? []).map(toLiveMatch)
+    },
+    enabled: hasSupabaseEnv && !!teamId,
+  })
+}
+
 /** All 20 LaLiga clubs — for the favorite-team picker (Profile) and Teams browse. */
 export function useTeams() {
   return useQuery({

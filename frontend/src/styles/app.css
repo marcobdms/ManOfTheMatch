@@ -1018,6 +1018,9 @@
   margin: 0 0 10px;
 }
 .motm-fixture-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
