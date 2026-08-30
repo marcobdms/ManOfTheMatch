@@ -4,17 +4,15 @@ const TYPE_LABEL: Record<MatchShot['type'], string> = {
   Goal: 'Gol',
   Miss: 'Fuera',
   AttemptSaved: 'Parado',
-  BlockedShot: 'Bloqueado',
   Post: 'Al palo',
 }
 
 const SITUATION_LABEL: Record<NonNullable<MatchShot['situation']>, string> = {
-  OpenPlay: 'Jugada',
+  RegularPlay: 'Jugada',
+  FromCorner: 'Córner',
   SetPiece: 'Balón parado',
+  FreeKick: 'Falta',
   FastBreak: 'Contragolpe',
-  Corner: 'Córner',
-  Penalty: 'Penalti',
-  DirectFreekick: 'Falta directa',
 }
 
 /** Fila de disparo — minuto, autor, tipo y xG. Un gol se destaca en rojo. */

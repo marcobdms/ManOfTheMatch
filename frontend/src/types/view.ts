@@ -147,14 +147,8 @@ export type TeamStatsComparison = {
   [period in StatPeriod]: TeamStatPair[]
 }
 
-export type ShotType = 'Goal' | 'Miss' | 'AttemptSaved' | 'BlockedShot' | 'Post'
-export type ShotSituation =
-  | 'OpenPlay'
-  | 'SetPiece'
-  | 'FastBreak'
-  | 'Corner'
-  | 'Penalty'
-  | 'DirectFreekick'
+export type ShotType = 'Goal' | 'Miss' | 'AttemptSaved' | 'Post'
+export type ShotSituation = 'RegularPlay' | 'FromCorner' | 'SetPiece' | 'FreeKick' | 'FastBreak'
 
 /** Una fila de `match_shots` (supabase/migrations/0008_shot_events.sql). */
 export type MatchShot = {

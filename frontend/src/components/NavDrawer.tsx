@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
@@ -71,7 +72,13 @@ export default function NavDrawer({ open, onClose }: Props) {
 
   const panelTransition = reduceMotion ? { duration: 0.08 } : undefined
 
-  return (
+  // Portal a `document.body`: AppHeader (y por tanto este panel) vive dentro
+  // de cada página, que App.tsx envuelve en un `motion.div` animado — un
+  // ancestro con `transform` activo (incluso en reposo, Framer Motion deja
+  // `transform: translateX(0px)` puesto) rompe `position: fixed` y le quita
+  // al navegador la vía rápida de composición por GPU. Sacarlo del árbol de
+  // la página evita ese ancestro por completo.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -142,6 +149,7 @@ export default function NavDrawer({ open, onClose }: Props) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }
