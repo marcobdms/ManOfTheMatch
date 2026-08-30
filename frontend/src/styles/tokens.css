@@ -13,6 +13,10 @@
   --btn: #101114;
   --btn-ink: #ffffff;
   --yellow: #f5c518;
+  --card: #ffffff;
+  --score-bg: #101114;
+  --yellow-tint: #fff7da;
+  --yellow-ink: #b8860b;
 
   --r-card: 20px;
   --r-btn: 999px;
@@ -35,6 +39,42 @@
   --space-6: 24px;
 
   --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+/* Modo oscuro: gris grafito, no negro puro — sigue el sistema si el usuario
+   no eligió nada a mano; el interruptor del menú (NavDrawer) fuerza
+   data-theme y gana siempre sobre la preferencia del sistema. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #121214;
+    --ink: #f2f1ee;
+    --ink-soft: #a6a4a0;
+    --ink-faint: #75726d;
+    --line: #2a2a2d;
+    --muted: #1c1c1f;
+    --brand-tint: #3a1416;
+    --btn: #f2f1ee;
+    --btn-ink: #121214;
+    --card: #1e1e22;
+    --score-bg: #1e1e22;
+    --yellow-tint: #3a2f10;
+    --yellow-ink: #e0b34d;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #121214;
+  --ink: #f2f1ee;
+  --ink-soft: #a6a4a0;
+  --ink-faint: #75726d;
+  --line: #2a2a2d;
+  --muted: #1c1c1f;
+  --brand-tint: #3a1416;
+  --btn: #f2f1ee;
+  --btn-ink: #121214;
+  --card: #1e1e22;
+  --score-bg: #1e1e22;
+  --yellow-tint: #3a2f10;
+  --yellow-ink: #e0b34d;
 }
 
 * {

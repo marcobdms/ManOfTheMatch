@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -6,13 +6,16 @@ import {
   Broadcast,
   CalendarDots,
   House,
+  Moon,
   ShieldChevron,
   SignOut,
+  SunDim,
   User,
   X,
 } from '@phosphor-icons/react'
 import { useAuth } from '../lib/AuthProvider'
 import { signOut } from '../lib/auth'
+import { getStoredTheme, setTheme } from '../lib/theme'
 
 const LINKS = [
   { to: '/', label: 'En vivo', Icon: Broadcast },
@@ -38,6 +41,18 @@ export default function NavDrawer({ open, onClose }: Props) {
   const { session, profile } = useAuth()
   const navigate = useNavigate()
   const reduceMotion = useReducedMotion()
+
+  const [isDark, setIsDark] = useState(() => {
+    const stored = getStoredTheme()
+    if (stored === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches
+    return stored === 'dark'
+  })
+
+  function toggleTheme() {
+    const next = !isDark
+    setIsDark(next)
+    setTheme(next ? 'dark' : 'light')
+  }
 
   // Cerrar con Escape — el panel es modal mientras está abierto.
   useEffect(() => {
@@ -114,6 +129,24 @@ export default function NavDrawer({ open, onClose }: Props) {
                 </button>
               ))}
             </nav>
+
+            <div className="motm-drawer__divider" />
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isDark}
+              className="motm-drawer__link motm-drawer__link--switch"
+              onClick={toggleTheme}
+            >
+              <span className="motm-drawer__link-main">
+                {isDark ? <Moon size={20} /> : <SunDim size={20} />}
+                Modo oscuro
+              </span>
+              <span className={'motm-switch' + (isDark ? ' is-on' : '')} aria-hidden="true">
+                <span className="motm-switch__thumb" />
+              </span>
+            </button>
 
             <div className="motm-drawer__divider" />
 

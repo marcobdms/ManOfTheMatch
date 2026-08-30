@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--card);
   box-shadow: 0 1px 0 var(--line);
   position: sticky;
   top: 0;
@@ -108,7 +108,9 @@
 /* scoreboard card */
 .motm-score {
   margin: 16px;
-  background: var(--btn);
+  /* Spotlight oscuro fijo en claro; en oscuro pasa a --card (gris, no negro
+     puro) para no desentonar con el resto — ver --score-bg en tokens.css. */
+  background: var(--score-bg);
   border-radius: var(--r-card);
   box-shadow: var(--sh-dark);
   padding: 20px;
@@ -189,7 +191,9 @@
   font-family: var(--f-display);
   font-weight: 800;
   font-size: 13px;
-  color: var(--btn);
+  /* El círculo de fondo (.motm-crest) siempre es blanco, así que el texto de
+     respaldo se queda oscuro fijo — var(--btn) se invertiría en modo oscuro. */
+  color: #101114;
 }
 .motm-team__name {
   font-size: 13px;
@@ -318,8 +322,8 @@
   color: var(--brand);
 }
 .motm-ev__badge--card {
-  background: #fff7da;
-  color: #b8860b;
+  background: var(--yellow-tint);
+  color: var(--yellow-ink);
 }
 .motm-ev__min {
   flex: 0 0 auto;
@@ -352,7 +356,7 @@
   align-items: center;
   gap: 4px;
   padding: 10px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-nav);
   box-shadow: var(--sh-nav);
@@ -509,7 +513,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--card);
   font-family: var(--f-body);
   font-size: 14px;
   font-weight: 600;
@@ -901,7 +905,7 @@
 }
 .motm-input:focus-visible {
   border-color: var(--brand);
-  background: #fff;
+  background: var(--card);
 }
 .motm-field.has-error .motm-input {
   border-color: var(--brand);
@@ -948,10 +952,10 @@
   text-transform: uppercase;
 }
 .motm-auth__banner--pending {
-  background: #fff7da;
+  background: var(--yellow-tint);
 }
 .motm-auth__banner--pending b {
-  color: #8a6d00;
+  color: var(--yellow-ink);
 }
 
 
@@ -996,7 +1000,7 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 .motm-segmented__btn[aria-pressed='true'] {
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   box-shadow: var(--sh-card);
 }
@@ -1028,33 +1032,33 @@
 .motm-fixture-row {
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
-  overflow: hidden;
+  background: var(--card);
 }
 .motm-fixture-row__main {
   display: grid;
   grid-template-columns: 40px 1fr auto 1fr;
   align-items: center;
   gap: 8px;
-  padding: 14px;
+  padding: 14px 14px 8px;
   color: var(--ink);
   text-decoration: none;
 }
+/* Mismo pill oscuro que "Ver estadísticas" (.motm-btn), a escala reducida
+   para caber dentro de la tarjeta de partido en vez de una franja plana. */
 .motm-fixture-row__predict {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
-  padding: 10px;
+  height: 36px;
+  margin: 2px 14px 14px;
   border: 0;
-  border-top: 1px solid var(--line);
-  background: var(--muted);
-  color: var(--brand);
+  border-radius: var(--r-btn);
+  background: var(--btn);
+  color: var(--btn-ink);
+  font-family: var(--f-body);
   font-size: 12px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   text-decoration: none;
 }
 .motm-fixture-row__time {
@@ -1145,7 +1149,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   text-decoration: none;
 }
@@ -1176,7 +1180,7 @@
 .motm-standings {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
   overflow: hidden;
@@ -1231,7 +1235,7 @@
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--card);
   text-decoration: none;
   color: var(--ink);
 }
@@ -1465,7 +1469,7 @@
   bottom: 0;
   left: 0;
   width: min(84vw, 320px);
-  background: #fff;
+  background: var(--card);
   z-index: 41;
   display: flex;
   flex-direction: column;
@@ -1513,6 +1517,14 @@
 }
 .motm-drawer__link--danger {
   color: var(--brand);
+}
+.motm-drawer__link--switch {
+  justify-content: space-between;
+}
+.motm-drawer__link-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .motm-drawer__divider {
   height: 1px;
