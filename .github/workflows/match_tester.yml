@@ -191,7 +191,7 @@ jobs:
           SHOTS_FLAG="--screenshots"
           if [ "$SCREENSHOTS_ENABLED" = "false" ]; then SHOTS_FLAG="--no-screenshots"; fi
           set +e
-          python tester/match_tester.py --fixture "$FIXTURE_ID" $NOW_FLAG --app-url http://localhost:4173 $SHOTS_FLAG
+          python tester/match_tester.py --fixture "$FIXTURE_ID" $NOW_FLAG --app-url https://man-of-the-match-web.vercel.app $SHOTS_FLAG
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       # ── 3. Subir reporte como artifact descargable ──────────────────────

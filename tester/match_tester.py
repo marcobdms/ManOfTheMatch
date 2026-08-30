@@ -28,7 +28,7 @@ SUPABASE_ANON_KEY = (
     ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30"
     ".JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y"
 )
-DEFAULT_APP_URL = "http://localhost:4173"
+DEFAULT_APP_URL = "https://man-of-the-match-web.vercel.app"
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard"
 
 # Duracion total del test: cubre 90 min normales + 15 min descuento + 10 min margen
