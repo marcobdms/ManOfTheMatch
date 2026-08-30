@@ -89,9 +89,11 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
     if (!type) continue;
 
     const teamId = e.isHome == null ? null : e.isHome ? f.home_team_id : f.away_team_id;
+    // swap[0] = entra, swap[1] = sale — verificado contra alineación titular
+    // real (Robert Navarro, titular, aparecía como swap[1] al ser sustituido).
     const playerName =
-      type === 'SUB' ? (e.swap?.[1]?.name ?? null) : (e.player?.name ?? null);
-    const assistName = type === 'SUB' ? (e.swap?.[0]?.name ?? null) : null;
+      type === 'SUB' ? (e.swap?.[0]?.name ?? null) : (e.player?.name ?? null);
+    const assistName = type === 'SUB' ? (e.swap?.[1]?.name ?? null) : null;
 
     // Fotmob corrige goles despues (autogol reatribuido, VAR) cambiando el
     // jugador — usar `eventId` (estable) cuando existe, no el jugador, o la
