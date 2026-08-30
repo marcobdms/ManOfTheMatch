@@ -14,18 +14,20 @@ function formatDate(iso: string): string {
 
 function HistoryRow({ match }: { match: LiveMatch }) {
   return (
-    <Link to={`/partidos/${match.id}`} className="motm-fixture-row">
-      <span className="motm-fixture-row__time">{formatDate(match.kickoffAt)}</span>
-      <span className="motm-fixture-row__team">
-        <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
-        <span className="motm-fixture-row__name">{match.home.shortName}</span>
-      </span>
-      <span className="motm-fixture-row__vs">{match.homeScore}–{match.awayScore}</span>
-      <span className="motm-fixture-row__team motm-fixture-row__team--away">
-        <span className="motm-fixture-row__name">{match.away.shortName}</span>
-        <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
-      </span>
-    </Link>
+    <div className="motm-fixture-row">
+      <Link to={`/partidos/${match.id}`} className="motm-fixture-row__main">
+        <span className="motm-fixture-row__time">{formatDate(match.kickoffAt)}</span>
+        <span className="motm-fixture-row__team">
+          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
+          <span className="motm-fixture-row__name">{match.home.shortName}</span>
+        </span>
+        <span className="motm-fixture-row__vs">{match.homeScore}–{match.awayScore}</span>
+        <span className="motm-fixture-row__team motm-fixture-row__team--away">
+          <span className="motm-fixture-row__name">{match.away.shortName}</span>
+          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
+        </span>
+      </Link>
+    </div>
   )
 }
 

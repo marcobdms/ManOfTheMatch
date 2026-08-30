@@ -9,6 +9,7 @@ import { liveTickerEspnTick } from './jobs/liveTickerEspn.js';
 import { syncMatchFacts } from './jobs/syncMatchFacts.js';
 import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
 import { syncLineups } from './jobs/syncLineups.js';
+import { syncPredictions } from './jobs/syncPredictions.js';
 
 console.log('[ingest] worker ManOfTheMatch arrancando…');
 
@@ -48,6 +49,10 @@ new Cron('*/5 * * * *', guard(runDueMatchDetails));
 // `protect: true` además evita que Croner solape dos pasadas del propio job
 // si una tardase más de 30 min (p.ej. con el circuit breaker abierto).
 new Cron('*/30 * * * *', { protect: true }, guard(syncLineups));
+
+// Previsiones (cuotas + pronostico): cada 30 min, presupuesto propio y
+// ventana de 36h se encargan de que sean pocas llamadas reales al dia.
+new Cron('*/30 * * * *', { protect: true }, guard(syncPredictions));
 
 // Kick one calendar sync on boot so a fresh deploy isn't empty.
 guard(syncFixtures)();

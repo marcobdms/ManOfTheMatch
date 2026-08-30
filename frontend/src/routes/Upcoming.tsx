@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ChartLineUp } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import { useUpcomingFixtures } from '../lib/queries'
@@ -50,24 +51,35 @@ function groupByDay(matches: UpcomingMatch[]): { key: string; label: string; mat
   return groups
 }
 
-function MatchRow({ match }: { match: UpcomingMatch }) {
+/** `showPredictions`: solo hoy (sin empezar, ya filtrado por status=SCHEDULED
+ *  en la query) y mañana — decidido por el grupo del día (dayKeyAndLabel),
+ *  misma comparación de fecha local que ya usa esta vista. */
+function MatchRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
   return (
-    <Link to={`/equipos/${match.home.id}`} className="motm-fixture-row">
-      <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
-      <span className="motm-fixture-row__team">
-        <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
-        <span className="motm-fixture-row__name">{match.home.shortName}</span>
-      </span>
-      <span className="motm-fixture-row__vs">–</span>
-      <span className="motm-fixture-row__team motm-fixture-row__team--away">
-        <span className="motm-fixture-row__name">{match.away.shortName}</span>
-        <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
-      </span>
-      <span className="motm-fixture-row__meta">
-        {match.competitionShort}
-        {match.matchday ? ` · J${match.matchday}` : ''}
-      </span>
-    </Link>
+    <div className="motm-fixture-row">
+      <Link to={`/equipos/${match.home.id}`} className="motm-fixture-row__main">
+        <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
+        <span className="motm-fixture-row__team">
+          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
+          <span className="motm-fixture-row__name">{match.home.shortName}</span>
+        </span>
+        <span className="motm-fixture-row__vs">–</span>
+        <span className="motm-fixture-row__team motm-fixture-row__team--away">
+          <span className="motm-fixture-row__name">{match.away.shortName}</span>
+          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
+        </span>
+        <span className="motm-fixture-row__meta">
+          {match.competitionShort}
+          {match.matchday ? ` · J${match.matchday}` : ''}
+        </span>
+      </Link>
+      {showPredictions && (
+        <Link to={`/partidos/${match.id}/previsiones`} className="motm-fixture-row__predict">
+          <ChartLineUp size={14} weight="bold" />
+          Previsiones
+        </Link>
+      )}
+    </div>
   )
 }
 
@@ -144,7 +156,11 @@ export default function Upcoming() {
             <h2 className="motm-day-group__label">{group.label}</h2>
             <div className="motm-fixture-list">
               {group.matches.map((match) => (
-                <MatchRow key={match.id} match={match} />
+                <MatchRow
+                  key={match.id}
+                  match={match}
+                  showPredictions={group.label === 'Hoy' || group.label === 'Mañana'}
+                />
               ))}
             </div>
           </motion.section>

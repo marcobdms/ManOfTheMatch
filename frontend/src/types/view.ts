@@ -162,3 +162,33 @@ export type MatchShot = {
   isBlocked: boolean
   xg: number | null
 }
+
+/** Cuota 1X2 de una casa (supabase/migrations/0010_predictions.sql). */
+export type MatchOdds = {
+  bookmakerId: number
+  bookmakerName: string
+  home: number
+  draw: number
+  away: number
+}
+
+/** Un argumento de Fotmob, aun sin traducir — ver lib/predictions.ts. */
+export type PredictionFact = {
+  templateId: string
+  values: string[]
+}
+
+/** Previsión pre-partido de un fixture. Todo nullable — nunca se inventa un
+ *  dato que la fuente no dio. */
+export type MatchPrediction = {
+  percentHome: number | null
+  percentDraw: number | null
+  percentAway: number | null
+  formHome: number | null
+  formAway: number | null
+  attHome: number | null
+  attAway: number | null
+  defHome: number | null
+  defAway: number | null
+  facts: PredictionFact[]
+}

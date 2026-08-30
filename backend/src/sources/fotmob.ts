@@ -292,7 +292,16 @@ export type FotmobMatchFacts = {
   } | null;
   insights?: unknown[] | null;
   topPlayers?: unknown | null;
+  /** Pre-partido: frases con plantilla (no texto libre) — el mismo hecho
+   *  siempre trae el mismo `TextTemplateId`, se traduce en el frontend. */
+  poll?: { oddspoll?: { Facts?: FotmobOddsFact[] | null } | null } | null;
 } | null;
+
+export type FotmobOddsFact = {
+  TextTemplateId: string;
+  StatValues: string[];
+  defaultText?: string | null;
+};
 
 export type FotmobMatchDetails = {
   header?: {

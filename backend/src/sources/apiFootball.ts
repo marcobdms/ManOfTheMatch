@@ -92,6 +92,17 @@ export function getStandings(leagueApiId: number, season = 2026) {
   return afGet<AfStandingsBlock>(`${BASE}/standings?league=${leagueApiId}&season=${season}`, 3600);
 }
 
+/** Cuotas pre-partido, todas las casas en una sola llamada — filtrar la casa
+ *  deseada en el caller. Vacío si aún no hay mercado abierto para el partido. */
+export function getOdds(fixtureApiId: number) {
+  return afGet<AfOdds>(`${BASE}/odds?fixture=${fixtureApiId}`, 1800);
+}
+
+/** Pronóstico: % de victoria/empate, forma/ataque/defensa comparados. */
+export function getPredictions(fixtureApiId: number) {
+  return afGet<AfPrediction>(`${BASE}/predictions?fixture=${fixtureApiId}`, 1800);
+}
+
 /** All teams in a league/season — used one-off by scripts/resolveTeamIds.ts.
  *  ⚠️ Free plan only serves seasons 2022-2024 for most endpoints
  *  (docs/endpoint-check-2026-08-27.md) — verify this works for 2026 before
@@ -238,4 +249,25 @@ type AfStandingRecord = {
   draw: number;
   lose: number;
   goals: { for: number; against: number };
+};
+
+export type AfOddsValue = { value: string; odd: string };
+export type AfOddsBet = { id: number; name: string; values: AfOddsValue[] };
+export type AfOddsBookmaker = { id: number; name: string; bets: AfOddsBet[] };
+export type AfOdds = {
+  fixture: { id: number };
+  update: string;
+  bookmakers: AfOddsBookmaker[];
+};
+
+export type AfPrediction = {
+  predictions: {
+    winner: { id: number | null; name: string | null; comment: string | null } | null;
+    percent: { home: string; draw: string; away: string };
+  };
+  comparison: {
+    form: { home: string; away: string };
+    att: { home: string; away: string };
+    def: { home: string; away: string };
+  };
 };

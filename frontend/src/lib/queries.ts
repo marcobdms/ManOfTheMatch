@@ -19,6 +19,8 @@ import type {
   LineupFreshness,
   LineupPlayer,
   LiveMatch,
+  MatchOdds,
+  MatchPrediction,
   MatchShot,
   MomentumPoint,
   NewsItem,
@@ -858,6 +860,92 @@ export function useMatchShots(fixtureId: string | undefined, opts: { live?: bool
     queryFn: () => fetchMatchShots(fixtureId as string),
     enabled: hasSupabaseEnv && !!fixtureId,
     refetchInterval: opts.live ? LIVE_MS : false,
+    retry: false,
+  })
+}
+
+type OddsRow = {
+  bookmaker_id: number
+  bookmaker_name: string
+  home_odd: number
+  draw_odd: number
+  away_odd: number
+}
+
+/** `match_odds` — supabase/migrations/0010_predictions.sql. Solo partidos SCHEDULED. */
+async function fetchMatchOdds(fixtureId: string): Promise<MatchOdds[]> {
+  const { data, error } = await supabase
+    .from('match_odds')
+    .select('bookmaker_id, bookmaker_name, home_odd, draw_odd, away_odd')
+    .eq('fixture_id', fixtureId)
+    .returns<OddsRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return []
+    throw error
+  }
+  return (data ?? []).map((row) => ({
+    bookmakerId: row.bookmaker_id,
+    bookmakerName: row.bookmaker_name,
+    home: row.home_odd,
+    draw: row.draw_odd,
+    away: row.away_odd,
+  }))
+}
+
+export function useMatchOdds(fixtureId: string | undefined) {
+  return useQuery({
+    queryKey: ['matchOdds', fixtureId],
+    queryFn: () => fetchMatchOdds(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    retry: false,
+  })
+}
+
+type PredictionRow = {
+  percent_home: number | null
+  percent_draw: number | null
+  percent_away: number | null
+  form_home: number | null
+  form_away: number | null
+  att_home: number | null
+  att_away: number | null
+  def_home: number | null
+  def_away: number | null
+  fotmob_facts: Array<{ templateId: string; values: string[] }> | null
+}
+
+/** `match_predictions` — supabase/migrations/0010_predictions.sql. */
+async function fetchMatchPrediction(fixtureId: string): Promise<MatchPrediction | null> {
+  const { data, error } = await supabase
+    .from('match_predictions')
+    .select('percent_home, percent_draw, percent_away, form_home, form_away, att_home, att_away, def_home, def_away, fotmob_facts')
+    .eq('fixture_id', fixtureId)
+    .maybeSingle()
+    .returns<PredictionRow>()
+  if (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
+  if (!data) return null
+  return {
+    percentHome: data.percent_home,
+    percentDraw: data.percent_draw,
+    percentAway: data.percent_away,
+    formHome: data.form_home,
+    formAway: data.form_away,
+    attHome: data.att_home,
+    attAway: data.att_away,
+    defHome: data.def_home,
+    defAway: data.def_away,
+    facts: (data.fotmob_facts ?? []).map((f) => ({ templateId: f.templateId, values: f.values })),
+  }
+}
+
+export function useMatchPrediction(fixtureId: string | undefined) {
+  return useQuery({
+    queryKey: ['matchPrediction', fixtureId],
+    queryFn: () => fetchMatchPrediction(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
     retry: false,
   })
 }

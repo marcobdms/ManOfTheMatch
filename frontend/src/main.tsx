@@ -14,6 +14,7 @@ import Upcoming from './routes/Upcoming'
 import Teams from './routes/Teams'
 import TeamLineup from './routes/TeamLineup'
 import MatchStats from './routes/MatchStats'
+import MatchPredictions from './routes/MatchPredictions'
 import MatchDetail from './routes/MatchDetail'
 import HistoryTeams from './routes/HistoryTeams'
 import TeamHistory from './routes/TeamHistory'
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: 'equipos', element: <Teams /> },
       { path: 'equipos/:teamId', element: <TeamLineup /> },
       { path: 'partidos/:fixtureId/estadisticas', element: <MatchStats /> },
+      { path: 'partidos/:fixtureId/previsiones', element: <MatchPredictions /> },
       { path: 'partidos/:fixtureId', element: <MatchDetail /> },
       { path: 'historial', element: <HistoryTeams /> },
       { path: 'historial/:teamId', element: <TeamHistory /> },
