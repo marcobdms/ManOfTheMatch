@@ -41,7 +41,7 @@ export default function TeamLineupBody({ snapshot, loading, isError }: Props) {
           {snapshot.lineupType !== 'last_played' && snapshot.opponentName && (
             <span className="motm-freshness__detail">
               {' '}
-              — {snapshot.isHome ? 'vs' : '@'} {snapshot.opponentName}
+              — {snapshot.isHome ? 'vs' : 'fuera ante'} {snapshot.opponentName}
               {snapshot.kickoffAt ? `, ${formatDate(snapshot.kickoffAt)}` : ''}
             </span>
           )}
