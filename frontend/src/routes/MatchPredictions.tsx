@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { ArrowLeft, Sparkle } from '@phosphor-icons/react'
+import { ArrowLeft, CheckCircle, Sparkle, XCircle } from '@phosphor-icons/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import StatCompareRow from '../components/StatCompareRow'
-import { useAiPrediction, useFixtureById, useGenerateAiPrediction, useMatchOdds, useMatchPrediction } from '../lib/queries'
+import { useFixtureById, useGenerateAiPrediction, useMatchOdds, useMatchPrediction } from '../lib/queries'
 import { impliedResultPercent, translateFact } from '../lib/predictions'
 import type { TeamStatPair } from '../types/view'
 
@@ -16,14 +16,16 @@ export default function MatchPredictions() {
   const matchQuery = useFixtureById(fixtureId)
   const predictionQuery = useMatchPrediction(fixtureId)
   const oddsQuery = useMatchOdds(fixtureId)
-  const aiQuery = useAiPrediction(fixtureId)
+  // De momento sin caché (petición explícita): el resultado vive solo en el
+  // estado de esta mutación, así que al salir de la vista y volver (o dar
+  // "Generar otra") se pide una previsión nueva de verdad, no una guardada.
   const generateAi = useGenerateAiPrediction()
   const [bookmakerId, setBookmakerId] = useState<number | null>(null)
 
   const match = matchQuery.data
   const pred = predictionQuery.data
   const odds = oddsQuery.data ?? []
-  const ai = aiQuery.data
+  const ai = generateAi.data
   const activeBookmaker = odds.find((o) => o.bookmakerId === bookmakerId) ?? odds[0]
 
   const loading = matchQuery.isLoading || predictionQuery.isLoading || oddsQuery.isLoading
@@ -97,46 +99,6 @@ export default function MatchPredictions() {
           </div>
         )}
 
-        {!loading && hasAnything && fixtureId && (
-          <div className="motm-stat-team">
-            <h2 className="motm-label motm-subs__title">Previsión con IA</h2>
-            {ai ? (
-              <div className="motm-ai">
-                <p className="motm-ai__paragraph">{ai.paragraph}</p>
-                {ai.pros.length > 0 && (
-                  <ul className="motm-ai__list motm-ai__list--pro">
-                    {ai.pros.map((p, i) => (
-                      <li key={i}>{p}</li>
-                    ))}
-                  </ul>
-                )}
-                {ai.cons.length > 0 && (
-                  <ul className="motm-ai__list motm-ai__list--con">
-                    {ai.cons.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="motm-btn motm-ai__generate"
-                  disabled={generateAi.isPending || aiQuery.isLoading}
-                  onClick={() => generateAi.mutate(fixtureId)}
-                >
-                  <Sparkle size={18} weight="fill" />
-                  {generateAi.isPending ? 'Generando…' : 'Generar previsión con IA'}
-                </button>
-                {generateAi.isError && (
-                  <p className="motm-field__error">{(generateAi.error as Error).message}</p>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
         {!loading && comparisonRows.length > 0 && (
           <div className="motm-compare">
             <div className="motm-compare__rows">
@@ -178,6 +140,78 @@ export default function MatchPredictions() {
                   <span>{activeBookmaker.away.toFixed(2)}</span>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {!loading && hasAnything && fixtureId && (
+          <div className="motm-compare motm-ai">
+            <div className="motm-ai__head">
+              <Sparkle size={14} weight="fill" />
+              <span className="motm-ai__badge">Previsión IA</span>
+            </div>
+
+            {ai ? (
+              <>
+                {match && ai.predictedResult !== 'draw' && (
+                  <div className="motm-ai__pick">
+                    <TeamCrest
+                      teamId={ai.predictedResult === 'home' ? match.home.id : match.away.id}
+                      tla={ai.predictedResult === 'home' ? match.home.tla : match.away.tla}
+                      size={22}
+                    />
+                    <span>Gana {ai.predictedResult === 'home' ? match.home.shortName : match.away.shortName}</span>
+                  </div>
+                )}
+                {ai.predictedResult === 'draw' && <div className="motm-ai__pick">Empate</div>}
+
+                <p className="motm-ai__paragraph">{ai.paragraph}</p>
+
+                {ai.pros.length > 0 && (
+                  <ul className="motm-ai__list motm-ai__list--pro">
+                    {ai.pros.map((p, i) => (
+                      <li key={i}>
+                        <CheckCircle size={15} weight="fill" />
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {ai.cons.length > 0 && (
+                  <ul className="motm-ai__list motm-ai__list--con">
+                    {ai.cons.map((c, i) => (
+                      <li key={i}>
+                        <XCircle size={15} weight="fill" />
+                        <span>{c}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <button
+                  type="button"
+                  className="motm-ai__retry"
+                  disabled={generateAi.isPending}
+                  onClick={() => generateAi.mutate(fixtureId)}
+                >
+                  {generateAi.isPending ? 'Generando…' : 'Generar otra previsión'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="motm-btn motm-ai__generate"
+                  disabled={generateAi.isPending}
+                  onClick={() => generateAi.mutate(fixtureId)}
+                >
+                  <Sparkle size={18} weight="fill" />
+                  {generateAi.isPending ? 'Generando…' : 'Generar previsión con IA'}
+                </button>
+                {generateAi.isError && (
+                  <p className="motm-field__error">{(generateAi.error as Error).message}</p>
+                )}
+              </>
             )}
           </div>
         )}

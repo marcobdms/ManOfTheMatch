@@ -6,8 +6,14 @@
 // Grounding: solo usa match_odds/match_predictions ya sincronizados por el
 // backend (mismos datos que pinta MatchPredictions.tsx) — nunca sale a
 // buscar nada por su cuenta ni inventa estadísticas fuera de ese contexto.
-// Cachea el resultado en match_ai_predictions: una generación por partido,
-// el resto de visitas la leen gratis.
+//
+// De momento (petición explícita) NO se cachea: cada click genera una
+// llamada real a Groq, sin leer ni devolver una previa. Se sigue guardando
+// en match_ai_predictions (se sobrescribe) solo como histórico/debug, nadie
+// la lee. Con el modelo actual (openai/gpt-oss-120b, free tier de Groq:
+// 1000 req/día y 200k tokens/día) y ~1200 tokens por llamada, el techo real
+// es el de tokens: ~166 generaciones/día antes de toparse — de sobra para
+// el uso actual. Si el uso crece, aquí es donde reintroducir el caché.
 import { impliedResultPercent, translateFact } from '../src/lib/predictions'
 
 export const config = { runtime: 'edge' }
@@ -78,14 +84,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
   if (!fixtureId) return json({ error: 'fixtureId requerido' }, 400)
 
-  // 1) caché — una previsión por partido.
-  const cachedRes = await sbFetch(`match_ai_predictions?fixture_id=eq.${fixtureId}&select=*`)
-  if (cachedRes.ok) {
-    const rows = (await cachedRes.json()) as AiRow[]
-    if (rows[0]) return json(toApi(rows[0]), 200)
-  }
-
-  // 2) partido + nombres de equipo.
+  // partido + nombres de equipo.
   const fxSelect = 'id,status,home:teams!home_team_id(short_name),away:teams!away_team_id(short_name)'
   const fxRes = await sbFetch(`fixtures?id=eq.${fixtureId}&select=${fxSelect}`)
   const fixtures = fxRes.ok ? await fxRes.json() : []
@@ -96,7 +95,7 @@ export default async function handler(req: Request): Promise<Response> {
   const homeName = asOne(fixture.home)?.short_name ?? 'el local'
   const awayName = asOne(fixture.away)?.short_name ?? 'el visitante'
 
-  // 3) cuotas + comparativa/argumentos ya sincronizados.
+  // cuotas + comparativa/argumentos ya sincronizados.
   const oddsRes = await sbFetch(
     `match_odds?fixture_id=eq.${fixtureId}&select=bookmaker_id,bookmaker_name,home_odd,draw_odd,away_odd`,
   )
@@ -184,6 +183,7 @@ REGLAS ESTRICTAS:
     generated_at: new Date().toISOString(),
   }
 
+  // Se sobrescribe cada vez — solo histórico, nada lee esto (ver nota de arriba).
   await sbFetch('match_ai_predictions', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates' },

@@ -30,6 +30,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
+  /* En Safari (pestaña) la propia barra del navegador ya ocupa el notch, así
+     que safe-area-inset-top es 0 ahí — esto no le cambia nada. En PWA
+     instalada (pantalla completa, sin esa barra) sí es > 0 y sin esto el
+     header queda pegado bajo el status bar/notch. */
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
   background: var(--card);
   box-shadow: 0 1px 0 var(--line);
   position: sticky;
@@ -1623,43 +1628,78 @@
 }
 
 /* ===== Previsión con IA (Groq, frontend/api/predict.ts) ===== */
+.motm-ai__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--brand);
+  margin-bottom: 12px;
+}
+.motm-ai__badge {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.motm-ai__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
 .motm-ai__generate {
   width: 100%;
 }
 .motm-ai__paragraph {
-  margin: 4px 0 12px;
+  margin: 0 0 14px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .motm-ai__list {
   list-style: none;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 .motm-ai__list li {
-  position: relative;
-  padding-left: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   font-size: 13px;
   line-height: 1.4;
 }
-.motm-ai__list li::before {
-  position: absolute;
-  left: 0;
-  top: 0;
-  font-weight: 800;
+.motm-ai__list li svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
-.motm-ai__list--pro li {
+.motm-ai__list--pro {
   color: var(--good);
 }
-.motm-ai__list--pro li::before {
-  content: '+';
-}
-.motm-ai__list--con li {
+.motm-ai__list--con {
   color: var(--brand);
 }
-.motm-ai__list--con li::before {
-  content: '–';
+.motm-ai__retry {
+  display: block;
+  margin: 4px auto 0;
+  padding: 4px;
+  border: 0;
+  background: none;
+  font-family: var(--f-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.motm-ai__retry:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

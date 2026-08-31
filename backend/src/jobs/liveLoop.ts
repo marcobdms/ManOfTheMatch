@@ -22,6 +22,14 @@ import { isTrackedSlug, teamName, teamSlugByTsdbId } from '../lib/ids.js';
  */
 
 const WINDOW_MS = 2 * 60 * 60 * 1000;
+// Red de seguridad: un partido SCHEDULED cuyo kickoff ya pasó hace horas y
+// segue sin promocionar a LIVE (fuente principal — football-data — congelada
+// para ese partido puntual, visto en real con Celta-Athletic del
+// 2026-08-30: "lastUpdated" se paró en TIMED a las 20:51Z y no se movió más)
+// se quedaba huérfano al salir de la ventana +-2h de "ahora" sin que nadie
+// lo terminara de sincronizar. Se amplía solo el borde hacia atrás para
+// seguir intentando resincronizarlo durante 24h en vez de abandonarlo.
+const ORPHAN_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SKIP_STATUSES = new Set(['FINISHED', 'POSTPONED', 'SUSPENDED']);
 
 /** TheSportsDB devuelve todo como string (o null / ""). */
@@ -55,7 +63,7 @@ const SELECT =
 export function liveLoop() {
   return withRun('liveLoop', 'football-data', async () => {
     const nowMs = Date.now();
-    const lo = new Date(nowMs - WINDOW_MS).toISOString();
+    const lo = new Date(nowMs - ORPHAN_WINDOW_MS).toISOString();
     const hi = new Date(nowMs + WINDOW_MS).toISOString();
     const dayStart = new Date(nowMs);
     dayStart.setUTCHours(0, 0, 0, 0);
