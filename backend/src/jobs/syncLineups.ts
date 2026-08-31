@@ -8,6 +8,7 @@
 // sobrescribe con datos buenos (regla dura del plan).
 
 import { db } from '../db.js';
+import { photoFor, refreshPhotoCache } from '../lib/playerPhotos.js';
 import { withRun } from '../lib/run.js';
 import { TEAMS, TRACKED_TEAM_IDS } from '../lib/shared.js';
 import type { TeamId } from '../lib/shared.js';
@@ -53,6 +54,9 @@ type FixtureRow = {
 
 export function syncLineups() {
   return withRun('syncLineups', 'fotmob', async () => {
+    // Las fotos cambian de higos a brevas (las resuelve un script aparte), así
+    // que basta con releerlas una vez por pasada.
+    await refreshPhotoCache();
     let written = 0;
 
     for (const teamId of TRACKED_TEAM_IDS) {
@@ -124,7 +128,7 @@ async function tryFromFotmob(
       : 'predicted'
     : 'last_played';
 
-  const players = mapPlayers(side.starters ?? [], true).concat(mapPlayers(side.subs ?? [], false));
+  const players = mapPlayers(side.starters ?? [], true, teamId).concat(mapPlayers(side.subs ?? [], false, teamId));
   if (!players.length) return false;
 
   const opponentName = isHome ? fixture.away_team_name : fixture.home_team_name;
@@ -152,7 +156,7 @@ async function tryFromFotmob(
   return true;
 }
 
-function mapPlayers(list: FotmobPlayer[], isStarter: boolean): LineupPlayer[] {
+function mapPlayers(list: FotmobPlayer[], isStarter: boolean, teamId: TeamId): LineupPlayer[] {
   return list.map((p) => {
     const x = p.horizontalLayout?.x ?? null;
     const y = p.horizontalLayout?.y ?? null;
@@ -169,7 +173,7 @@ function mapPlayers(list: FotmobPlayer[], isStarter: boolean): LineupPlayer[] {
       rating: p.performance?.rating ?? null,
       seasonRating: p.performance?.seasonRating ?? null,
       isStarter,
-      photoUrl: null, // reservado para después (plan §A1)
+      photoUrl: photoFor(teamId, p.name),
     };
   });
 }

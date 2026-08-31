@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "resolve-ids": "tsx src/scripts/resolveTeamIds.ts"
+    "resolve-ids": "tsx src/scripts/resolveTeamIds.ts",
+    "resolve-photos": "tsx src/scripts/resolvePlayerPhotos.ts",
+    "sync-lineups-once": "tsx src/scripts/runSyncLineups.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

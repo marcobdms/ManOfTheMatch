@@ -28,6 +28,7 @@ let byFootballData = new Map<number, TeamId>();
 let byApiFootball = new Map<number, TeamId>();
 let byTsdb = new Map<string, TeamId>();
 let tsdbByTeam = new Map<TeamId, string>();
+let apiFootballByTeam = new Map<TeamId, number>();
 let byEspn = new Map<string, TeamId>();
 
 /** (Re)loads `teams.source_ids` for all 20 known slugs. Call at boot, and
@@ -44,6 +45,7 @@ export async function refreshTeamCache(): Promise<void> {
   const na = new Map<number, TeamId>();
   const nt = new Map<string, TeamId>();
   const tt = new Map<TeamId, string>();
+  const at = new Map<TeamId, number>();
   const ne = new Map<string, TeamId>();
 
   for (const row of (data ?? []) as { id: string; source_ids: TeamSourceIds | null }[]) {
@@ -51,7 +53,10 @@ export async function refreshTeamCache(): Promise<void> {
     const slug = row.id as TeamId;
     const sids = row.source_ids ?? {};
     if (sids.footballData != null) nf.set(Number(sids.footballData), slug);
-    if (sids.apiFootball != null) na.set(Number(sids.apiFootball), slug);
+    if (sids.apiFootball != null) {
+      na.set(Number(sids.apiFootball), slug);
+      at.set(slug, Number(sids.apiFootball));
+    }
     if (sids.theSportsDb) {
       nt.set(String(sids.theSportsDb), slug);
       tt.set(slug, String(sids.theSportsDb));
@@ -63,6 +68,7 @@ export async function refreshTeamCache(): Promise<void> {
   byApiFootball = na;
   byTsdb = nt;
   tsdbByTeam = tt;
+  apiFootballByTeam = at;
   byEspn = ne;
 }
 
@@ -89,6 +95,11 @@ export function teamSlugByTsdbId(id: string | null | undefined): TeamId | null {
 /** TheSportsDB team id for a slug, once resolved — null until then. */
 export function tsdbIdForTeam(slug: TeamId): string | null {
   return tsdbByTeam.get(slug) ?? null;
+}
+
+/** API-Football team id para un slug, ya resuelto — null hasta entonces. */
+export function apiFootballIdForTeam(slug: TeamId): number | null {
+  return apiFootballByTeam.get(slug) ?? null;
 }
 
 export function teamSlugByEspnId(id: string | null | undefined): TeamId | null {
