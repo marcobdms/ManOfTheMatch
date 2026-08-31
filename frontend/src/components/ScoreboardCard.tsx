@@ -1,30 +1,14 @@
-import { SoccerBall } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { SoccerBall } from '@phosphor-icons/react'
 import laligaLogo from '../assets/crests/laliga.svg'
 import TeamCrest from './TeamCrest'
 import { useLiveMinute } from '../lib/useLiveMinute'
+import { STAGGER_ITEM } from '../lib/motion'
 import type { GoalChip, LiveMatch } from '../types/view'
 
 type Props = {
   match: LiveMatch
   goals: GoalChip[]
-}
-
-/** El marcador "salta" (pop de escala) cuando el número cambia — `key` hace
- *  que React lo remonte y Framer lo anime de entrada. Sin AnimatePresence:
- *  con `popLayout` el número saliente se salía del flujo y descolocaba el
- *  marcador entero justo en el momento del gol. */
-function ScoreNumber({ value }: { value: number }) {
-  return (
-    <motion.b
-      key={value}
-      initial={{ scale: 1.35 }}
-      animate={{ scale: 1 }}
-      transition={{ type: 'spring', stiffness: 460, damping: 16 }}
-    >
-      {value}
-    </motion.b>
-  )
 }
 
 export default function ScoreboardCard({ match, goals }: Props) {
@@ -66,9 +50,9 @@ export default function ScoreboardCard({ match, goals }: Props) {
           <span className="motm-team__name">{match.home.shortName}</span>
         </div>
         <div className="motm-score__num">
-          <ScoreNumber value={match.homeScore} />
+          <b>{match.homeScore}</b>
           <span>–</span>
-          <ScoreNumber value={match.awayScore} />
+          <b>{match.awayScore}</b>
         </div>
         <div className="motm-team">
           <TeamCrest teamId={match.away.id} tla={match.away.tla} size={56} className="motm-crest" />
@@ -88,7 +72,7 @@ export default function ScoreboardCard({ match, goals }: Props) {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.85 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
+                transition={STAGGER_ITEM}
               >
                 <SoccerBall size={12} weight="fill" />
                 {g.minuteLabel} {g.player}

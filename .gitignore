@@ -29,3 +29,6 @@ __pycache__/
 
 # reportes locales del tester (en CI van como artifact)
 tester/reports/
+
+# Supabase CLI cache
+supabase/.temp/

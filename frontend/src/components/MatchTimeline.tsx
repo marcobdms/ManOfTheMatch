@@ -1,10 +1,13 @@
 import type { JSX } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { PANEL_EXIT, STAGGER_ITEM } from '../lib/motion'
 import {
   ArrowsLeftRight,
   FlagPennant,
   PaperPlaneTilt,
   SoccerBall,
+  Target,
+  XCircle,
 } from '@phosphor-icons/react'
 import type { MatchEventType } from '../lib/shared'
 import type { TimelineEvent } from '../types/view'
@@ -28,6 +31,10 @@ function badge(type: MatchEventType): { cls: string; node: JSX.Element } {
       }
     case 'SUB':
       return { cls: '', node: <ArrowsLeftRight size={15} /> }
+    case 'VAR':
+      return { cls: ' motm-ev__badge--goal', node: <XCircle size={15} weight="fill" /> }
+    case 'CHANCE':
+      return { cls: '', node: <Target size={15} /> }
     case 'CORNER':
       return { cls: '', node: <FlagPennant size={15} /> }
     default:
@@ -39,8 +46,8 @@ function badge(type: MatchEventType): { cls: string; node: JSX.Element } {
 // la izquierda — llama la atención sin ser un simple fade genérico.
 const eventVariants = {
   initial: { opacity: 0, x: -10 },
-  animate: { opacity: 1, x: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
-  exit: { opacity: 0, transition: { duration: 0.12 } },
+  animate: { opacity: 1, x: 0, transition: STAGGER_ITEM },
+  exit: { opacity: 0, transition: PANEL_EXIT },
 }
 
 export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
@@ -70,7 +77,16 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
                 <span className={'motm-ev__min' + (isGoal ? ' motm-ev__min--goal' : '')}>
                   {e.minuteLabel}
                 </span>
-                <span className="motm-ev__txt">{e.text}</span>
+                <span className="motm-ev__txt">
+                  {e.narration ? (
+                    // Frase de Groq (backend/lib/narrate.ts) — itálica, mismo
+                    // guiño visual que "Previsión IA": marca que esa línea la
+                    // puso la IA, no el dato plano de siempre.
+                    <span className="motm-ev__narration">{e.narration}</span>
+                  ) : (
+                    e.text
+                  )}
+                </span>
               </motion.div>
             )
           })}

@@ -122,6 +122,7 @@ type EventRow = {
   assist_name: string | null
   detail: string | null
   source: string | null
+  narration: string | null
   team: { name: string; tla: string } | { name: string; tla: string }[] | null
 }
 
@@ -162,7 +163,7 @@ const FIXTURE_SELECT =
   'competition:competitions ( short_name )'
 
 const EVENT_SELECT =
-  'id, type, minute, minute_extra, team_id, player_name, assist_name, detail, source, ' +
+  'id, type, minute, minute_extra, team_id, player_name, assist_name, detail, source, narration, ' +
   'team:teams!team_id ( name, tla )'
 
 // --- mappers ----------------------------------------------------------------
@@ -273,7 +274,9 @@ function buildEventText(row: EventRow): string {
         assist ? ', sale ' + assist : ''
       }`
     case 'VAR':
-      return `Revisión del VAR${detail ? ' — ' + detail : ''}`
+      // 'Gol anulado' (ver backend/lib/eventReconcile.ts) mantiene el nombre
+      // del jugador que ya tenía la fila del gol original.
+      return `${detail ?? 'Revisión del VAR'}${player ? ' — ' + player : ''}${team ? ' (' + team + ')' : ''}`
     case 'PERIOD':
       return detail || 'Cambio de periodo'
     case 'CORNER':
@@ -281,7 +284,7 @@ function buildEventText(row: EventRow): string {
     case 'KEY_PASS':
       return `Pase filtrado${player ? ' de ' + player : ''}${assist ? ' para ' + assist : ''}`
     case 'CHANCE':
-      return `Ocasión${team ? ' del ' + team : ''}${player ? ' — ' + player : ''}`
+      return `Ocasión clara desperdiciada${team ? ' por el ' + team : ''}${player ? ' — ' + player : ''}`
     default:
       return detail || 'Jugada'
   }
@@ -434,6 +437,7 @@ async function fetchTimeline(fixtureId: string): Promise<TimelineEvent[]> {
       type: normalizeEventType(row.type),
       minuteLabel: eventMinuteLabel(row.minute, row.minute_extra),
       text: buildEventText(row),
+      narration: row.narration?.trim() || null,
     }))
     .reverse()
 }

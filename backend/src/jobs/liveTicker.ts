@@ -20,6 +20,9 @@ import { withRun } from '../lib/run.js';
 import { fotmobCircuitStatus, getMatchDetails } from '../sources/fotmob.js';
 import type { FotmobShot, FotmobTickerEvent } from '../sources/fotmob.js';
 import { mapFotmobTickerEvent } from '../lib/map.js';
+import { reconcileRetracted } from '../lib/eventReconcile.js';
+import { narrateEvent } from '../lib/narrate.js';
+import { teamName } from '../lib/ids.js';
 
 type LiveFixtureRow = {
   id: string;
@@ -82,7 +85,26 @@ async function syncOneTicker(f: LiveFixtureRow): Promise<boolean> {
   return nEvents > 0 || nShots > 0;
 }
 
+/** Fotmob canta un gol antes de resolver quién lo metió y manda literalmente
+ *  "<TBD>" de nombre mientras tanto — lo tratamos como "todavía no sabemos",
+ *  igual que si no hubiera nombre, en vez de guardar el placeholder tal cual
+ *  (visto en real: "GOL del Getafe — <TBD>" en el histórico). */
+function cleanPlayerName(name: string | null | undefined): string | null {
+  const trimmed = name?.trim() ?? '';
+  if (!trimmed || /^<.*>$/.test(trimmed) || trimmed.toUpperCase() === 'TBD') return null;
+  return trimmed;
+}
+
 async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]): Promise<number> {
+  // Para narrar solo lo REALMENTE nuevo (no en cada re-poll de 10s) hace
+  // falta saber qué ids ya teníamos antes de tocar nada.
+  const { data: existing } = await db
+    .from('match_events')
+    .select('source_event_id')
+    .eq('fixture_id', f.id)
+    .eq('source', 'fotmob');
+  const seen = new Set((existing ?? []).map((r: { source_event_id: string }) => r.source_event_id));
+
   const rows = [];
   for (const [i, e] of events.entries()) {
     const type = mapFotmobTickerEvent(e.type, e.card, e.ownGoal, e.goalDescriptionKey);
@@ -91,9 +113,10 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
     const teamId = e.isHome == null ? null : e.isHome ? f.home_team_id : f.away_team_id;
     // swap[0] = entra, swap[1] = sale — verificado contra alineación titular
     // real (Robert Navarro, titular, aparecía como swap[1] al ser sustituido).
-    const playerName =
-      type === 'SUB' ? (e.swap?.[0]?.name ?? null) : (e.player?.name ?? null);
-    const assistName = type === 'SUB' ? (e.swap?.[1]?.name ?? null) : null;
+    const playerName = cleanPlayerName(
+      type === 'SUB' ? e.swap?.[0]?.name : e.player?.name,
+    );
+    const assistName = type === 'SUB' ? cleanPlayerName(e.swap?.[1]?.name) : null;
 
     // Fotmob corrige goles despues (autogol reatribuido, VAR) cambiando el
     // jugador — usar `eventId` (estable) cuando existe, no el jugador, o la
@@ -118,13 +141,73 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
     });
   }
 
-  if (!rows.length) return 0;
-  const { error } = await db
-    .from('match_events')
-    .upsert(rows, { onConflict: 'fixture_id,source,source_event_id' });
-  if (error) throw error;
+  if (rows.length) {
+    const { error } = await db
+      .from('match_events')
+      .upsert(rows, { onConflict: 'fixture_id,source,source_event_id' });
+    if (error) throw error;
+  }
+
+  // `events` es el estado ACTUAL del partido segun Fotmob, no un log que
+  // solo crece (ver lib/eventReconcile.ts) — solo si esta vez SI llegaron
+  // eventos reales se reconcilia contra lo que ya teniamos.
+  if (events.length && rows.length) {
+    await reconcileRetracted(f.id, 'fotmob', rows.map((r) => r.source_event_id));
+  }
+
+  const brandNew = rows.filter((r) => !seen.has(r.source_event_id) && GOAL_KIND[r.type]);
+  if (brandNew.length) await narrateNewGoals(f, brandNew);
+
   return rows.length;
 }
+
+const GOAL_KIND: Partial<Record<string, 'goal' | 'own_goal' | 'penalty_goal'>> = {
+  GOAL: 'goal',
+  OWN_GOAL: 'own_goal',
+  PENALTY_GOAL: 'penalty_goal',
+};
+
+async function narrateNewGoals(
+  f: LiveFixtureRow,
+  goals: Array<{ type: string; team_id: string | null; player_name: string | null; source_event_id: string; minute: number | null }>,
+): Promise<void> {
+  const { data: fx } = await db
+    .from('fixtures')
+    .select('home_score, away_score')
+    .eq('id', f.id)
+    .maybeSingle();
+  if (!fx) return;
+
+  for (const g of goals) {
+    const isHome = g.team_id === f.home_team_id;
+    const team = teamName(g.team_id);
+    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
+    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+
+    const narration = await narrateEvent({
+      kind: GOAL_KIND[g.type] ?? 'goal',
+      minute: g.minute,
+      team,
+      opponent,
+      player: g.player_name,
+      homeScore: fx.home_score ?? 0,
+      awayScore: fx.away_score ?? 0,
+    });
+    if (narration) {
+      await db
+        .from('match_events')
+        .update({ narration })
+        .eq('fixture_id', f.id)
+        .eq('source', 'fotmob')
+        .eq('source_event_id', g.source_event_id);
+    }
+  }
+}
+
+// xG a partir del cual un disparo fallado se narra como "ocasión clara" en el
+// histórico — 0.35 es lo que suele marcarse "big chance" en la práctica
+// (un mano a mano o un remate franco dentro del área), no cualquier tiro.
+const BIG_CHANCE_XG = 0.35;
 
 async function upsertShots(
   f: LiveFixtureRow,
@@ -156,9 +239,80 @@ async function upsertShots(
     .filter((r) => r.event_type !== 'Goal');
 
   if (!rows.length) return 0;
+
+  // Para narrar solo las ocasiones REALMENTE nuevas (no en cada re-poll).
+  const { data: existing } = await db
+    .from('match_shots')
+    .select('source_shot_id')
+    .eq('fixture_id', f.id)
+    .eq('source', 'fotmob');
+  const seen = new Set((existing ?? []).map((r: { source_shot_id: string }) => r.source_shot_id));
+
   const { error } = await db
     .from('match_shots')
     .upsert(rows, { onConflict: 'fixture_id,source,source_shot_id', ignoreDuplicates: true });
   if (error) throw error;
+
+  const bigChances = rows.filter(
+    (r) => !seen.has(r.source_shot_id) && (r.expected_goals ?? 0) >= BIG_CHANCE_XG,
+  );
+  if (bigChances.length) await narrateBigChances(f, bigChances);
+
   return rows.length;
+}
+
+/** Inserta la ocasión en el histórico (`match_events`, tipo CHANCE) y la
+ *  narra. `source:'fotmob-shot'` a propósito — distinto de 'fotmob' (los
+ *  eventos del ticker) para que `reconcileRetracted`, que solo mira
+ *  source='fotmob', nunca la confunda con un evento retirado y la borre. */
+async function narrateBigChances(
+  f: LiveFixtureRow,
+  chances: Array<{
+    team_id: string | null;
+    player_name: string | null | undefined;
+    minute: number | null;
+    expected_goals: number | null;
+    source_shot_id: string;
+  }>,
+): Promise<void> {
+  const { data: fx } = await db
+    .from('fixtures')
+    .select('home_score, away_score')
+    .eq('id', f.id)
+    .maybeSingle();
+  if (!fx) return;
+
+  for (const c of chances) {
+    const isHome = c.team_id === f.home_team_id;
+    const team = teamName(c.team_id);
+    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
+    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+    const playerName = c.player_name ?? null;
+
+    const narration = await narrateEvent({
+      kind: 'big_chance',
+      minute: c.minute,
+      team,
+      opponent,
+      player: playerName,
+      homeScore: fx.home_score ?? 0,
+      awayScore: fx.away_score ?? 0,
+      xg: c.expected_goals,
+    });
+
+    await db.from('match_events').upsert(
+      {
+        fixture_id: f.id,
+        type: 'CHANCE',
+        minute: c.minute,
+        team_id: c.team_id,
+        player_name: playerName,
+        detail: c.expected_goals != null ? `xG ${c.expected_goals.toFixed(2)}` : null,
+        source: 'fotmob-shot',
+        source_event_id: c.source_shot_id,
+        narration,
+      },
+      { onConflict: 'fixture_id,source,source_event_id' },
+    );
+  }
 }

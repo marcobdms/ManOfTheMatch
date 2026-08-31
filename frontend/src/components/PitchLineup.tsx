@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { STAGGER_ITEM } from '../lib/motion'
 import pitchPhoto from '../assets/pitch.jpg'
 import PlayerCard from './PlayerCard'
 import type { LineupPlayer } from '../types/view'
@@ -30,7 +31,7 @@ export default function PitchLineup({ starters }: Props) {
             <motion.div
               initial={{ opacity: 0, scale: 0.82 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.04, duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ delay: i * 0.04, ...STAGGER_ITEM }}
             >
               <PlayerCard player={p} variant="starter" />
             </motion.div>

@@ -7,6 +7,46 @@
   max-width: 480px;
   margin: 0 auto;
   background: var(--bg);
+  position: relative;
+}
+.motm-ptr {
+  /* `fixed`, no `absolute` dentro de `.motm-shell`: el header vive dentro de
+     cada página (no en el shell) con su propio `position: sticky`, así que
+     anclarlo al shell lo dejaba tapado detrás del header en vez de asomar
+     por debajo de él. z-index por encima del header (10) para que sí se vea
+     al tirar hacia abajo. */
+  position: fixed;
+  left: 50%;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  z-index: 11;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.motm-ptr__icon {
+  display: flex;
+  transition: transform 0.1s linear;
+}
+.motm-ptr__spin {
+  animation: motm-ptr-spin 0.7s linear infinite;
+}
+@keyframes motm-ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-ptr__spin {
+    animation: none;
+  }
 }
 .motm-shell__main {
   flex: 1;
@@ -346,6 +386,11 @@
   font-size: 14px;
   line-height: 1.4;
   padding-top: 3px;
+}
+.motm-ev__narration {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-weight: 600;
 }
 
 /* bottom nav */
@@ -824,9 +869,11 @@
   opacity: 0.14;
   pointer-events: none;
 }
-/* La foto y la nota son hermanas de `.motm-pcard--starter`, no sus hijas: así
-   pueden salirse del marco (flotar por encima, asomar por la esquina) sin
-   arrastrar al dorsal, que si necesita quedar recortado. */
+/* La foto vive DENTRO de `.motm-pcard--starter` (que recorta) en una ventana
+   fija: nunca se sale del marco, y el object-fit:cover de la imagen empareja
+   el encuadre entre fotos con planos distintos. La nota, en cambio, SÍ es
+   hermana de `.motm-pcard--starter` (ver más abajo) para poder asomar un
+   poco por la esquina sin arrastrar a la foto con ella. */
 .motm-pcard__photo {
   position: absolute;
   left: 7%;
@@ -840,7 +887,6 @@
   justify-content: center;
   pointer-events: none;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.03);
 }
 .motm-pcard__photo img {
   width: 100%;
@@ -851,11 +897,12 @@
 .motm-pcard__silhouette {
   color: rgba(255, 255, 255, 0.22);
 }
-/* Última nota del partido, esquina superior derecha. */
+/* Última nota del partido, esquina superior derecha — se sale un poco del
+   marco a propósito (ver nota en .motm-pcard__photo). */
 .motm-pcard__badge {
   position: absolute;
-  top: 4%;
-  right: 4%;
+  top: -6%;
+  right: -6%;
   z-index: 3;
   min-width: 1.9em;
   height: 1.9em;

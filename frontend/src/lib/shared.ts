@@ -81,6 +81,7 @@ export const POLL = {
   idleCron: '0 6,18 * * *',
   /** From T-2h before any kickoff: refresh lineups/prematch. */
   prematchMinutes: 15,
-  /** While a match is LIVE: score + events. */
-  liveSeconds: 60,
+  /** While a match is LIVE: score + events. Antes 60 — con la app en
+      primer plano se nota demasiado la espera para un marcador/histórico. */
+  liveSeconds: 20,
 } as const;

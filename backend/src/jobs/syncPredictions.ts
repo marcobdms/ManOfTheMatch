@@ -1,14 +1,21 @@
 // Previsiones pre-partido: cuotas (API-Football, 3 casas) + pronostico +
-// argumentos de Fotmob. Solo SCHEDULED dentro de 36h — la precision de
-// "hoy/manana" la aplica el frontend con hora local.
+// argumentos de Fotmob. Ventana ampliada de 36h a 4 dias (verificado en vivo
+// contra la API real: odds+predictions ya estan completos con 11-12 casas
+// hasta ~164h antes del kickoff, el limite real no es la disponibilidad del
+// dato sino nuestro presupuesto diario de 75 llamadas — ver budget.ts). Para
+// no reventar ese presupuesto con toda una jornada a la vez, el refresco es
+// escalonado: cada 6h si falta menos de 36h (las cuotas se mueven cerca del
+// partido), cada 24h si falta mas (con eso sobra, casi no cambian).
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { apiFootballHasBudget } from '../lib/budget.js';
 import { getOdds, getPredictions } from '../sources/apiFootball.js';
 import { getMatchDetails } from '../sources/fotmob.js';
 
-const WINDOW_H = 36;
-const REFRESH_AFTER_H = 6;
+const WINDOW_H = 96;
+const REFRESH_SOON_H = 6; // faltando <36h
+const REFRESH_FAR_H = 24; // faltando 36h-96h
+const NEAR_CUTOFF_H = 36;
 const BOOKMAKERS = [
   { id: 8, name: 'Bet365' },
   { id: 7, name: 'William Hill' },
@@ -17,6 +24,7 @@ const BOOKMAKERS = [
 
 type FixtureRow = {
   id: string;
+  kickoff_at: string;
   source_ids: Record<string, unknown> | null;
   predictions_synced_at: string | null;
 };
@@ -26,13 +34,15 @@ export function syncPredictions() {
     const windowEnd = new Date(Date.now() + WINDOW_H * 3_600_000).toISOString();
     const { data } = await db
       .from('fixtures')
-      .select('id, source_ids, predictions_synced_at')
+      .select('id, kickoff_at, source_ids, predictions_synced_at')
       .eq('status', 'SCHEDULED')
       .lte('kickoff_at', windowEnd);
 
     const due = ((data ?? []) as unknown as FixtureRow[]).filter((f) => {
       if (!f.predictions_synced_at) return true;
-      return Date.now() - new Date(f.predictions_synced_at).getTime() > REFRESH_AFTER_H * 3_600_000;
+      const hoursOut = (new Date(f.kickoff_at).getTime() - Date.now()) / 3_600_000;
+      const refreshAfterH = hoursOut <= NEAR_CUTOFF_H ? REFRESH_SOON_H : REFRESH_FAR_H;
+      return Date.now() - new Date(f.predictions_synced_at).getTime() > refreshAfterH * 3_600_000;
     });
     if (!due.length) return 0;
     if (!(await apiFootballHasBudget(due.length * 2))) return 0;

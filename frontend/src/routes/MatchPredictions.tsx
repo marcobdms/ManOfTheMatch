@@ -6,6 +6,7 @@ import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import StatCompareRow from '../components/StatCompareRow'
 import { useFixtureById, useGenerateAiPrediction, useMatchOdds, useMatchPrediction } from '../lib/queries'
+import { PANEL_ENTER } from '../lib/motion'
 import { impliedResultPercent, translateFact } from '../lib/predictions'
 import type { TeamStatPair } from '../types/view'
 
@@ -147,6 +148,17 @@ export default function MatchPredictions() {
           </div>
         )}
 
+        {/* Solo la casa que falta desaparece de arriba (ya viene filtrada
+            desde el backend) — esto es para cuando NINGUNA tiene cuotas
+            todavía pero sí hay otra previsión que mostrar, para no dejar un
+            hueco sin explicación entre "Argumentos" y la previsión IA. */}
+        {!loading && odds.length === 0 && (hasPercent || hasComparison || (pred?.facts.length ?? 0) > 0) && (
+          <div className="motm-stat-team">
+            <h2 className="motm-label motm-subs__title">Cuotas 1X2</h2>
+            <p className="motm-note">Sin datos de casas de apuestas todavía.</p>
+          </div>
+        )}
+
         {!loading && hasAnything && fixtureId && (
           <div className="motm-compare motm-ai">
             {ai ? (
@@ -179,7 +191,7 @@ export default function MatchPredictions() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: reduceMotion ? 0.001 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    transition={reduceMotion ? { duration: 0.001 } : PANEL_ENTER}
                   >
                 {match && ai.predictedResult !== 'draw' && (
                   <div className="motm-ai__pick">

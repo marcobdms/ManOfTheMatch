@@ -1,4 +1,4 @@
-import { ClockCounterClockwise, ChartBar } from '@phosphor-icons/react'
+import { ChartBar, UsersThree } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import ScoreboardCard from '../components/ScoreboardCard'
@@ -38,14 +38,14 @@ const MOCK_GOALS: GoalChip[] = [
 ]
 
 const MOCK_EVENTS: TimelineEvent[] = [
-  { id: '1', type: 'CORNER', minuteLabel: "74'", text: 'Córner a favor del Real Madrid' },
-  { id: '2', type: 'KEY_PASS', minuteLabel: "72'", text: 'Pase filtrado de Bellingham para Vinícius Jr.' },
-  { id: '3', type: 'YELLOW', minuteLabel: "68'", text: 'Tarjeta amarilla a Araújo — falta táctica' },
-  { id: '4', type: 'GOAL', minuteLabel: "63'", text: 'GOL del Real Madrid — Bellingham (asist. Vinícius)' },
-  { id: '5', type: 'SUB', minuteLabel: "60'", text: 'Cambio en el Barça — entra Fermín, sale Gavi' },
-  { id: '6', type: 'PENALTY_GOAL', minuteLabel: "45+2'", text: 'GOL del Barça — Lewandowski (de penalti)' },
-  { id: '7', type: 'YELLOW', minuteLabel: "34'", text: 'Tarjeta amarilla a Gavi' },
-  { id: '8', type: 'GOAL', minuteLabel: "12'", text: 'GOL del Real Madrid — Vinícius Jr.' },
+  { id: '1', type: 'CORNER', minuteLabel: "74'", text: 'Córner a favor del Real Madrid', narration: null },
+  { id: '2', type: 'KEY_PASS', minuteLabel: "72'", text: 'Pase filtrado de Bellingham para Vinícius Jr.', narration: null },
+  { id: '3', type: 'YELLOW', minuteLabel: "68'", text: 'Tarjeta amarilla a Araújo — falta táctica', narration: null },
+  { id: '4', type: 'GOAL', minuteLabel: "63'", text: 'GOL del Real Madrid — Bellingham (asist. Vinícius)', narration: null },
+  { id: '5', type: 'SUB', minuteLabel: "60'", text: 'Cambio en el Barça — entra Fermín, sale Gavi', narration: null },
+  { id: '6', type: 'PENALTY_GOAL', minuteLabel: "45+2'", text: 'GOL del Barça — Lewandowski (de penalti)', narration: null },
+  { id: '7', type: 'YELLOW', minuteLabel: "34'", text: 'Tarjeta amarilla a Gavi', narration: null },
+  { id: '8', type: 'GOAL', minuteLabel: "12'", text: 'GOL del Real Madrid — Vinícius Jr.', narration: null },
 ]
 
 function formatKickoff(iso: string): string {
@@ -135,8 +135,9 @@ export default function Live() {
               <ChartBar size={16} />
               Ver estadísticas
             </Link>
-            <Link className="motm-btn motm-btn--icon" to="/historial" aria-label="Histórico de partidos">
-              <ClockCounterClockwise size={20} />
+            <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/alineaciones`}>
+              <UsersThree size={16} />
+              Ver alineaciones
             </Link>
           </div>
 

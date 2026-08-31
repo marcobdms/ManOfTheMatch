@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { useLocation, useOutlet } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import BottomNav from './components/BottomNav'
+import PullToRefresh from './components/PullToRefresh'
+import { PANEL_ENTER, PANEL_EXIT, TAB_ENTER, TAB_EXIT } from './lib/motion'
 import { isTabRoute } from './lib/routeOrder'
 
 // Dos familias de transición:
@@ -15,13 +17,10 @@ import { isTabRoute } from './lib/routeOrder'
 // springs: con `mode="wait"` la entrante no se monta hasta que la saliente
 // termina, así que una transición que "asienta" despacio (un spring sin
 // restDelta) se percibe como un tirón entre pantallas.
-const ENTER_TRANSITION = { duration: 0.2, ease: [0.16, 1, 0.3, 1] as const }
-const EXIT_TRANSITION = { duration: 0.12, ease: 'easeIn' as const }
-
 const fadeVariants = {
   enter: { opacity: 0 },
-  center: { opacity: 1, transition: { duration: 0.18, ease: 'easeOut' as const } },
-  exit: { opacity: 0, transition: { duration: 0.12, ease: 'easeIn' as const } },
+  center: { opacity: 1, transition: TAB_ENTER },
+  exit: { opacity: 0, transition: TAB_EXIT },
 }
 
 // Entra desde la derecha y sale hacia la izquierda: la salida va en dirección
@@ -30,8 +29,8 @@ const fadeVariants = {
 // vista viaje media pantalla en cada navegación.
 const pushVariants = {
   enter: { x: 24, opacity: 0 },
-  center: { x: 0, opacity: 1, transition: ENTER_TRANSITION },
-  exit: { x: -24, opacity: 0, transition: EXIT_TRANSITION },
+  center: { x: 0, opacity: 1, transition: PANEL_ENTER },
+  exit: { x: -24, opacity: 0, transition: PANEL_EXIT },
 }
 
 // prefers-reduced-motion: igual que el fade normal pero sin duración — ya no
@@ -58,6 +57,7 @@ export default function App() {
 
   return (
     <div className="motm-shell">
+      <PullToRefresh />
       <main className="motm-shell__main">
         {/* `mode="wait"`: la saliente termina ANTES de montar la entrante, así
             nunca coexisten en el flujo (que era lo que hacía crecer el ancho

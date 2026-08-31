@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
+import { STAGGER_ITEM } from '../lib/motion'
 
 // Contenedor de lista con entrada escalonada — `staggerChildren` con techo:
 // nunca más de 12 filas escalonadas, así una lista larga (Equipos tiene 20)
@@ -16,7 +17,7 @@ function containerVariant(childCount: number) {
 
 const item = {
   hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
+  show: { opacity: 1, y: 0, transition: STAGGER_ITEM },
 }
 
 export function StaggerList({ children, className }: { children: ReactNode; className?: string }) {

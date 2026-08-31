@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { MICRO } from '../lib/motion'
 import {
   Broadcast,
   CalendarDots,
@@ -41,7 +42,7 @@ export default function BottomNav() {
                   className="motm-nav__ico-bg"
                   initial={false}
                   animate={{ opacity: isActive ? 1 : 0, scale: isActive ? 1 : 0.7 }}
-                  transition={{ duration: 0.16, ease: 'easeOut' }}
+                  transition={MICRO}
                 />
                 <Icon size={22} weight={isActive ? 'fill' : 'regular'} style={{ position: 'relative' }} />
               </span>

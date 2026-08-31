@@ -424,9 +424,9 @@ async def browser_checks(page: Page, app_url: str) -> list[Check]:
         checks.append(Check("Link estadisticas", stats is not None,
                              "Presente" if stats else "No (sin partido o aun cargando)"))
 
-        bell = await page.query_selector('button[aria-pressed], button[aria-label*="notif"]')
-        checks.append(Check("Boton notificaciones", bell is not None,
-                             "Encontrado" if bell else "No encontrado"))
+        # El boton de notificaciones vive en Perfil/TeamLineup, no en "En vivo"
+        # (la pagina que este check recorre) — buscarlo aqui era comprobar la
+        # pagina equivocada, fallaba siempre. Quitado.
 
         nav = await page.query_selector('.motm-shell, [class*="bottom-nav"]')
         checks.append(Check("Shell/nav", nav is not None, "OK" if nav else "No encontrada"))
@@ -563,11 +563,22 @@ async def check_espn(client, state: EspnState, fixture_row, dedup_goals: list[di
     if comp is None:
         return Check("ESPN vs Supabase", True, "Partido no encontrado en ESPN todavia", skipped=True)
 
+    current_fps = set()
     for g in espn_goals(comp):
         fp = f"{g['espn_team_id']}:{round(g['minute']) if g['minute'] is not None else -1}"
+        current_fps.add(fp)
         if fp not in state.tracked:
             state.tracked[fp] = {"espn_first_seen": now, "minute": g["minute"],
                                   "scorer": g["scorer"], "matched_at": None, "latency_s": None}
+
+    # ESPN manda el estado ACTUAL de goles, no un log — un gol anulado por VAR
+    # desaparece de aqui en un poll posterior (igual que en Fotmob, ver
+    # backend/src/lib/eventReconcile.ts). Si lo estabamos esperando en Supabase
+    # y ESPN ya lo retiro por su cuenta, dejar de esperarlo: quedaba "pendiente"
+    # para siempre y el check fallaba el resto del partido aunque la app
+    # hiciera lo correcto (re-tipificarlo a VAR, que ya no cuenta como gol).
+    for fp in [k for k, v in state.tracked.items() if v["matched_at"] is None and k not in current_fps]:
+        del state.tracked[fp]
 
     used_idx: set[int] = set()
     newly_matched = []

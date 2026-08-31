@@ -81,6 +81,9 @@ export type TimelineEvent = {
   type: MatchEventType
   minuteLabel: string
   text: string
+  /** Frase corta de Groq (backend/src/lib/narrate.ts) — solo goles y goles
+   *  anulados, y no siempre (puede fallar/tardar). null = usar `text`. */
+  narration: string | null
 }
 
 /** Un jugador dentro de `team_lineup_snapshots.players` (contrato con el

@@ -12,6 +12,9 @@ import { withRun } from '../lib/run.js';
 import { getScoreboard } from '../sources/espn.js';
 import type { EspnDetail, EspnEvent } from '../sources/espn.js';
 import { GOAL_EVENT_TYPES, mapEspnEvent, mapEspnStatus } from '../lib/map.js';
+import { nextClockAnchor } from './liveLoop.js';
+import { reconcileRetracted } from '../lib/eventReconcile.js';
+import { narrateEvent } from '../lib/narrate.js';
 import { pushGoal } from '../notify.js';
 import { isTrackedSlug, teamName, teamSlugByEspnId } from '../lib/ids.js';
 
@@ -24,9 +27,13 @@ type FixtureRow = {
   away_team_id: string | null;
   home_score: number | null;
   away_score: number | null;
+  half_started_at: string | null;
+  half_number: number | null;
 };
 
-const SELECT = 'id, source_ids, status, kickoff_at, home_team_id, away_team_id, home_score, away_score';
+const SELECT =
+  'id, source_ids, status, kickoff_at, home_team_id, away_team_id, home_score, away_score, ' +
+  'half_started_at, half_number';
 
 let running = false;
 
@@ -103,20 +110,31 @@ async function syncOne(f: FixtureRow, ev: EspnEvent): Promise<void> {
       .eq('id', f.id);
   }
 
-  const freshGoals = await upsertEvents(f, ev.id, comp?.details ?? []);
+  const freshGoals = await upsertEvents(f, ev.id, comp?.details ?? [], home, away);
 
   const now = new Date().toISOString();
-  await db
-    .from('fixtures')
-    .update({
-      status: mapped,
-      minute,
-      home_score: home,
-      away_score: away,
-      last_synced_at: now,
-      updated_at: now,
-    })
-    .eq('id', f.id);
+  const patch: Record<string, unknown> = {
+    status: mapped,
+    minute,
+    home_score: home,
+    away_score: away,
+    last_synced_at: now,
+    updated_at: now,
+  };
+
+  // El ancla del reloj nativo vive aqui, no en liveLoop.ts: ese depende de
+  // football-data + TheSportsDB, que en la practica no siempre coinciden en
+  // LIVE+minuto a la vez para un partido concreto (visto en real: un partido
+  // entero con `half_started_at` en NULL pese a progresar bien). ESPN cada 2s
+  // es la fuente que de verdad tiene status+minuto fiables a la vez.
+  const clock = nextClockAnchor(f, mapped, minute, Date.parse(now));
+  if (clock) {
+    patch.half_started_at = clock.startedAt;
+    patch.half_number = clock.half;
+  }
+  if (mapped === 'FINISHED') patch.half_started_at = null;
+
+  await db.from('fixtures').update(patch).eq('id', f.id);
 
   if (freshGoals.length) await maybePushGoals(f, home, away, freshGoals);
 }
@@ -132,6 +150,8 @@ async function upsertEvents(
   f: FixtureRow,
   espnEventId: string,
   details: EspnDetail[],
+  homeScore: number | null,
+  awayScore: number | null,
 ): Promise<{ home: boolean; minute: number | null; player: string | null }[]> {
   if (!details.length) return [];
 
@@ -143,6 +163,7 @@ async function upsertEvents(
   const seen = new Set((existing ?? []).map((r: { source_event_id: string }) => r.source_event_id));
 
   const toInsert = [];
+  const currentIds: string[] = [];
   const freshGoals: { home: boolean; minute: number | null; player: string | null }[] = [];
 
   for (const [i, d] of details.entries()) {
@@ -155,6 +176,7 @@ async function upsertEvents(
     const minute = parseMinute(d.clock?.displayValue) ?? (d.clock?.value != null ? Math.floor(d.clock.value / 60) : null);
     const player = d.athletesInvolved?.[0]?.displayName ?? null;
     const sourceEventId = `${minute ?? 'x'}:${d.type?.text ?? ''}:${player ?? i}`;
+    currentIds.push(sourceEventId);
     if (seen.has(sourceEventId)) continue;
 
     toInsert.push({
@@ -179,8 +201,54 @@ async function upsertEvents(
 
   if (toInsert.length) {
     await db.from('match_events').upsert(toInsert, { onConflict: 'fixture_id,source,source_event_id', ignoreDuplicates: true });
+    const newGoals = toInsert.filter((r) => GOAL_EVENT_TYPES.has(r.type as never));
+    if (newGoals.length) await narrateNewGoals(f, newGoals, homeScore, awayScore);
   }
+
+  // `details` es el estado ACTUAL de ESPN, no un log (ver lib/eventReconcile.ts).
+  if (currentIds.length) {
+    await reconcileRetracted(f.id, 'espn', currentIds);
+  }
+
   return freshGoals;
+}
+
+const GOAL_KIND: Partial<Record<string, 'goal' | 'own_goal' | 'penalty_goal'>> = {
+  GOAL: 'goal',
+  OWN_GOAL: 'own_goal',
+  PENALTY_GOAL: 'penalty_goal',
+};
+
+async function narrateNewGoals(
+  f: FixtureRow,
+  goals: Array<{ type: string; team_id: string | null; player_name: string | null; source_event_id: string; minute: number | null }>,
+  homeScore: number | null,
+  awayScore: number | null,
+): Promise<void> {
+  for (const g of goals) {
+    const isHome = g.team_id === f.home_team_id;
+    const team = teamName(g.team_id);
+    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
+    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+
+    const narration = await narrateEvent({
+      kind: GOAL_KIND[g.type] ?? 'goal',
+      minute: g.minute,
+      team,
+      opponent,
+      player: g.player_name,
+      homeScore: homeScore ?? 0,
+      awayScore: awayScore ?? 0,
+    });
+    if (narration) {
+      await db
+        .from('match_events')
+        .update({ narration })
+        .eq('fixture_id', f.id)
+        .eq('source', 'espn')
+        .eq('source_event_id', g.source_event_id);
+    }
+  }
 }
 
 /** Igual que `liveLoop.maybePushGoals` — duplicado a propósito (patrón ya

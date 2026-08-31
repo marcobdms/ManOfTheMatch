@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Bell } from '@phosphor-icons/react'
+import { ArrowLeft, Bell, ClockCounterClockwise, UsersThree } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import AnimatedBell from '../components/AnimatedBell'
 import AppHeader from '../components/AppHeader'
@@ -99,6 +99,17 @@ export default function TeamLineup() {
               <Bell size={18} />
             </Link>
           )}
+        </div>
+
+        <div className="motm-actions">
+          <button type="button" className="motm-btn" style={{ flex: 1 }} aria-current="page">
+            <UsersThree size={16} />
+            Alineación
+          </button>
+          <Link className="motm-btn motm-btn--muted" style={{ flex: 1 }} to={`/historial/${teamId}`}>
+            <ClockCounterClockwise size={16} />
+            Historial
+          </Link>
         </div>
 
         <TeamLineupBody snapshot={snapshot} loading={loading} isError={lineupQuery.isError} />

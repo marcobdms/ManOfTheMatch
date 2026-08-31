@@ -93,7 +93,15 @@ body,
 /* Durante el cruce de dos páginas en la transición de ruta (App.tsx), la
    saliente y la entrante coexisten un instante con `transform: translateX`
    — sin esto el navegador computa un ancho de documento momentáneamente mayor
-   y muestra la scrollbar horizontal (visible como un "salto" de layout). */
+   y muestra la scrollbar horizontal (visible como un "salto" de layout).
+   `scrollbar-gutter: stable` reserva el hueco de la barra vertical siempre
+   (solo en Chrome de escritorio existe, iOS usa overlay) — sin esto, cada vez
+   que una animación cambia el alto de la página (el colapsable de Previsión
+   IA, por ejemplo) la barra aparece/desaparece y todo el contenido se corre
+   unos px, que se percibía como un tirón de scroll horizontal. */
+html {
+  scrollbar-gutter: stable;
+}
 html,
 body {
   overflow-x: hidden;

@@ -323,8 +323,8 @@ const CLOCK_DRIFT_TOLERANCE_MIN = 2;
  * Nunca se mueve en PAUSED (el reloj del cliente se congela ahí) ni sin un
  * `minute` real que ancle contra algo.
  */
-function nextClockAnchor(
-  f: FixtureRow,
+export function nextClockAnchor(
+  f: { half_started_at: string | null; half_number: number | null },
   status: string,
   minute: number | null,
   nowMs: number,

@@ -18,7 +18,6 @@ import MatchStats from './routes/MatchStats'
 import MatchPredictions from './routes/MatchPredictions'
 import MatchLineups from './routes/MatchLineups'
 import MatchDetail from './routes/MatchDetail'
-import HistoryTeams from './routes/HistoryTeams'
 import TeamHistory from './routes/TeamHistory'
 import Profile from './routes/Profile'
 import SignIn from './routes/SignIn'
@@ -38,7 +37,6 @@ const router = createBrowserRouter([
       { path: 'partidos/:fixtureId/previsiones', element: <MatchPredictions /> },
       { path: 'partidos/:fixtureId/alineaciones', element: <MatchLineups /> },
       { path: 'partidos/:fixtureId', element: <MatchDetail /> },
-      { path: 'historial', element: <HistoryTeams /> },
       { path: 'historial/:teamId', element: <TeamHistory /> },
       { path: 'perfil', element: <Profile /> },
       { path: 'entrar', element: <SignIn /> },
@@ -48,6 +46,15 @@ const router = createBrowserRouter([
 ])
 
 setupPwaUpdates()
+
+// Red de seguridad ademas de `refetchOnWindowFocus` de React Query: en
+// standalone de iOS ese mecanismo depende de que dispare `visibilitychange`,
+// y no siempre lo hace a tiempo tras un rato largo en segundo plano.
+// Invalidar aqui a mano es barato (solo re-pide lo que este realmente
+// montado) y es justo el patron que ya funciona para el service worker.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void queryClient.invalidateQueries()
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

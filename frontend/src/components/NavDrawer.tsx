@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react'
 import { useAuth } from '../lib/AuthProvider'
 import { signOut } from '../lib/auth'
+import { PANEL_ENTER, PANEL_EXIT } from '../lib/motion'
 import { getStoredTheme, setTheme } from '../lib/theme'
 
 const LINKS = [
@@ -23,11 +24,6 @@ const LINKS = [
   { to: '/proximos', label: 'Próximos', Icon: CalendarDots },
   { to: '/equipos', label: 'Equipos', Icon: ShieldChevron },
 ]
-
-// Mismo par de curvas que App.tsx (salida más rápida que entrada) — el panel
-// es otra transición de navegación, no una nueva familia de movimiento.
-const ENTER = { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }
-const EXIT = { duration: 0.14, ease: 'easeIn' as const }
 
 type Props = {
   open: boolean
@@ -100,8 +96,8 @@ export default function NavDrawer({ open, onClose }: Props) {
           <motion.div
             className="motm-drawer__veil"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: panelTransition ?? ENTER }}
-            exit={{ opacity: 0, transition: panelTransition ?? EXIT }}
+            animate={{ opacity: 1, transition: panelTransition ?? PANEL_ENTER }}
+            exit={{ opacity: 0, transition: panelTransition ?? PANEL_EXIT }}
             onClick={onClose}
             aria-hidden="true"
           />
@@ -111,8 +107,8 @@ export default function NavDrawer({ open, onClose }: Props) {
             aria-modal="true"
             aria-label="Menú de navegación"
             initial={{ x: '-100%' }}
-            animate={{ x: 0, transition: panelTransition ?? ENTER }}
-            exit={{ x: '-100%', transition: panelTransition ?? EXIT }}
+            animate={{ x: 0, transition: panelTransition ?? PANEL_ENTER }}
+            exit={{ x: '-100%', transition: panelTransition ?? PANEL_EXIT }}
           >
             <div className="motm-drawer__head">
               <span className="motm-wordmark">ManOfTheMatch</span>

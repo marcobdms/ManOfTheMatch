@@ -5,10 +5,16 @@ import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import { useUpcomingFixtures } from '../lib/queries'
+import { STAGGER_ITEM } from '../lib/motion'
 import { useAuth } from '../lib/AuthProvider'
 import type { UpcomingMatch } from '../types/view'
 
 const UPCOMING_LIMIT = 30
+
+// Debe coincidir con WINDOW_H en backend/src/jobs/syncPredictions.ts — más
+// allá de esto el backend ni siquiera pide cuotas/previsión, así que el
+// botón no tendría nada que mostrar.
+const PREDICTIONS_WINDOW_H = 96
 
 type Filter = 'all' | 'favorite'
 
@@ -51,9 +57,13 @@ function groupByDay(matches: UpcomingMatch[]): { key: string; label: string; mat
   return groups
 }
 
-/** `showPredictions`: solo hoy (sin empezar, ya filtrado por status=SCHEDULED
- *  en la query) y mañana — decidido por el grupo del día (dayKeyAndLabel),
- *  misma comparación de fecha local que ya usa esta vista. */
+/** Horas hasta el kickoff — se compara contra PREDICTIONS_WINDOW_H para
+ *  decidir si mostrar el botón (no basta con "SCHEDULED", el backend tampoco
+ *  tiene datos más allá de esa ventana). */
+function hoursUntil(iso: string): number {
+  return (new Date(iso).getTime() - Date.now()) / 3_600_000
+}
+
 function MatchRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
   return (
     <div className="motm-fixture-row">
@@ -157,7 +167,7 @@ export default function Upcoming() {
             className="motm-day-group"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: Math.min(gi, 6) * 0.04, duration: 0.22, ease: 'easeOut' }}
+            transition={{ delay: Math.min(gi, 6) * 0.04, ...STAGGER_ITEM }}
           >
             <h2 className="motm-day-group__label">{group.label}</h2>
             <div className="motm-fixture-list">
@@ -165,7 +175,7 @@ export default function Upcoming() {
                 <MatchRow
                   key={match.id}
                   match={match}
-                  showPredictions={group.label === 'Hoy' || group.label === 'Mañana'}
+                  showPredictions={hoursUntil(match.kickoffAt) <= PREDICTIONS_WINDOW_H}
                 />
               ))}
             </div>

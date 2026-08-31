@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import AppHeader from '../components/AppHeader'
 import ScoreboardCard from '../components/ScoreboardCard'
 import { StaggerItem, StaggerList } from '../components/StaggerList'
+import { STAGGER_ITEM } from '../lib/motion'
 import TeamCrest from '../components/TeamCrest'
 import { useGoalChips, useLiveMatch, useNews, useStandings, useUpcomingFixtures } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
@@ -45,7 +46,7 @@ function Section({ index, children }: { index: number; children: ReactNode }) {
       className="motm-home__section"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay: index * 0.05, duration: 0.24, ease: 'easeOut' }}
+      transition={{ delay: index * 0.05, ...STAGGER_ITEM }}
     >
       {children}
     </motion.section>

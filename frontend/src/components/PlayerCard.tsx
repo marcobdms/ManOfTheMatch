@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { UserCircle } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'framer-motion'
+import { EASE_OUT } from '../lib/motion'
 import type { LineupPlayer } from '../types/view'
 
 type Props = {
@@ -61,7 +62,7 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
       <motion.div
         className="motm-pcard-inner"
         animate={{ rotateY: flipped ? 180 : 0 }}
-        transition={{ duration: reduceMotion ? 0.001 : 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={{ duration: reduceMotion ? 0.001 : 0.5, ease: EASE_OUT }}
       >
         <div className="motm-pcard-face motm-pcard-face--front">
           <div className="motm-pcard motm-pcard--starter">
@@ -79,17 +80,20 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
               )}
             </span>
 
-            {rating != null && (
-              <span className={`motm-pcard__badge motm-pcard__badge--${ratingTier(rating)}`}>
-                {rating.toFixed(1)}
-              </span>
-            )}
-
             <span className="motm-pcard__foot">
               <span className="motm-pcard__name">{player.shortName}</span>
               {player.position && <span className="motm-pcard__pos">{player.position}</span>}
             </span>
           </div>
+
+          {/* Hermana de `.motm-pcard--starter`, no su hija: así puede asomar
+              un poco fuera del marco por la esquina sin arrastrar a la foto
+              (que sí debe quedarse contenida) con ella. */}
+          {rating != null && (
+            <span className={`motm-pcard__badge motm-pcard__badge--${ratingTier(rating)}`}>
+              {rating.toFixed(1)}
+            </span>
+          )}
         </div>
 
         <div className="motm-pcard-face motm-pcard-face--back">
