@@ -10,7 +10,7 @@
 }
 .motm-shell__main {
   flex: 1;
-  padding-bottom: calc(96px + var(--safe-b));
+  padding-bottom: calc(80px + max(16px, var(--safe-b)));
   position: relative;
   overflow-x: clip;
 }
@@ -355,7 +355,10 @@
   right: 0;
   bottom: 0;
   max-width: 456px;
-  margin: 0 auto calc(16px + var(--safe-b));
+  /* `max`, no `16px + safe-b`: en Safari la inset es 0 y quedan los 16px de
+     siempre, pero en PWA instalada es ~34px (indicador de inicio) y sumarlos
+     dejaba el nav flotando a 50px del borde. */
+  margin: 0 auto max(16px, var(--safe-b));
   display: flex;
   justify-content: space-between;
   align-items: center;

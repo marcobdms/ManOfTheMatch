@@ -7,6 +7,7 @@ import './styles/tokens.css'
 import './styles/app.css'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider } from './lib/AuthProvider'
+import { setupPwaUpdates } from './lib/pwaUpdate'
 import App from './App'
 import Live from './routes/Live'
 import Home from './routes/Home'
@@ -45,6 +46,8 @@ const router = createBrowserRouter([
     ],
   },
 ])
+
+setupPwaUpdates()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

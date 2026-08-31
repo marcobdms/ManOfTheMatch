@@ -131,6 +131,17 @@ export function getTeams() {
   return espnGet<EspnTeamsResponse>(`${BASE}/teams?limit=50`, 24 * 3600);
 }
 
+/**
+ * Resumen de UN partido concreto por su id ESPN. A diferencia de
+ * `getScoreboard()` (solo el día en curso) este sí responde por partidos
+ * pasados, que es justo lo que hace falta para cerrar un fixture que se quedó
+ * atascado en LIVE de un día anterior (ver el guard de liveLoop.ts). TTL alto:
+ * un partido terminado ya no cambia.
+ */
+export function getSummary(eventId: string) {
+  return espnGet<EspnSummary>(`${BASE}/summary?event=${encodeURIComponent(eventId)}`, 3600);
+}
+
 // --- shapes (solo lo que consumimos, verificado en vivo 2026-08-29) --------
 
 export type EspnAthlete = {
@@ -188,6 +199,17 @@ export type EspnEvent = {
 
 export type EspnScoreboard = {
   events?: EspnEvent[] | null;
+};
+
+/** `/summary?event=` — solo la cabecera, que es de donde sacamos marcador y
+ *  estado final de un partido ya jugado (verificado en vivo 2026-08-31). */
+export type EspnSummary = {
+  header?: {
+    competitions?: Array<{
+      status?: EspnStatus | null;
+      competitors?: EspnCompetitor[] | null;
+    }> | null;
+  } | null;
 };
 
 export type EspnTeamsResponse = {

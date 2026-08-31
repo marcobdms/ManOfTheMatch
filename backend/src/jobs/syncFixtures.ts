@@ -107,8 +107,14 @@ async function upsertFixture(
     // territorio de liveLoop/liveTicker, que van con fuentes frescas. Pisarlo
     // aquí revive el bug de "el gol no sube al marcador".
     const isLive = existing.status === 'LIVE' || existing.status === 'PAUSED';
+    // Un partido ya terminado no puede "volver" a estar por jugarse. El feed
+    // por partido de football-data se congela a veces (Celta-Athletic del
+    // 30/08 se quedó en TIMED para siempre) y sin esto este job revertía a
+    // SCHEDULED un fixture que liveLoop ya había cerrado, borrándole el
+    // marcador y devolviéndolo a "Próximos" un día después de jugarse.
+    const wouldUnfinish = existing.status === 'FINISHED' && row.status !== 'FINISHED';
     const patch = { ...row, source_ids: { ...(existing.source_ids ?? {}), footballData: m.id } };
-    if (isLive) {
+    if (isLive || wouldUnfinish) {
       delete (patch as Partial<typeof row>).status;
       delete (patch as Partial<typeof row>).home_score;
       delete (patch as Partial<typeof row>).away_score;

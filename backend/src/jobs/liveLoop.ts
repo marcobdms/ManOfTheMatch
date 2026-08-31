@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { getMatch } from '../sources/footballData.js';
+import { getSummary } from '../sources/espn.js';
 import { getLivescores, getTimeline } from '../sources/theSportsDB.js';
 import type { TsdbLiveEvent } from '../sources/theSportsDB.js';
 import { pushGoal, pushKickoff, pushMatchday } from '../notify.js';
@@ -30,6 +31,15 @@ const WINDOW_MS = 2 * 60 * 60 * 1000;
 // lo terminara de sincronizar. Se amplía solo el borde hacia atrás para
 // seguir intentando resincronizarlo durante 24h en vez de abandonarlo.
 const ORPHAN_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Ningún partido sigue en juego 3,5 h después del saque inicial. Pasado ese
+// punto se fuerza FINISHED aunque TODAS las fuentes sigan diciendo lo
+// contrario: football-data puede congelarse en TIMED/IN_PLAY para un partido
+// suelto (visto en real con Celta-Athletic y Deportivo-Valencia del 30/08),
+// TheSportsDB solo lista lo que está en vivo ahora mismo, y el scoreboard de
+// ESPN solo trae los partidos del día — o sea que un fixture atascado en LIVE
+// pasada la medianoche ya no tiene ninguna fuente que lo pueda cerrar, y el
+// reloj nativo del cliente sigue contando (el "1133'").
+const MAX_MATCH_MS = 3.5 * 60 * 60 * 1000;
 const SKIP_STATUSES = new Set(['FINISHED', 'POSTPONED', 'SUSPENDED']);
 
 /** TheSportsDB devuelve todo como string (o null / ""). */
@@ -37,6 +47,19 @@ function toScore(v: string | null | undefined): number | null {
   if (v == null || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Marcador final de ESPN para un partido ya jugado — solo se llama al cerrar
+ *  un fixture rancio al que le falta el resultado. Devuelve null si ESPN no
+ *  lo da (circuito abierto, sin id, o partido sin terminar allí). */
+async function espnFinalScore(espnId: unknown): Promise<{ home: number; away: number } | null> {
+  if (espnId == null) return null;
+  const summary = await getSummary(String(espnId));
+  const comp = summary?.header?.competitions?.[0];
+  if (!comp?.status?.type?.completed) return null;
+  const home = toScore(comp.competitors?.find((c) => c.homeAway === 'home')?.score);
+  const away = toScore(comp.competitors?.find((c) => c.homeAway === 'away')?.score);
+  return home != null && away != null ? { home, away } : null;
 }
 
 type FixtureRow = {
@@ -231,6 +254,24 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
     }
   }
 
+  // 3.5) Guard de partido rancio: pasado MAX_MATCH_MS desde el kickoff no
+  //      puede seguir sin terminar, diga lo que diga la fuente. Si además no
+  //      tenemos marcador, se intenta rellenar con el summary de ESPN (ese sí
+  //      responde por partido concreto, no solo por el día de hoy).
+  const staleMs = Date.now() - Date.parse(f.kickoff_at);
+  if (status !== 'FINISHED' && staleMs > MAX_MATCH_MS) {
+    console.warn(`[liveLoop] ${f.id} lleva ${Math.round(staleMs / 60000)}min desde el kickoff en ${status} — se cierra a FINISHED`);
+    status = 'FINISHED';
+    minute = null;
+    if (home == null || away == null) {
+      const espnScore = await espnFinalScore(sids.espn);
+      if (espnScore) {
+        home = espnScore.home;
+        away = espnScore.away;
+      }
+    }
+  }
+
   // 4) Persist score / status. Only write HT once a source actually reported it,
   //    so a transient fetch failure never blanks a known half-time score.
   const now = new Date().toISOString();
@@ -252,6 +293,9 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
     patch.half_started_at = clock.startedAt;
     patch.half_number = clock.half;
   }
+  // Al cerrar el partido se tira el ancla: sin esto queda un `half_started_at`
+  // viejo del que el cliente podría volver a tirar si el estado se reabriera.
+  if (status === 'FINISHED') patch.half_started_at = null;
 
   await db.from('fixtures').update(patch).eq('id', f.id);
 

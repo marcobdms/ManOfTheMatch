@@ -11,6 +11,10 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
+      // El registro lo hace src/lib/pwaUpdate.ts: el script que inyecta el
+      // plugin no re-comprueba versiones ni recarga, y en iOS instalado eso
+      // deja la app pegada a un build viejo indefinidamente.
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'icons/*.png'],
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,woff2,png}'],
