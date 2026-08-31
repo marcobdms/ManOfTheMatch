@@ -10,7 +10,7 @@
 }
 .motm-shell__main {
   flex: 1;
-  padding-bottom: calc(80px + max(16px, var(--safe-b)));
+  padding-bottom: calc(80px + max(16px, calc(var(--safe-b) - 16px)));
   position: relative;
   overflow-x: clip;
 }
@@ -353,12 +353,14 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
   max-width: 456px;
-  /* `max`, no `16px + safe-b`: en Safari la inset es 0 y quedan los 16px de
-     siempre, pero en PWA instalada es ~34px (indicador de inicio) y sumarlos
-     dejaba el nav flotando a 50px del borde. */
-  margin: 0 auto max(16px, var(--safe-b));
+  margin: 0 auto;
+  /* Offset explícito en vez de `bottom: 0` + margin: en PWA la inset del
+     indicador de inicio son ~34px y respetarla entera deja el nav flotando
+     muy arriba. Se le restan 16 para que quede pegado al indicador (como una
+     tab bar de iOS) sin taparlo. En Safari la inset es 0 → quedan los 16px
+     de siempre, que es como ya se veía bien. */
+  bottom: max(16px, calc(var(--safe-b) - 16px));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1637,6 +1639,38 @@
   gap: 6px;
   color: var(--brand);
   margin-bottom: 12px;
+}
+/* Cabecera pulsable cuando ya hay previsión: la tarjeta se pliega para no
+   comerse la pantalla entera cuando solo quieres ver las cuotas. */
+.motm-ai__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.motm-ai__toggle.is-collapsed {
+  margin-bottom: 0;
+}
+.motm-ai__toggle .motm-ai__head {
+  margin-bottom: 0;
+}
+.motm-ai__caret {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  transition: transform 0.2s ease;
+}
+.motm-ai__caret.is-open {
+  transform: rotate(180deg);
+}
+.motm-ai__body {
+  overflow: hidden;
 }
 .motm-ai__badge {
   font-family: var(--f-display);

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ArrowLeft, CheckCircle, Sparkle, XCircle } from '@phosphor-icons/react'
+import { ArrowLeft, CaretDown, CheckCircle, Sparkle, XCircle } from '@phosphor-icons/react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
@@ -21,6 +22,8 @@ export default function MatchPredictions() {
   // "Generar otra") se pide una previsión nueva de verdad, no una guardada.
   const generateAi = useGenerateAiPrediction()
   const [bookmakerId, setBookmakerId] = useState<number | null>(null)
+  const [aiOpen, setAiOpen] = useState(true)
+  const reduceMotion = useReducedMotion()
 
   const match = matchQuery.data
   const pred = predictionQuery.data
@@ -146,13 +149,38 @@ export default function MatchPredictions() {
 
         {!loading && hasAnything && fixtureId && (
           <div className="motm-compare motm-ai">
-            <div className="motm-ai__head">
-              <Sparkle size={14} weight="fill" />
-              <span className="motm-ai__badge">Previsión IA</span>
-            </div>
+            {ai ? (
+              <button
+                type="button"
+                className={'motm-ai__toggle' + (aiOpen ? '' : ' is-collapsed')}
+                aria-expanded={aiOpen}
+                aria-controls="motm-ai-body"
+                onClick={() => setAiOpen((v) => !v)}
+              >
+                <span className="motm-ai__head">
+                  <Sparkle size={14} weight="fill" />
+                  <span className="motm-ai__badge">Previsión IA</span>
+                </span>
+                <CaretDown size={16} weight="bold" className={'motm-ai__caret' + (aiOpen ? ' is-open' : '')} />
+              </button>
+            ) : (
+              <div className="motm-ai__head">
+                <Sparkle size={14} weight="fill" />
+                <span className="motm-ai__badge">Previsión IA</span>
+              </div>
+            )}
 
             {ai ? (
-              <>
+              <AnimatePresence initial={false}>
+                {aiOpen && (
+                  <motion.div
+                    id="motm-ai-body"
+                    className="motm-ai__body"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0.001 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  >
                 {match && ai.predictedResult !== 'draw' && (
                   <div className="motm-ai__pick">
                     <TeamCrest
@@ -196,7 +224,9 @@ export default function MatchPredictions() {
                 >
                   {generateAi.isPending ? 'Generando…' : 'Generar otra previsión'}
                 </button>
-              </>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             ) : (
               <>
                 <button
