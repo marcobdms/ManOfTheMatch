@@ -695,9 +695,11 @@
    lleva todo el ancho disponible en vez de vivir en una tarjeta. */
 .motm-pitch {
   position: relative;
-  margin: 10px 0 0;
+  margin: 10px 8px 0;
   aspect-ratio: 10 / 13;
+  border-radius: 18px;
   overflow: hidden;
+  box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.85);
   background: #0b1f14; /* fallback mientras carga la foto */
 }
 .motm-pitch__photo {
@@ -733,8 +735,10 @@
 /* esqueleto de carga — misma silueta que .motm-pitch, 11 cartas fantasma */
 .motm-lineup-skel {
   position: relative;
-  margin: 10px 0 0;
+  margin: 10px 8px 0;
   aspect-ratio: 10 / 13;
+  border-radius: 18px;
+  overflow: hidden;
   background: var(--muted);
 }
 .motm-lineup-skel__card {
@@ -747,34 +751,65 @@
   animation: motm-shimmer 1.4s ease-in-out infinite;
 }
 
-/* carta de jugador — dorada (titular) / plana (suplente) */
+/* carta de jugador — titular (con reverso, ver .motm-pcard-wrap) / fila
+   plana de suplente. `.motm-pcard` es el cuerpo visual compartido; el tamaño
+   real de la carta de titular lo fija `.motm-pcard-wrap` (todo en `em`, un
+   solo sitio para agrandar/achicar). */
 .motm-pcard {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   gap: 1px;
-  /* Todo lo de dentro (dorsal, nota, nombre) va en `em`, así que el tamaño de
-     la carta se cambia en un solo sitio. */
-  font-size: 11px;
-  width: 5.9em;
-  height: 7.9em;
   padding: 5px 3px 4px;
   border-radius: 9px;
   position: relative;
 }
+
+/* --- Titular: botón que gira 180 grados al tocarlo --- */
+.motm-pcard-wrap {
+  all: unset;
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  font-size: 13px;
+  width: 6.5em;
+  height: 8.7em;
+  perspective: 900px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.motm-pcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.motm-pcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.motm-pcard-face--back {
+  transform: rotateY(180deg);
+}
+
 .motm-pcard--starter {
+  width: 100%;
+  height: 100%;
   background: linear-gradient(168deg, rgba(42, 42, 50, 0.94) 0%, rgba(15, 15, 19, 0.96) 100%);
   border: 1px solid rgba(255, 255, 255, 0.13);
   box-shadow: 0 10px 18px -10px rgba(0, 0, 0, 0.9);
   color: var(--ink);
-  overflow: visible;
+  overflow: hidden;
   justify-content: flex-end;
   gap: 0;
   padding: 0;
 }
 /* Dorsal en itálica de fondo — la personalidad la pone la tipografía, no un
-   marco dorado. */
+   marco dorado. Vive DENTRO de `.motm-pcard--starter` (que sí recorta), así
+   que nunca se sale del marco de la carta. */
 .motm-pcard__dorsal {
   position: absolute;
   top: -8%;
@@ -788,8 +823,9 @@
   opacity: 0.11;
   pointer-events: none;
 }
-/* La foto flota por encima del dorsal y se sale un poco de la carta, con su
-   propia sombra apoyada en el borde inferior. */
+/* La foto y la nota son hermanas de `.motm-pcard--starter`, no sus hijas: así
+   pueden salirse del marco (flotar por encima, asomar por la esquina) sin
+   arrastrar al dorsal, que si necesita quedar recortado. */
 .motm-pcard__photo {
   position: absolute;
   left: 50%;
@@ -799,6 +835,7 @@
   display: flex;
   justify-content: center;
   pointer-events: none;
+  z-index: 1;
 }
 .motm-pcard__photo img {
   width: 100%;
@@ -842,7 +879,59 @@
   align-items: center;
   gap: 1px;
 }
+
+/* --- Reverso: ficha básica, datos estáticos (no dependen del minuto) --- */
+.motm-pcard--back {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(168deg, rgba(42, 42, 50, 0.94) 0%, rgba(15, 15, 19, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 10px 18px -10px rgba(0, 0, 0, 0.9);
+  color: var(--ink);
+  overflow: hidden;
+  justify-content: flex-start;
+  padding: 10px 8px 8px;
+  gap: 5px;
+}
+.motm-pcard-back__name {
+  font-family: var(--f-display);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 1.05em;
+  text-transform: uppercase;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 3px;
+  color: var(--brand);
+}
+.motm-pcard-back__row {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.82em;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+.motm-pcard-back__row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.motm-pcard-back__label {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* --- Suplente: fila plana del banquillo, sin flip (tamaño propio) --- */
 .motm-pcard--sub {
+  font-size: 11px;
   flex-direction: row;
   width: auto;
   height: auto;
@@ -929,8 +1018,8 @@
 }
 /* El esqueleto de carga imita la nueva carta, no la dorada de antes. */
 .motm-lineup-skel__card {
-  width: 5.9em;
-  height: 7.9em;
+  width: 6.5em;
+  height: 8.7em;
   font-size: 11px;
 }
 
