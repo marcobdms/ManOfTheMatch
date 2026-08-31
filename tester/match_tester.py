@@ -133,11 +133,23 @@ class RunCtx:
 HEADERS = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {SUPABASE_ANON_KEY}"}
 
 async def sb_get(client: httpx.AsyncClient, path: str, params: dict) -> tuple[Any, float]:
+    # Un ReadTimeout/ConnectError puntual contra Supabase no debe tumbar un
+    # test de 115 min entero (nos paso en real: un solo timeout crasheo todo
+    # el proceso a los 5 min, sin reporte). 3 intentos con backoff corto antes
+    # de darlo por perdido de verdad.
     t0 = time.perf_counter()
-    r = await client.get(f"{SUPABASE_URL}/rest/v1/{path}", headers=HEADERS, params=params)
-    lat = (time.perf_counter() - t0) * 1000
-    r.raise_for_status()
-    return r.json(), lat
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            r = await client.get(f"{SUPABASE_URL}/rest/v1/{path}", headers=HEADERS, params=params)
+            lat = (time.perf_counter() - t0) * 1000
+            r.raise_for_status()
+            return r.json(), lat
+        except httpx.TransportError as e:
+            last_exc = e
+            if attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
+    raise last_exc
 
 async def get_fixture(client, fid):
     rows, lat = await sb_get(client, "fixtures", {
@@ -803,7 +815,22 @@ async def run_test(fixture_id, kickoff_iso, home, away, app_url, screenshots_ena
                 now_str = datetime.now(timezone.utc).strftime('%H:%M:%S')
                 print(f"[tester] Muestra #{sample_n} ({now_str}) screenshot={'si' if do_screenshot else 'no'}")
 
-                s = await take_sample(client, page, fixture_id, sample_n, kickoff_dt, do_screenshot, ctx)
+                try:
+                    s = await take_sample(client, page, fixture_id, sample_n, kickoff_dt, do_screenshot, ctx)
+                except Exception as e:
+                    # Una muestra que falle del todo (timeout de red, etc.) no
+                    # debe tumbar un test de 115 min entero — se avisa, se
+                    # salta esta muestra y se sigue sondeando. Nos paso en
+                    # real: un httpx.ReadTimeout sin capturar crasheo todo el
+                    # proceso a los 5 min sin llegar a escribir el reporte.
+                    msg = f"Muestra #{sample_n} fallo del todo: {e}"
+                    report.warnings.append(msg)
+                    print(f"[tester] WARN: {msg}")
+                    remaining = end_ts - time.time()
+                    if remaining <= 0:
+                        break
+                    await asyncio.sleep(min(POLL_INTERVAL_S, remaining))
+                    continue
 
                 if s.status in ("LIVE", "PAUSED") and first_live_ts is None:
                     first_live_ts = s.ts
@@ -823,8 +850,11 @@ async def run_test(fixture_id, kickoff_iso, home, away, app_url, screenshots_ena
                     if elapsed_since_kickoff > 85:
                         print("[tester] Partido FINISHED — esperando 5 min mas para ultima captura...")
                         await asyncio.sleep(300)
-                        final_s = await take_sample(client, page, fixture_id, sample_n + 1, kickoff_dt, True, ctx)
-                        report.samples.append(final_s)
+                        try:
+                            final_s = await take_sample(client, page, fixture_id, sample_n + 1, kickoff_dt, True, ctx)
+                            report.samples.append(final_s)
+                        except Exception as e:
+                            report.warnings.append(f"Muestra final fallo: {e}")
                         break
 
                 if past_kickoff_warning:
