@@ -484,7 +484,10 @@
   margin: 24px 0 4px;
 }
 .motm-profile__hint {
-  margin-top: 0;
+  /* Debajo del segmented (Todos / Solo mi equipo): sin este aire el texto
+     queda pegado al control y se lee como parte de él. */
+  margin: 10px 0 0;
+  line-height: 1.5;
 }
 .motm-profile__notif-head {
   display: flex;
