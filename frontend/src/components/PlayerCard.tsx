@@ -37,7 +37,7 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
         {player.number != null && <span className="motm-pcard__number">{player.number}</span>}
         <span className="motm-pcard__avatar" aria-hidden="true">
           {player.photoUrl ? (
-            <img src={player.photoUrl} alt="" loading="lazy" />
+            <img src={player.photoUrl} alt="" loading="lazy" decoding="async" />
           ) : (
             <UserCircle size={20} weight="fill" />
           )}
@@ -54,7 +54,7 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
   return (
     <button
       type="button"
-      className="motm-pcard-wrap"
+      className={'motm-pcard-wrap' + (flipped ? ' is-flipped' : '')}
       aria-pressed={flipped}
       aria-label={`${player.name} — toca para ver su ficha`}
       onClick={() => setFlipped((f) => !f)}
@@ -74,7 +74,7 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
 
             <span className="motm-pcard__photo">
               {player.photoUrl ? (
-                <img src={player.photoUrl} alt="" loading="lazy" />
+                <img src={player.photoUrl} alt="" loading="lazy" decoding="async" />
               ) : (
                 <UserCircle size={30} weight="fill" className="motm-pcard__silhouette" />
               )}
