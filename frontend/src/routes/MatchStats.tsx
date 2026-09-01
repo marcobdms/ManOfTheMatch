@@ -5,7 +5,7 @@ import { Segmented, SegmentedButton } from '../components/Segmented'
 import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import MomentumChart from '../components/MomentumChart'
-import StatCompareRow from '../components/StatCompareRow'
+import StatCarousel from '../components/StatCarousel'
 import StatHighlights from '../components/StatHighlights'
 import ShotsList from '../components/ShotsList'
 import {
@@ -124,16 +124,10 @@ export default function MatchStats() {
                   ))}
                 </Segmented>
 
-                {periodGroups.map((group) => (
-                  <div className="motm-compare__group" key={`${period}-${group.key}`}>
-                    <h3 className="motm-compare__group-title">{group.label}</h3>
-                    <div className="motm-compare__rows">
-                      {group.stats.map((pair) => (
-                        <StatCompareRow key={pair.key} pair={pair} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                {/* `key` con el periodo: al cambiar de parte el carrusel se
+                    remonta y vuelve a la primera tarjeta, en vez de quedarse
+                    a medias mostrando un bloque que quizá ya no existe. */}
+                <StatCarousel key={period} groups={periodGroups} />
               </div>
             )}
 

@@ -70,17 +70,37 @@ export function syncMatchFacts() {
     const rows = (data ?? []) as unknown as FixtureRow[];
     const now = Date.now();
 
-    // Partidos ya marcados como sincronizados pero SIN comparativa de equipo:
-    // se quedaron así por el fallo silencioso de `writeTeamStats`, y como
-    // `detail_facts_synced_at` ya estaba puesto no se reintentaban nunca.
+    // Partidos ya marcados como sincronizados pero SIN comparativa de equipo (o
+    // con una a medias): se quedaron así por el fallo silencioso de
+    // `writeTeamStats`, y como `detail_facts_synced_at` ya estaba puesto no se
+    // reintentaban nunca.
+    //
+    // "A medias" hay que mirarlo de verdad, no solo si hay filas: un partido
+    // llegó a tener 10 filas sueltas de un solo grupo y periodo, sin
+    // `stat_key`, y con "tiene filas" bastaba para darlo por bueno — se quedó
+    // con la comparativa en inglés y sin 1ª/2ª parte. Se considera sano solo
+    // si tiene stat_key (lo escribe el código actual) y los tres periodos.
     const finishedIds = rows.filter((f) => f.status === 'FINISHED').map((f) => f.id);
-    const withStats = new Set<string>();
+    const healthy = new Set<string>();
     if (finishedIds.length) {
       const { data: statRows } = await db
         .from('match_team_stats')
-        .select('fixture_id')
+        .select('fixture_id, period, stat_key')
         .in('fixture_id', finishedIds);
-      for (const r of (statRows ?? []) as Array<{ fixture_id: string }>) withStats.add(r.fixture_id);
+
+      const seen = new Map<string, { periods: Set<string>; withKey: number }>();
+      for (const r of (statRows ?? []) as Array<{ fixture_id: string; period: string; stat_key: string | null }>) {
+        let entry = seen.get(r.fixture_id);
+        if (!entry) {
+          entry = { periods: new Set(), withKey: 0 };
+          seen.set(r.fixture_id, entry);
+        }
+        entry.periods.add(r.period);
+        if (r.stat_key) entry.withKey++;
+      }
+      for (const [id, entry] of seen) {
+        if (entry.withKey > 0 && entry.periods.size >= PERIOD_KEYS.length) healthy.add(id);
+      }
     }
 
     const always = rows.filter(
@@ -95,7 +115,7 @@ export function syncMatchFacts() {
       .filter(
         (f) =>
           !always.includes(f) &&
-          (isBackfill(f) || (f.status === 'FINISHED' && !withStats.has(f.id))),
+          (isBackfill(f) || (f.status === 'FINISHED' && !healthy.has(f.id))),
       )
       .sort((a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime())
       .slice(0, BACKFILL_PER_RUN);

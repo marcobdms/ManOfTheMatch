@@ -1929,18 +1929,67 @@
   color: var(--ink-faint);
 }
 
-/* bloques de la comparativa (Resumen, Tiros, Pases...) */
-.motm-compare__group {
-  margin-top: 16px;
+/* Carrusel de la comparativa: una tarjeta por bloque (Resumen, Tiros...),
+   se pasan deslizando. Scroll nativo con snap, sin animacion en JS: en la PWA
+   de iOS esto lo mueve el compositor y va fino aunque el hilo principal este
+   ocupado. */
+.motm-carousel {
+  margin-top: 14px;
 }
-.motm-compare__group-title {
-  margin: 0;
+.motm-carousel__track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  /* Sin barra visible: el indicador de puntos ya dice donde estas. */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.motm-carousel__track::-webkit-scrollbar {
+  display: none;
+}
+.motm-carousel__card {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.motm-carousel__title {
+  margin: 0 0 2px;
   font-family: var(--f-display);
   font-style: italic;
   text-transform: uppercase;
   font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
+}
+.motm-carousel__dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 16px;
+}
+.motm-carousel__dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.2s ease, width 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.motm-carousel__dot.is-active {
+  width: 18px;
+  background: var(--brand);
+}
+.motm-carousel__hint {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-faint);
 }
 /* Valores tipo "585 (90%)": necesitan mas ancho que un entero suelto. */
 .motm-compare-row--wide {

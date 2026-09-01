@@ -158,6 +158,17 @@ export default function MatchPredictions() {
 
         {!loading && hasAnything && fixtureId && (
           <div className="motm-compare motm-ai">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                // La clave cambia al pasar de "sin previsión" a "con
+                // previsión": AnimatePresence desvanece lo viejo y entra lo
+                // nuevo, en vez del corte seco de antes.
+                key={ai ? 'ready' : generateAi.isPending ? 'pending' : 'idle'}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={reduceMotion ? { duration: 0.001 } : PANEL_ENTER}
+              >
             {ai ? (
               <button
                 type="button"
@@ -252,6 +263,8 @@ export default function MatchPredictions() {
                 )}
               </>
             )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         )}
       </div>

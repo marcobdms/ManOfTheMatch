@@ -174,7 +174,13 @@ export type TeamStatsComparison = {
 }
 
 export type ShotType = 'Goal' | 'Miss' | 'AttemptSaved' | 'Post'
-export type ShotSituation = 'RegularPlay' | 'FromCorner' | 'SetPiece' | 'FreeKick' | 'FastBreak'
+export type ShotSituation =
+  | 'RegularPlay'
+  | 'FromCorner'
+  | 'SetPiece'
+  | 'FreeKick'
+  | 'FastBreak'
+  | 'ThrowInSetPiece'
 
 /** Una fila de `match_shots` (supabase/migrations/0008_shot_events.sql). */
 export type MatchShot = {

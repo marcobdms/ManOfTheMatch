@@ -7,12 +7,21 @@ const TYPE_LABEL: Record<MatchShot['type'], string> = {
   Post: 'Al palo',
 }
 
-const SITUATION_LABEL: Record<NonNullable<MatchShot['situation']>, string> = {
+const SITUATION_LABEL: Record<string, string> = {
   RegularPlay: 'Jugada',
   FromCorner: 'Córner',
   SetPiece: 'Balón parado',
   FreeKick: 'Falta',
   FastBreak: 'Contragolpe',
+  ThrowInSetPiece: 'Saque de banda',
+}
+
+/** Fotmob manda la situación como texto libre y aparecen valores nuevos sin
+ *  avisar (así salió un "undefined" en pantalla). Lo que no se reconoce se
+ *  omite en vez de pintarse: mejor decir menos que decir una palabra rota. */
+function situationLabel(situation: string | null): string | null {
+  if (!situation) return null
+  return SITUATION_LABEL[situation] ?? null
 }
 
 /** Fila de disparo — minuto, autor, tipo y xG. Un gol se destaca en rojo. */
@@ -24,8 +33,8 @@ function ShotRow({ shot, isHome }: { shot: MatchShot; isHome: boolean }) {
       <div className="motm-shot__body">
         <span className="motm-shot__player">{shot.playerName}</span>
         <span className="motm-shot__meta">
-          {TYPE_LABEL[shot.type]}
-          {shot.situation ? ` · ${SITUATION_LABEL[shot.situation]}` : ''}
+          {TYPE_LABEL[shot.type] ?? 'Disparo'}
+          {situationLabel(shot.situation) ? ` · ${situationLabel(shot.situation)}` : ''}
         </span>
       </div>
       <span className="motm-shot__xg">{shot.xg != null ? shot.xg.toFixed(2) : '—'}</span>
