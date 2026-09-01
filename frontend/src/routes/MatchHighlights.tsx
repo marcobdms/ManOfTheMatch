@@ -1,4 +1,4 @@
-import { ArrowLeft, YoutubeLogo } from '@phosphor-icons/react'
+import { ArrowLeft, PlayCircle } from '@phosphor-icons/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import { useFixtureById } from '../lib/queries'
@@ -24,19 +24,15 @@ function youtubeId(url: string | null): string | null {
 }
 
 /**
- * Resumen en vídeo de un partido ya jugado.
+ * Resumen en vídeo de un partido ya jugado: miniatura oficial de vista previa
+ * + botón que lo abre en YouTube.
  *
  * NO se embebe el reproductor: LaLiga tiene desactivada la reproducción fuera
  * de YouTube para sus vídeos ("este vídeo incluye contenido de LaLiga, que lo
  * ha bloqueado para que no se muestre en este sitio web o aplicación"), y eso
- * es una decisión del dueño de los derechos, no algo que se pueda rodear. Lo
- * que sí funciona siempre: la miniatura oficial + un toque que abre el vídeo
- * en YouTube, donde el canal se lleva su visualización.
- *
- * Tampoco se puede detectar desde el navegador si un vídeo concreto permite
- * embed (el iframe es cross-origin y no avisa cuando lo bloquean), así que ni
- * se intenta — mejor una miniatura que siempre carga que un reproductor que a
- * veces sale con un error dentro.
+ * es del dueño de los derechos, no algo que se pueda rodear. Tampoco se puede
+ * detectar desde el navegador si un vídeo concreto permite embed (el iframe es
+ * cross-origin y no avisa cuando lo bloquean), así que ni se intenta.
  */
 export default function MatchHighlights() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
@@ -80,8 +76,10 @@ export default function MatchHighlights() {
 
         {url && (
           <>
-            <a className="motm-video" href={url} target="_blank" rel="noreferrer" aria-label="Ver el resumen en YouTube">
-              {thumbnail && (
+            {/* Solo vista previa: quien quiera verlo usa el botón de abajo,
+                así no hay dos formas de hacer lo mismo. */}
+            {thumbnail && (
+              <div className="motm-video">
                 <img
                   src={thumbnail}
                   alt=""
@@ -96,15 +94,15 @@ export default function MatchHighlights() {
                     if (img.src !== fallback) img.src = fallback
                   }}
                 />
-              )}
-              <span className="motm-video__play" aria-hidden="true">
-                <YoutubeLogo size={30} weight="fill" />
-              </span>
-            </a>
+              </div>
+            )}
 
-            <p className="motm-note" style={{ marginTop: 10 }}>
-              LaLiga solo permite ver sus resúmenes dentro de YouTube, así que el vídeo se abre allí.
-            </p>
+            <div className="motm-actions" style={{ marginTop: 14 }}>
+              <a className="motm-btn" style={{ flex: 1 }} href={url} target="_blank" rel="noreferrer">
+                <PlayCircle size={18} weight="fill" />
+                Ver en YouTube
+              </a>
+            </div>
           </>
         )}
       </div>
