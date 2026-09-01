@@ -25,18 +25,44 @@ type FixtureRow = {
   detail_facts_synced_at: string | null;
   home_team_id: string | null;
   away_team_id: string | null;
+  kickoff_at: string;
+  highlight_url: string | null;
+  highlight_checked_at: string | null;
 };
+
+// El resumen en vídeo se publica DESPUÉS del pitido final, así que la pasada
+// final del partido casi siempre llega demasiado pronto. Se reintenta cada
+// HIGHLIGHT_RETRY_H durante HIGHLIGHT_WINDOW_H tras el saque inicial; pasada
+// esa ventana se da por hecho que ese partido no va a tener vídeo.
+const HIGHLIGHT_WINDOW_H = 72;
+const HIGHLIGHT_RETRY_H = 2;
+
+function needsHighlight(f: FixtureRow, now: number): boolean {
+  if (f.status !== 'FINISHED' || f.highlight_url) return false;
+  const sinceKickoffH = (now - new Date(f.kickoff_at).getTime()) / 3_600_000;
+  if (sinceKickoffH > HIGHLIGHT_WINDOW_H) return false;
+  if (!f.highlight_checked_at) return true;
+  return (now - new Date(f.highlight_checked_at).getTime()) / 3_600_000 >= HIGHLIGHT_RETRY_H;
+}
 
 export function syncMatchFacts() {
   return withRun('syncMatchFacts', 'fotmob', async () => {
     const { data } = await db
       .from('fixtures')
-      .select('id, status, source_ids, detail_facts_synced_at, home_team_id, away_team_id')
+      .select(
+        'id, status, source_ids, detail_facts_synced_at, home_team_id, away_team_id, ' +
+          'kickoff_at, highlight_url, highlight_checked_at',
+      )
       .in('status', ['LIVE', 'PAUSED', 'FINISHED']);
 
     const rows = (data ?? []) as unknown as FixtureRow[];
+    const now = Date.now();
     const due = rows.filter(
-      (f) => f.status === 'LIVE' || f.status === 'PAUSED' || (f.status === 'FINISHED' && !f.detail_facts_synced_at),
+      (f) =>
+        f.status === 'LIVE' ||
+        f.status === 'PAUSED' ||
+        (f.status === 'FINISHED' && !f.detail_facts_synced_at) ||
+        needsHighlight(f, now),
     );
     if (due.length === 0) return 0;
 
@@ -59,6 +85,22 @@ export function syncMatchFacts() {
   });
 }
 
+/** Guarda el enlace de YouTube del resumen. `highlight_checked_at` se sella
+ *  siempre (haya vídeo o no) para espaciar los reintentos. */
+async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promise<void> {
+  if (f.status !== 'FINISHED' || f.highlight_url) return;
+
+  const h = details.content?.matchFacts?.highlights ?? null;
+  const url = h?.url?.trim() || null;
+  const patch: Record<string, string | null> = { highlight_checked_at: new Date().toISOString() };
+  if (url) {
+    patch.highlight_url = url;
+    patch.highlight_thumbnail = h?.image?.trim() || null;
+  }
+  const { error } = await db.from('fixtures').update(patch).eq('id', f.id);
+  if (error) console.warn(`[syncMatchFacts] highlight de ${f.id} no se guardó`, error);
+}
+
 async function writeAll(f: FixtureRow, details: FotmobMatchDetails): Promise<void> {
   const teams = details.header?.teams ?? [];
   const homeFotmobId = teams[0]?.id ?? null;
@@ -79,6 +121,7 @@ async function writeAll(f: FixtureRow, details: FotmobMatchDetails): Promise<voi
     writePlayerStats(f.id, details, slugFor),
     writeShots(f.id, details, slugFor),
     writeMatchFacts(f.id, details),
+    writeHighlight(f, details),
   ]);
 
   if (f.status === 'FINISHED') {

@@ -29,6 +29,8 @@ const MOCK_MATCH: LiveMatch = {
   away: { id: 'barcelona', tla: 'BAR', name: 'FC Barcelona', shortName: 'Barcelona' },
   homeScore: 2,
   awayScore: 1,
+  highlightUrl: null,
+  highlightThumbnail: null,
 }
 
 const MOCK_GOALS: GoalChip[] = [

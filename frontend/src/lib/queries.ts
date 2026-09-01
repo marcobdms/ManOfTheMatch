@@ -95,6 +95,8 @@ type FixtureRow = {
   matchday: number | null
   home_score: number | null
   away_score: number | null
+  highlight_url: string | null
+  highlight_thumbnail: string | null
   // inline identity for the non-tracked side (0002 columns — no `teams` row exists for it)
   home_team_name: string | null
   away_team_name: string | null
@@ -157,6 +159,7 @@ function preferBestSource(rows: EventRow[]): EventRow[] {
 
 const FIXTURE_SELECT =
   'id, status, minute, half_started_at, half_number, kickoff_at, matchday, home_score, away_score, ' +
+  'highlight_url, highlight_thumbnail, ' +
   'home_team_name, away_team_name, ' +
   'home:teams!home_team_id ( id, tla, name, short_name ), ' +
   'away:teams!away_team_id ( id, tla, name, short_name ), ' +
@@ -231,6 +234,8 @@ function toLiveMatch(row: FixtureRow): LiveMatch {
     away: teamFrom(asOne(row.away), row.away_team_name),
     homeScore: row.home_score ?? 0,
     awayScore: row.away_score ?? 0,
+    highlightUrl: row.highlight_url ?? null,
+    highlightThumbnail: row.highlight_thumbnail ?? null,
   }
 }
 

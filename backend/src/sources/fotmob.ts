@@ -295,6 +295,10 @@ export type FotmobMatchFacts = {
   /** Pre-partido: frases con plantilla (no texto libre) — el mismo hecho
    *  siempre trae el mismo `TextTemplateId`, se traduce en el frontend. */
   poll?: { oddspoll?: { Facts?: FotmobOddsFact[] | null } | null } | null;
+  /** Resumen en vídeo, publicado un rato DESPUÉS del pitido final (verificado
+   *  en real: los 3 últimos partidos de LaLiga lo traían, siempre YouTube).
+   *  `url` es el enlace normal de YouTube, `image` su miniatura. */
+  highlights?: { url?: string | null; image?: string | null; source?: string | null } | null;
 } | null;
 
 export type FotmobOddsFact = {

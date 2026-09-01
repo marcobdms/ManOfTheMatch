@@ -6,7 +6,6 @@ import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
 import { useFinishedFixtures, useUpcomingFixtures } from '../lib/queries'
 import { STAGGER_ITEM } from '../lib/motion'
-import { useAuth } from '../lib/AuthProvider'
 import type { LiveMatch, UpcomingMatch } from '../types/view'
 
 const FIXTURES_LIMIT = 30
@@ -17,7 +16,6 @@ const FIXTURES_LIMIT = 30
 const PREDICTIONS_WINDOW_H = 96
 
 type Scope = 'upcoming' | 'past'
-type TeamFilter = 'all' | 'favorite'
 
 function formatTime(iso: string): string {
   const date = new Date(iso)
@@ -126,14 +124,10 @@ function PastRow({ match }: { match: LiveMatch }) {
 }
 
 export default function Upcoming() {
-  const { profile } = useAuth()
-  const storedFavoriteTeamId = profile?.favorite_team_id ?? null
   const [scope, setScope] = useState<Scope>('upcoming')
-  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
-  const favoriteTeamId = teamFilter === 'favorite' ? storedFavoriteTeamId : null
 
-  const upcomingQuery = useUpcomingFixtures(FIXTURES_LIMIT, favoriteTeamId)
-  const pastQuery = useFinishedFixtures(FIXTURES_LIMIT, favoriteTeamId)
+  const upcomingQuery = useUpcomingFixtures(FIXTURES_LIMIT)
+  const pastQuery = useFinishedFixtures(FIXTURES_LIMIT)
   const query = scope === 'upcoming' ? upcomingQuery : pastQuery
 
   const upcomingGroups = useMemo(() => groupByDay(upcomingQuery.data ?? []), [upcomingQuery.data])
@@ -165,32 +159,6 @@ export default function Upcoming() {
           </button>
         </div>
 
-        <div className="motm-segmented motm-segmented--sub" role="group" aria-label="Filtrar partidos">
-          <button
-            type="button"
-            className="motm-segmented__btn"
-            aria-pressed={teamFilter === 'all'}
-            onClick={() => setTeamFilter('all')}
-          >
-            Todos
-          </button>
-          <button
-            type="button"
-            className="motm-segmented__btn"
-            aria-pressed={teamFilter === 'favorite'}
-            disabled={!storedFavoriteTeamId}
-            onClick={() => setTeamFilter('favorite')}
-          >
-            Solo mi equipo
-          </button>
-        </div>
-
-        {!storedFavoriteTeamId && (
-          <p className="motm-note motm-profile__hint">
-            Elige tu equipo favorito en <Link to="/perfil">Perfil</Link> para filtrar aquí.
-          </p>
-        )}
-
         {query.isLoading && (
           <div className="motm-skel" style={{ height: 320, margin: '16px 0' }} aria-hidden="true" />
         )}
@@ -205,14 +173,14 @@ export default function Upcoming() {
         {query.data && groups.length === 0 && scope === 'upcoming' && (
           <div className="motm-empty" role="status">
             <b>Sin partidos próximos</b>
-            {teamFilter === 'favorite' ? 'Tu equipo no tiene partidos programados.' : 'No hay partidos programados por ahora.'}
+            No hay partidos programados por ahora.
           </div>
         )}
 
         {query.data && groups.length === 0 && scope === 'past' && (
           <div className="motm-empty" role="status">
             <b>Sin partidos jugados todavía</b>
-            {teamFilter === 'favorite' ? 'Tu equipo no ha jugado esta temporada.' : 'Todavía no hay partidos jugados esta temporada.'}
+            Todavía no hay partidos jugados esta temporada.
           </div>
         )}
 

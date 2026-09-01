@@ -23,6 +23,10 @@ export type LiveMatch = {
   away: TeamLite
   homeScore: number
   awayScore: number
+  /** Resumen en vídeo de YouTube (Fotmob, solo partidos ya jugados y no
+   *  siempre) — se embebe con el reproductor oficial. null = sin vídeo. */
+  highlightUrl: string | null
+  highlightThumbnail: string | null
 }
 
 /** A fixture that hasn't kicked off yet — used by Home y Próximos. */
