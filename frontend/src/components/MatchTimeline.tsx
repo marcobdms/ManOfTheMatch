@@ -4,6 +4,7 @@ import { PANEL_EXIT, STAGGER_ITEM } from '../lib/motion'
 import {
   ArrowsLeftRight,
   FlagPennant,
+  Microphone,
   PaperPlaneTilt,
   SoccerBall,
   Target,
@@ -35,6 +36,8 @@ function badge(type: MatchEventType): { cls: string; node: JSX.Element } {
       return { cls: ' motm-ev__badge--goal', node: <XCircle size={15} weight="fill" /> }
     case 'CHANCE':
       return { cls: '', node: <Target size={15} /> }
+    case 'INSIGHT':
+      return { cls: ' motm-ev__badge--insight', node: <Microphone size={15} weight="fill" /> }
     case 'CORNER':
       return { cls: '', node: <FlagPennant size={15} /> }
     default:

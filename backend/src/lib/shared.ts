@@ -68,7 +68,10 @@ export type MatchEventType =
   | 'CORNER'
   | 'KEY_PASS'
   | 'CHANCE'
-  | 'WOODWORK';
+  | 'WOODWORK'
+  /** Momento comentado por el narrador (backend/src/jobs/syncInsights.ts):
+   *  asedio, paradón, remontada… No es un evento del partido, es lectura. */
+  | 'INSIGHT';
 
 export type NotificationType = 'MATCHDAY' | 'KICKOFF_SOON' | 'LINEUP' | 'GOAL';
 

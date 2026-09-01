@@ -75,6 +75,7 @@ const ALL_EVENT_TYPES: MatchEventType[] = [
   'KEY_PASS',
   'CHANCE',
   'WOODWORK',
+  'INSIGHT',
 ]
 
 export function isLiveStatus(status: MatchStatus | undefined): boolean {
@@ -306,6 +307,10 @@ function buildEventText(row: EventRow): string {
       return `Pase filtrado${player ? ' de ' + player : ''}${assist ? ' para ' + assist : ''}`
     case 'CHANCE':
       return `Ocasión clara desperdiciada${team ? ' por el ' + team : ''}${player ? ' — ' + player : ''}`
+    case 'INSIGHT':
+      // La frase real vive en `narration`; esto solo aplica si Groq/plantilla
+      // fallaron, y entonces `detail` ya trae el tipo de momento ("Asedio").
+      return detail || 'Momento del partido'
     default:
       return detail || 'Jugada'
   }

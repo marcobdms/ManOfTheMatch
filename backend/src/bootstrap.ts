@@ -10,6 +10,7 @@ import { syncMatchFacts } from './jobs/syncMatchFacts.js';
 import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
 import { syncLineups } from './jobs/syncLineups.js';
 import { syncPredictions } from './jobs/syncPredictions.js';
+import { syncInsights } from './jobs/syncInsights.js';
 
 console.log('[ingest] worker ManOfTheMatch arrancando…');
 
@@ -53,6 +54,12 @@ new Cron('*/30 * * * *', { protect: true }, guard(syncLineups));
 // Previsiones (cuotas + pronostico): cada 30 min, presupuesto propio y
 // ventana de 36h se encargan de que sean pocas llamadas reales al dia.
 new Cron('*/30 * * * *', { protect: true }, guard(syncPredictions));
+
+// Momentos comentados de partidos ya terminados (asedio, paradon, remontada...).
+// Cada 10 min y con tope de 3 partidos por pasada: es trabajo derivado de lo
+// que ya esta en la base, no corre prisa, y asi el backfill del historico se
+// reparte en vez de disparar decenas de llamadas a Groq de golpe.
+new Cron('*/10 * * * *', { protect: true }, guard(syncInsights));
 
 // Kick one calendar sync on boot so a fresh deploy isn't empty.
 guard(syncFixtures)();

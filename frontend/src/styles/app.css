@@ -1697,6 +1697,13 @@
   color: var(--brand);
 }
 
+/* Momento comentado por el narrador: se distingue del resto de eventos, que
+   son hechos del partido, porque esto es lectura de lo que estaba pasando. */
+.motm-ev__badge--insight {
+  background: var(--yellow-tint);
+  color: var(--yellow-ink);
+}
+
 /* ===== Clasificacion completa (routes/Standings.tsx) ===== */
 .motm-table {
   padding: 0 16px;

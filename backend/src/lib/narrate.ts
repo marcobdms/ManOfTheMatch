@@ -92,3 +92,53 @@ REGLAS ESTRICTAS:
     return null;
   }
 }
+
+/**
+ * Reescribe con más chispa la frase de un momento detectado
+ * (lib/matchInsights.ts), a partir de la plantilla y de los datos reales que
+ * lo justifican. Si Groq falla o dice algo raro, se devuelve null y el
+ * llamante se queda con la plantilla — que ya es una frase correcta.
+ */
+export async function flavorInsight(
+  base: string,
+  context: Record<string, unknown>,
+): Promise<string | null> {
+  if (!GROQ_API_KEY) return null;
+
+  const system = `Eres un comentarista de fútbol de LaLiga, en español de España. Recibes una frase base ya correcta sobre un momento real del partido y sus datos.
+Devuelve ESA MISMA idea reescrita con más chispa, en UNA sola frase de máximo 20 palabras.
+REGLAS ESTRICTAS:
+- No añadas NINGÚN dato que no esté en el JSON: ni jugadas, ni asistencias, ni nombres nuevos, ni minutos que no te den.
+- No cambies quién es el protagonista ni el sentido de la frase base.
+- Responde SOLO con la frase, en texto plano, sin comillas ni explicaciones.`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: JSON.stringify({ frase_base: base, datos: context }) },
+        ],
+        temperature: 0.8,
+        max_tokens: 60,
+      }),
+    }).finally(() => clearTimeout(timeout));
+
+    if (!res.ok) {
+      console.warn('[narrate] flavorInsight: Groq respondió', res.status);
+      return null;
+    }
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content?.trim() ?? '';
+    return sane(text) ? text : null;
+  } catch (err) {
+    console.warn('[narrate] flavorInsight falló', err);
+    return null;
+  }
+}
