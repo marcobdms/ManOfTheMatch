@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ClockCounterClockwise, DotsThree, UsersThree } from '@phosphor-icons/react'
+import { ClockCounterClockwise, DotsThree, UsersThree } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import AnimatedBell from '../components/AnimatedBell'
 import AppHeader from '../components/AppHeader'
+import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import TeamLineupBody from '../components/TeamLineupBody'
 import { PANEL_ENTER } from '../lib/motion'
@@ -18,7 +19,6 @@ import { enablePush, disablePush, getPushStatus } from '../lib/push'
  *  comían media pantalla antes de llegar a la cancha. */
 export default function TeamLineup() {
   const { teamId } = useParams<{ teamId: string }>()
-  const navigate = useNavigate()
   const teamQuery = useTeam(teamId)
   const lineupQuery = useTeamLineup(teamId)
   const { session, profile, updateProfile } = useAuth()
@@ -85,14 +85,7 @@ export default function TeamLineup() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button
-            type="button"
-            className="motm-iconbtn motm-lineup__back"
-            aria-label="Volver"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <TeamCrest
             teamId={teamId}
             tla={team?.tla ?? '—'}

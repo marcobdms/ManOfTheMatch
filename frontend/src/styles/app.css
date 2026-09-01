@@ -89,6 +89,7 @@
   cursor: pointer;
   padding: 4px;
   display: flex;
+  -webkit-tap-highlight-color: transparent;
 }
 .motm-avatar {
   width: 32px;
@@ -1310,6 +1311,7 @@
   margin-bottom: 14px;
 }
 .motm-segmented__btn {
+  position: relative;
   flex: 1;
   display: flex;
   align-items: center;
@@ -1325,12 +1327,27 @@
   font-weight: 700;
   color: var(--ink-soft);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .motm-segmented__btn[aria-pressed='true'] {
-  background: var(--card);
   color: var(--ink);
+}
+/* El resaltado del activo es un elemento propio (components/Segmented.tsx)
+   con `layoutId`, así se desliza hasta la opción elegida en vez de aparecer
+   de golpe en su sitio. */
+.motm-segmented__pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-btn);
+  background: var(--card);
   box-shadow: var(--sh-card);
+}
+.motm-segmented__label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .motm-segmented__btn:disabled {
   cursor: not-allowed;

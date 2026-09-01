@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
+import { Segmented, SegmentedButton } from '../components/Segmented'
 import TeamCrest from '../components/TeamCrest'
 import { useFinishedFixtures, useUpcomingFixtures } from '../lib/queries'
 import { STAGGER_ITEM } from '../lib/motion'
@@ -124,7 +125,15 @@ function PastRow({ match }: { match: LiveMatch }) {
 }
 
 export default function Upcoming() {
-  const [scope, setScope] = useState<Scope>('upcoming')
+  // El alcance vive en la URL (?pasados) y no en estado local: al volver con
+  // la flecha desde el detalle de un partido jugado, el navegador restaura
+  // esta ruta tal cual estaba y se sigue viendo "Pasados" en vez de saltar
+  // otra vez a "Próximos".
+  const [params, setParams] = useSearchParams()
+  const scope: Scope = params.get('ver') === 'pasados' ? 'past' : 'upcoming'
+  const setScope = (next: Scope) => {
+    setParams(next === 'past' ? { ver: 'pasados' } : {}, { replace: true })
+  }
 
   const upcomingQuery = useUpcomingFixtures(FIXTURES_LIMIT)
   const pastQuery = useFinishedFixtures(FIXTURES_LIMIT)
@@ -140,24 +149,14 @@ export default function Upcoming() {
       <div className="motm-profile">
         <h1 className="motm-profile__title">{scope === 'upcoming' ? 'Próximos' : 'Pasados'}</h1>
 
-        <div className="motm-segmented" role="group" aria-label="Próximos o pasados">
-          <button
-            type="button"
-            className="motm-segmented__btn"
-            aria-pressed={scope === 'upcoming'}
-            onClick={() => setScope('upcoming')}
-          >
+        <Segmented id="scope" ariaLabel="Próximos o pasados">
+          <SegmentedButton active={scope === 'upcoming'} onClick={() => setScope('upcoming')}>
             Próximos
-          </button>
-          <button
-            type="button"
-            className="motm-segmented__btn"
-            aria-pressed={scope === 'past'}
-            onClick={() => setScope('past')}
-          >
+          </SegmentedButton>
+          <SegmentedButton active={scope === 'past'} onClick={() => setScope('past')}>
             Pasados
-          </button>
-        </div>
+          </SegmentedButton>
+        </Segmented>
 
         {query.isLoading && (
           <div className="motm-skel" style={{ height: 320, margin: '16px 0' }} aria-hidden="true" />

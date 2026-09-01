@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft } from '@phosphor-icons/react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import { Segmented, SegmentedButton } from '../components/Segmented'
+import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import TeamLineupBody from '../components/TeamLineupBody'
 import { useFixtureById, useTeamLineup } from '../lib/queries'
@@ -13,7 +14,6 @@ type Side = 'home' | 'away'
  *  por equipo — recicla TeamLineupBody. */
 export default function MatchLineups() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const navigate = useNavigate()
   const matchQuery = useFixtureById(fixtureId)
   const match = matchQuery.data
 
@@ -28,9 +28,7 @@ export default function MatchLineups() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">Alineaciones</h1>
             {match && (
@@ -40,26 +38,16 @@ export default function MatchLineups() {
         </div>
 
         {match && (
-          <div className="motm-segmented" role="group" aria-label="Equipo">
-            <button
-              type="button"
-              className="motm-segmented__btn"
-              aria-pressed={side === 'home'}
-              onClick={() => setSide('home')}
-            >
+          <Segmented id="side" ariaLabel="Equipo">
+            <SegmentedButton active={side === 'home'} onClick={() => setSide('home')}>
               <TeamCrest teamId={match.home.id} tla={match.home.tla} size={18} />
               {match.home.shortName}
-            </button>
-            <button
-              type="button"
-              className="motm-segmented__btn"
-              aria-pressed={side === 'away'}
-              onClick={() => setSide('away')}
-            >
+            </SegmentedButton>
+            <SegmentedButton active={side === 'away'} onClick={() => setSide('away')}>
               <TeamCrest teamId={match.away.id} tla={match.away.tla} size={18} />
               {match.away.shortName}
-            </button>
-          </div>
+            </SegmentedButton>
+          </Segmented>
         )}
 
         <TeamLineupBody

@@ -1,6 +1,7 @@
-import { ArrowLeft, PlayCircle } from '@phosphor-icons/react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { PlayCircle } from '@phosphor-icons/react'
+import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import BackButton from '../components/BackButton'
 import { useFixtureById } from '../lib/queries'
 
 /** Saca el id de vídeo de un enlace de YouTube (watch?v=, youtu.be/, /embed/).
@@ -36,7 +37,6 @@ function youtubeId(url: string | null): string | null {
  */
 export default function MatchHighlights() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const navigate = useNavigate()
   const matchQuery = useFixtureById(fixtureId)
 
   const match = matchQuery.data
@@ -50,9 +50,7 @@ export default function MatchHighlights() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">Highlights</h1>
             {match && (

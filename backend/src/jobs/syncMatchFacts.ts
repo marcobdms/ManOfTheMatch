@@ -31,17 +31,29 @@ type FixtureRow = {
 };
 
 // El resumen en vídeo se publica DESPUÉS del pitido final, así que la pasada
-// final del partido casi siempre llega demasiado pronto. Se reintenta cada
-// HIGHLIGHT_RETRY_H durante HIGHLIGHT_WINDOW_H tras el saque inicial; pasada
-// esa ventana se da por hecho que ese partido no va a tener vídeo.
+// final del partido casi siempre llega demasiado pronto y hay que reintentar.
+// Dos casos distintos:
+//   - Nunca mirado (`highlight_checked_at` null): se mira UNA vez, tenga la
+//     edad que tenga. Fotmob conserva el vídeo de partidos viejos (verificado
+//     en real con partidos de 75h a 99h), así que limitar esto por antigüedad
+//     dejaba sin resumen a todo lo anterior al despliegue.
+//   - Ya mirado y sin vídeo: solo se insiste durante HIGHLIGHT_WINDOW_H tras
+//     el saque inicial, que es cuando aún puede aparecer.
 const HIGHLIGHT_WINDOW_H = 72;
 const HIGHLIGHT_RETRY_H = 2;
+// Tope de partidos viejos por pasada: en un backfill grande (media temporada
+// sin mirar) el adapter de Fotmob serializa con ≥3s entre peticiones, así que
+// sin tope una sola pasada podría durar más que el propio intervalo del job.
+const HIGHLIGHT_BACKFILL_PER_RUN = 6;
 
-function needsHighlight(f: FixtureRow, now: number): boolean {
-  if (f.status !== 'FINISHED' || f.highlight_url) return false;
+function isBackfill(f: FixtureRow): boolean {
+  return f.status === 'FINISHED' && !f.highlight_url && !f.highlight_checked_at;
+}
+
+function needsHighlightRetry(f: FixtureRow, now: number): boolean {
+  if (f.status !== 'FINISHED' || f.highlight_url || !f.highlight_checked_at) return false;
   const sinceKickoffH = (now - new Date(f.kickoff_at).getTime()) / 3_600_000;
   if (sinceKickoffH > HIGHLIGHT_WINDOW_H) return false;
-  if (!f.highlight_checked_at) return true;
   return (now - new Date(f.highlight_checked_at).getTime()) / 3_600_000 >= HIGHLIGHT_RETRY_H;
 }
 
@@ -57,13 +69,19 @@ export function syncMatchFacts() {
 
     const rows = (data ?? []) as unknown as FixtureRow[];
     const now = Date.now();
-    const due = rows.filter(
+    const always = rows.filter(
       (f) =>
         f.status === 'LIVE' ||
         f.status === 'PAUSED' ||
         (f.status === 'FINISHED' && !f.detail_facts_synced_at) ||
-        needsHighlight(f, now),
+        needsHighlightRetry(f, now),
     );
+    // Los más recientes primero: son los que alguien va a abrir.
+    const backfill = rows
+      .filter((f) => isBackfill(f) && !always.includes(f))
+      .sort((a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime())
+      .slice(0, HIGHLIGHT_BACKFILL_PER_RUN);
+    const due = [...always, ...backfill];
     if (due.length === 0) return 0;
 
     let written = 0;

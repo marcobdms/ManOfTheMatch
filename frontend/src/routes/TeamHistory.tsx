@@ -1,6 +1,6 @@
-import { ArrowLeft } from '@phosphor-icons/react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import BackButton from '../components/BackButton'
 import { StaggerItem, StaggerList } from '../components/StaggerList'
 import TeamCrest from '../components/TeamCrest'
 import { useTeam, useTeamMatchHistory } from '../lib/queries'
@@ -35,7 +35,6 @@ function HistoryRow({ match }: { match: LiveMatch }) {
  *  la hora por la fecha y el "vs" por el marcador. */
 export default function TeamHistory() {
   const { teamId } = useParams<{ teamId: string }>()
-  const navigate = useNavigate()
   const teamQuery = useTeam(teamId)
   const historyQuery = useTeamMatchHistory(teamId)
 
@@ -48,9 +47,7 @@ export default function TeamHistory() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <TeamCrest teamId={teamId} tla={team?.tla ?? '—'} color={team?.primary_color} size={40} />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">{team?.short_name ?? team?.name ?? (loading ? '' : 'Equipo')}</h1>

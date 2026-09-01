@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { ArrowLeft, CaretDown, CheckCircle, Sparkle, XCircle } from '@phosphor-icons/react'
+import { CaretDown, CheckCircle, Sparkle, XCircle } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import { Segmented, SegmentedButton } from '../components/Segmented'
+import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import StatCompareRow from '../components/StatCompareRow'
 import { useFixtureById, useGenerateAiPrediction, useMatchOdds, useMatchPrediction } from '../lib/queries'
@@ -14,7 +16,6 @@ import type { TeamStatPair } from '../types/view'
  *  cuotas por casa. Primer intento — solo mercado 1X2, tres casas. */
 export default function MatchPredictions() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const navigate = useNavigate()
   const matchQuery = useFixtureById(fixtureId)
   const predictionQuery = useMatchPrediction(fixtureId)
   const oddsQuery = useMatchOdds(fixtureId)
@@ -56,9 +57,7 @@ export default function MatchPredictions() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">Previsiones</h1>
             {match && (
@@ -116,19 +115,17 @@ export default function MatchPredictions() {
         {!loading && odds.length > 0 && (
           <div className="motm-stat-team">
             <h2 className="motm-label motm-subs__title">Cuotas 1X2</h2>
-            <div className="motm-segmented" role="group" aria-label="Casa de apuestas">
+            <Segmented id="bookmaker" ariaLabel="Casa de apuestas">
               {odds.map((o) => (
-                <button
+                <SegmentedButton
                   key={o.bookmakerId}
-                  type="button"
-                  className="motm-segmented__btn"
-                  aria-pressed={activeBookmaker?.bookmakerId === o.bookmakerId}
+                  active={activeBookmaker?.bookmakerId === o.bookmakerId}
                   onClick={() => setBookmakerId(o.bookmakerId)}
                 >
                   {o.bookmakerName}
-                </button>
+                </SegmentedButton>
               ))}
-            </div>
+            </Segmented>
             {activeBookmaker && match && (
               <div className="motm-predict-odds">
                 <div className="motm-predict-odds__col">

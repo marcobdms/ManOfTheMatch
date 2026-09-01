@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from '@phosphor-icons/react'
+import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import { Segmented, SegmentedButton } from '../components/Segmented'
+import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import MomentumChart from '../components/MomentumChart'
 import StatCompareRow from '../components/StatCompareRow'
@@ -41,7 +42,6 @@ function PlayerRow({ p }: { p: PlayerStat }) {
  *  vacío en ese caso (nunca datos inventados) y cada bloque se omite solo. */
 export default function MatchStats() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const navigate = useNavigate()
   const [period, setPeriod] = useState<StatPeriod>('total')
 
   // El marcador ya vivía en caché de React Query desde la vista En vivo —
@@ -72,9 +72,7 @@ export default function MatchStats() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">Estadísticas</h1>
             {match && (
@@ -110,20 +108,18 @@ export default function MatchStats() {
                   <TeamCrest teamId={match.away.id} tla={match.away.tla} size={28} />
                 </div>
 
-                <div className="motm-segmented" role="group" aria-label="Periodo del partido">
+                <Segmented id="period" ariaLabel="Periodo del partido">
                   {(Object.keys(PERIOD_LABEL) as StatPeriod[]).map((p) => (
-                    <button
+                    <SegmentedButton
                       key={p}
-                      type="button"
-                      className="motm-segmented__btn"
-                      aria-pressed={period === p}
+                      active={period === p}
                       disabled={(comparison?.[p]?.length ?? 0) === 0}
                       onClick={() => setPeriod(p)}
                     >
                       {PERIOD_LABEL[p]}
-                    </button>
+                    </SegmentedButton>
                   ))}
-                </div>
+                </Segmented>
 
                 <div className="motm-compare__rows">
                   {periodStats.map((pair) => (

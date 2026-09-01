@@ -1,6 +1,7 @@
-import { ArrowLeft, ChartBar, YoutubeLogo } from '@phosphor-icons/react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ChartBar, YoutubeLogo } from '@phosphor-icons/react'
+import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import BackButton from '../components/BackButton'
 import ScoreboardCard from '../components/ScoreboardCard'
 import MatchTimeline from '../components/MatchTimeline'
 import { useFixtureById, useGoalChips, useTimeline } from '../lib/queries'
@@ -9,7 +10,6 @@ import { useFixtureById, useGoalChips, useTimeline } from '../lib/queries'
  *  En vivo, sin polling ni campana (no aplica a un partido FINISHED). */
 export default function MatchDetail() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const navigate = useNavigate()
   const matchQuery = useFixtureById(fixtureId)
   const goalsQuery = useGoalChips(fixtureId)
   const timelineQuery = useTimeline(fixtureId)
@@ -21,9 +21,7 @@ export default function MatchDetail() {
       <AppHeader />
       <div className="motm-lineup">
         <div className="motm-lineup__head">
-          <button type="button" className="motm-iconbtn motm-lineup__back" aria-label="Volver" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} />
-          </button>
+          <BackButton />
           <h1 className="motm-lineup__name">Partido</h1>
         </div>
 
