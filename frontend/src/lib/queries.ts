@@ -354,6 +354,26 @@ async function fetchUpcomingFixtures(
   return (data ?? []).map(toUpcomingMatch)
 }
 
+/** Todos los partidos ya jugados de LaLiga, más reciente primero — a
+ *  diferencia de `fetchTeamMatchHistory` (un equipo), esto es liga completa;
+ *  `favoriteTeamId` opcional lo estrecha a un equipo sin duplicar la query. */
+async function fetchFinishedFixtures(limit: number, favoriteTeamId?: string | null): Promise<LiveMatch[]> {
+  let query = supabase
+    .from('fixtures')
+    .select(FIXTURE_SELECT)
+    .eq('status', 'FINISHED')
+    .order('kickoff_at', { ascending: false })
+    .limit(limit)
+
+  if (favoriteTeamId) {
+    query = query.or(`home_team_id.eq.${favoriteTeamId},away_team_id.eq.${favoriteTeamId}`)
+  }
+
+  const { data, error } = await query.returns<FixtureRow[]>()
+  if (error) throw error
+  return (data ?? []).map(toLiveMatch)
+}
+
 /** Latest snapshot (max `captured_at`) of a competition's table, top `limit` rows. */
 async function fetchStandings(competitionId: string, limit: number): Promise<StandingRow[]> {
   const latest = await supabase
@@ -521,6 +541,15 @@ export function useUpcomingFixtures(limit: number, favoriteTeamId?: string | nul
 }
 
 /** Top `limit` de la clasificación de una competición (Home usa LaLiga, top 5). */
+export function useFinishedFixtures(limit: number, favoriteTeamId?: string | null) {
+  return useQuery({
+    queryKey: ['finishedFixtures', limit, favoriteTeamId ?? null],
+    queryFn: () => fetchFinishedFixtures(limit, favoriteTeamId),
+    enabled: hasSupabaseEnv,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useStandings(competitionId: string, limit: number) {
   return useQuery({
     queryKey: ['standings', competitionId, limit],

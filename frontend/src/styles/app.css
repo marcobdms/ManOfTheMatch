@@ -639,7 +639,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 6px 16px 0;
+  padding: 6px 16px 10px;
 }
 .motm-lineup__back {
   padding: 6px;
@@ -733,7 +733,7 @@
 }
 
 .motm-freshness {
-  margin: 6px 16px 0;
+  margin: 10px 16px 14px;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -761,7 +761,7 @@
    lleva todo el ancho disponible en vez de vivir en una tarjeta. */
 .motm-pitch {
   position: relative;
-  margin: 10px 8px 0;
+  margin: 4px 8px 0;
   aspect-ratio: 10 / 13;
   border-radius: 18px;
   overflow: hidden;
@@ -801,7 +801,7 @@
 /* esqueleto de carga — misma silueta que .motm-pitch, 11 cartas fantasma */
 .motm-lineup-skel {
   position: relative;
-  margin: 10px 8px 0;
+  margin: 4px 8px 0;
   aspect-ratio: 10 / 13;
   border-radius: 18px;
   overflow: hidden;
@@ -810,8 +810,8 @@
 .motm-lineup-skel__card {
   position: absolute;
   transform: translate(-50%, 50%);
-  width: 36px;
-  height: 48px;
+  width: 40px;
+  height: 53px;
   border-radius: 7px;
   background: var(--line);
   animation: motm-shimmer 1.4s ease-in-out infinite;
@@ -840,9 +840,9 @@
   box-sizing: border-box;
   /* Unico mando del tamano de la carta: todo lo de dentro esta en `em`, asi
      que este px escala la caja entera (dorsal, foto, nota, nombre, posicion).
-     Bajado de 13px a 9.1px (-30%) porque sobre la cancha las cartas de los
-     centrocampistas se pisaban entre ellas. */
-  font-size: 9.1px;
+     13px -> 9.1px (-30%, se pisaban en la cancha) -> 10px (+10%, quedo
+     demasiado chica). */
+  font-size: 10px;
   width: 6.5em;
   height: 8.7em;
   perspective: 900px;
@@ -1125,7 +1125,7 @@
 .motm-lineup-skel__card {
   width: 6.5em;
   height: 8.7em;
-  font-size: 9.1px;
+  font-size: 10px;
 }
 
 /* banquillo */
@@ -1283,6 +1283,17 @@
   background: var(--muted);
   border-radius: var(--r-btn);
 }
+/* Segundo switcher pegado al de arriba (Próximos/Pasados en Upcoming.tsx) —
+   son dos ejes del mismo filtro, no dos bloques sueltos. */
+.motm-segmented--sub {
+  margin-top: 8px;
+}
+/* Selector local/visitante de MatchLineups.tsx: va seguido de la pildora de
+   frescura + la cancha (TeamLineupBody), que sin este margen quedaban
+   pegadas justo debajo. */
+.motm-lineup .motm-segmented {
+  margin-bottom: 14px;
+}
 .motm-segmented__btn {
   flex: 1;
   display: flex;
@@ -1329,7 +1340,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 .motm-fixture-row {
   border: 1px solid var(--line);
@@ -1341,7 +1352,11 @@
   grid-template-columns: 40px 1fr auto 1fr;
   align-items: center;
   gap: 8px;
-  padding: 14px 14px 8px;
+  /* Simetrico arriba/abajo: antes el bottom (8px) asumia que casi siempre
+     seguian los botones de Previsiones/Alineaciones (que ponen su propio
+     margen debajo). Sin ellos -- el historial, o un proximo fuera de la
+     ventana de previsiones -- la fila quedaba con casi nada de aire abajo. */
+  padding: 14px;
   color: var(--ink);
   text-decoration: none;
 }
@@ -1408,6 +1423,12 @@
 .motm-fixture-row__vs {
   color: var(--ink-faint);
   font-size: 12px;
+}
+.motm-fixture-row__vs--score {
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 .motm-fixture-row__meta {
   grid-column: 1 / -1;

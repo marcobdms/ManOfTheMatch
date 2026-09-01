@@ -4,19 +4,20 @@ import { motion } from 'framer-motion'
 import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import TeamCrest from '../components/TeamCrest'
-import { useUpcomingFixtures } from '../lib/queries'
+import { useFinishedFixtures, useUpcomingFixtures } from '../lib/queries'
 import { STAGGER_ITEM } from '../lib/motion'
 import { useAuth } from '../lib/AuthProvider'
-import type { UpcomingMatch } from '../types/view'
+import type { LiveMatch, UpcomingMatch } from '../types/view'
 
-const UPCOMING_LIMIT = 30
+const FIXTURES_LIMIT = 30
 
 // Debe coincidir con WINDOW_H en backend/src/jobs/syncPredictions.ts — más
 // allá de esto el backend ni siquiera pide cuotas/previsión, así que el
 // botón no tendría nada que mostrar.
 const PREDICTIONS_WINDOW_H = 96
 
-type Filter = 'all' | 'favorite'
+type Scope = 'upcoming' | 'past'
+type TeamFilter = 'all' | 'favorite'
 
 function formatTime(iso: string): string {
   const date = new Date(iso)
@@ -24,7 +25,8 @@ function formatTime(iso: string): string {
   return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
-/** "Hoy" / "Mañana" / "sábado 5 de septiembre" — comparando por fecha local, no por 24h exactas. */
+/** "Hoy" / "Mañana" / "sábado 5 de septiembre" — comparando por fecha local, no por 24h exactas.
+ *  Sirve igual para el histórico: un partido de hoy también dice "Hoy". */
 function dayKeyAndLabel(iso: string): { key: string; label: string } {
   const date = new Date(iso)
   const today = new Date()
@@ -46,8 +48,8 @@ function dayKeyAndLabel(iso: string): { key: string; label: string } {
   return { key, label: label.charAt(0).toUpperCase() + label.slice(1) }
 }
 
-function groupByDay(matches: UpcomingMatch[]): { key: string; label: string; matches: UpcomingMatch[] }[] {
-  const groups: { key: string; label: string; matches: UpcomingMatch[] }[] = []
+function groupByDay<T extends { kickoffAt: string }>(matches: T[]): { key: string; label: string; matches: T[] }[] {
+  const groups: { key: string; label: string; matches: T[] }[] = []
   for (const match of matches) {
     const { key, label } = dayKeyAndLabel(match.kickoffAt)
     const last = groups[groups.length - 1]
@@ -64,7 +66,7 @@ function hoursUntil(iso: string): number {
   return (new Date(iso).getTime() - Date.now()) / 3_600_000
 }
 
-function MatchRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
+function UpcomingRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
   return (
     <div className="motm-fixture-row">
       <Link to={`/equipos/${match.home.id}`} className="motm-fixture-row__main">
@@ -99,36 +101,85 @@ function MatchRow({ match, showPredictions }: { match: UpcomingMatch; showPredic
   )
 }
 
+/** Fila de un partido ya jugado — mismo layout que UpcomingRow, cambiando
+ *  la hora por el resultado final en el centro. */
+function PastRow({ match }: { match: LiveMatch }) {
+  return (
+    <div className="motm-fixture-row">
+      <Link to={`/partidos/${match.id}`} className="motm-fixture-row__main">
+        <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
+        <span className="motm-fixture-row__team">
+          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
+          <span className="motm-fixture-row__name">{match.home.shortName}</span>
+        </span>
+        <span className="motm-fixture-row__vs motm-fixture-row__vs--score">
+          {match.homeScore}–{match.awayScore}
+        </span>
+        <span className="motm-fixture-row__team motm-fixture-row__team--away">
+          <span className="motm-fixture-row__name">{match.away.shortName}</span>
+          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
+        </span>
+        <span className="motm-fixture-row__meta">{match.competitionShort}</span>
+      </Link>
+    </div>
+  )
+}
+
 export default function Upcoming() {
   const { profile } = useAuth()
   const storedFavoriteTeamId = profile?.favorite_team_id ?? null
-  const [filter, setFilter] = useState<Filter>('all')
-  const favoriteTeamId = filter === 'favorite' ? storedFavoriteTeamId : null
-  const upcomingQuery = useUpcomingFixtures(UPCOMING_LIMIT, favoriteTeamId)
+  const [scope, setScope] = useState<Scope>('upcoming')
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
+  const favoriteTeamId = teamFilter === 'favorite' ? storedFavoriteTeamId : null
 
-  const groups = useMemo(() => groupByDay(upcomingQuery.data ?? []), [upcomingQuery.data])
+  const upcomingQuery = useUpcomingFixtures(FIXTURES_LIMIT, favoriteTeamId)
+  const pastQuery = useFinishedFixtures(FIXTURES_LIMIT, favoriteTeamId)
+  const query = scope === 'upcoming' ? upcomingQuery : pastQuery
+
+  const upcomingGroups = useMemo(() => groupByDay(upcomingQuery.data ?? []), [upcomingQuery.data])
+  const pastGroups = useMemo(() => groupByDay(pastQuery.data ?? []), [pastQuery.data])
+  const groups = scope === 'upcoming' ? upcomingGroups : pastGroups
 
   return (
     <>
       <AppHeader />
       <div className="motm-profile">
-        <h1 className="motm-profile__title">Próximos</h1>
+        <h1 className="motm-profile__title">{scope === 'upcoming' ? 'Próximos' : 'Pasados'}</h1>
 
-        <div className="motm-segmented" role="group" aria-label="Filtrar partidos">
+        <div className="motm-segmented" role="group" aria-label="Próximos o pasados">
           <button
             type="button"
             className="motm-segmented__btn"
-            aria-pressed={filter === 'all'}
-            onClick={() => setFilter('all')}
+            aria-pressed={scope === 'upcoming'}
+            onClick={() => setScope('upcoming')}
+          >
+            Próximos
+          </button>
+          <button
+            type="button"
+            className="motm-segmented__btn"
+            aria-pressed={scope === 'past'}
+            onClick={() => setScope('past')}
+          >
+            Pasados
+          </button>
+        </div>
+
+        <div className="motm-segmented motm-segmented--sub" role="group" aria-label="Filtrar partidos">
+          <button
+            type="button"
+            className="motm-segmented__btn"
+            aria-pressed={teamFilter === 'all'}
+            onClick={() => setTeamFilter('all')}
           >
             Todos
           </button>
           <button
             type="button"
             className="motm-segmented__btn"
-            aria-pressed={filter === 'favorite'}
+            aria-pressed={teamFilter === 'favorite'}
             disabled={!storedFavoriteTeamId}
-            onClick={() => setFilter('favorite')}
+            onClick={() => setTeamFilter('favorite')}
           >
             Solo mi equipo
           </button>
@@ -140,21 +191,28 @@ export default function Upcoming() {
           </p>
         )}
 
-        {upcomingQuery.isLoading && (
+        {query.isLoading && (
           <div className="motm-skel" style={{ height: 320, margin: '16px 0' }} aria-hidden="true" />
         )}
 
-        {upcomingQuery.isError && (
+        {query.isError && (
           <div className="motm-empty" role="status">
             <b>No se pudo cargar</b>
             Inténtalo de nuevo en unos minutos.
           </div>
         )}
 
-        {upcomingQuery.data && groups.length === 0 && (
+        {query.data && groups.length === 0 && scope === 'upcoming' && (
           <div className="motm-empty" role="status">
             <b>Sin partidos próximos</b>
-            {filter === 'favorite' ? 'Tu equipo no tiene partidos programados.' : 'No hay partidos programados por ahora.'}
+            {teamFilter === 'favorite' ? 'Tu equipo no tiene partidos programados.' : 'No hay partidos programados por ahora.'}
+          </div>
+        )}
+
+        {query.data && groups.length === 0 && scope === 'past' && (
+          <div className="motm-empty" role="status">
+            <b>Sin partidos jugados todavía</b>
+            {teamFilter === 'favorite' ? 'Tu equipo no ha jugado esta temporada.' : 'Todavía no hay partidos jugados esta temporada.'}
           </div>
         )}
 
@@ -171,13 +229,15 @@ export default function Upcoming() {
           >
             <h2 className="motm-day-group__label">{group.label}</h2>
             <div className="motm-fixture-list">
-              {group.matches.map((match) => (
-                <MatchRow
-                  key={match.id}
-                  match={match}
-                  showPredictions={hoursUntil(match.kickoffAt) <= PREDICTIONS_WINDOW_H}
-                />
-              ))}
+              {scope === 'upcoming'
+                ? (group.matches as UpcomingMatch[]).map((match) => (
+                    <UpcomingRow
+                      key={match.id}
+                      match={match}
+                      showPredictions={hoursUntil(match.kickoffAt) <= PREDICTIONS_WINDOW_H}
+                    />
+                  ))
+                : (group.matches as LiveMatch[]).map((match) => <PastRow key={match.id} match={match} />)}
             </div>
           </motion.section>
         ))}
