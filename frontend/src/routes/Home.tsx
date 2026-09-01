@@ -109,7 +109,7 @@ export default function Home() {
         <Section index={1}>
           <div className="motm-home__section-head">
             <h2 className="motm-label">Clasificación</h2>
-            <Link to="/equipos" className="motm-home__see-all">Ver tabla</Link>
+            <Link to="/clasificacion" className="motm-home__see-all">Ver tabla</Link>
           </div>
 
           {standingsQuery.isLoading && (

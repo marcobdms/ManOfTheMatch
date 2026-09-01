@@ -6,9 +6,10 @@ import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import MomentumChart from '../components/MomentumChart'
 import StatCompareRow from '../components/StatCompareRow'
+import StatHighlights from '../components/StatHighlights'
 import ShotsList from '../components/ShotsList'
 import {
-  useLiveMatch,
+  useFixtureById,
   useMatchMomentum,
   useMatchShots,
   usePlayerStats,
@@ -32,23 +33,20 @@ function PlayerRow({ p }: { p: PlayerStat }) {
   )
 }
 
-/** Estadísticas del partido — botón "Ver estadísticas" en En vivo. Jerarquía:
- *  momentum (lo más pedido) arriba, comparativa de equipo con pestañas de
- *  periodo, disparos con xG, y ranking de jugadores por rating.
+/** Estadísticas del partido. Orden: lo destacado (posesión, xG, tiros a
+ *  puerta), el momentum, la comparativa completa por bloques con selector de
+ *  periodo, los disparos y las notas de los jugadores.
  *
- *  Momentum, comparativa y disparos dependen de tablas que la ingesta del
- *  Agente A todavía puede no haber creado (`match_momentum`,
- *  `match_team_stats`, `match_shots`) — los hooks de lib/queries.ts devuelven
- *  vacío en ese caso (nunca datos inventados) y cada bloque se omite solo. */
+ *  El partido se pide por id (`useFixtureById`) y no del partido en vivo:
+ *  esta vista se abre también desde "Pasados" y desde el histórico, donde el
+ *  partido en vivo es otro o no hay ninguno — antes salía en blanco entera. */
 export default function MatchStats() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
   const [period, setPeriod] = useState<StatPeriod>('total')
 
-  // El marcador ya vivía en caché de React Query desde la vista En vivo —
-  // reutilizarlo evita una segunda consulta solo para escudos/nombres.
-  const liveQuery = useLiveMatch()
-  const match = liveQuery.data?.id === fixtureId ? liveQuery.data : undefined
-  const isLive = match?.status === 'LIVE'
+  const matchQuery = useFixtureById(fixtureId)
+  const match = matchQuery.data
+  const isLive = match?.status === 'LIVE' || match?.status === 'PAUSED'
 
   const statsQuery = usePlayerStats(fixtureId, { live: isLive })
   const momentumQuery = useMatchMomentum(fixtureId, { live: isLive })
@@ -61,11 +59,14 @@ export default function MatchStats() {
 
   const momentum = momentumQuery.data ?? []
   const comparison = teamStatsQuery.data
-  const periodStats = comparison?.[period] ?? []
+  const periodGroups = comparison?.[period] ?? []
+  const totalGroups = comparison?.total ?? []
   const shots = shotsQuery.data ?? []
 
-  const loading = statsQuery.isLoading || momentumQuery.isLoading || teamStatsQuery.isLoading
-  const hasAnything = stats.length > 0 || momentum.length > 0 || periodStats.length > 0 || shots.length > 0
+  const loading =
+    matchQuery.isLoading || statsQuery.isLoading || momentumQuery.isLoading || teamStatsQuery.isLoading
+  const hasAnything =
+    stats.length > 0 || momentum.length > 0 || totalGroups.length > 0 || shots.length > 0
 
   return (
     <>
@@ -83,9 +84,7 @@ export default function MatchStats() {
           </div>
         </div>
 
-        {loading && (
-          <div className="motm-skel" style={{ height: 260, margin: '16px' }} aria-hidden="true" />
-        )}
+        {loading && <div className="motm-skel" style={{ height: 260, margin: '16px' }} aria-hidden="true" />}
 
         {!loading && !hasAnything && (
           <div className="motm-empty">
@@ -96,11 +95,15 @@ export default function MatchStats() {
 
         {!loading && hasAnything && match && (
           <>
+            {totalGroups.length > 0 && (
+              <StatHighlights groups={totalGroups} home={match.home} away={match.away} />
+            )}
+
             {momentum.length > 0 && (
               <MomentumChart points={momentum} home={match.home} away={match.away} />
             )}
 
-            {(comparison?.total.length ?? 0) > 0 && (
+            {totalGroups.length > 0 && (
               <div className="motm-compare">
                 <div className="motm-compare__head">
                   <TeamCrest teamId={match.home.id} tla={match.home.tla} size={28} />
@@ -121,11 +124,16 @@ export default function MatchStats() {
                   ))}
                 </Segmented>
 
-                <div className="motm-compare__rows">
-                  {periodStats.map((pair) => (
-                    <StatCompareRow key={pair.key} pair={pair} />
-                  ))}
-                </div>
+                {periodGroups.map((group) => (
+                  <div className="motm-compare__group" key={`${period}-${group.key}`}>
+                    <h3 className="motm-compare__group-title">{group.label}</h3>
+                    <div className="motm-compare__rows">
+                      {group.stats.map((pair) => (
+                        <StatCompareRow key={pair.key} pair={pair} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

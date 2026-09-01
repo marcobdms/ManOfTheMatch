@@ -47,6 +47,14 @@ export type StandingRow = {
   position: number
   played: number | null
   points: number | null
+  won: number | null
+  draw: number | null
+  lost: number | null
+  goalsFor: number | null
+  goalsAgainst: number | null
+  goalDiff: number | null
+  /** Racha reciente tal cual la da la fuente ("WWDLW"). */
+  form: string | null
 }
 
 /** One `news` row — tabla vacía hoy; Home la omite por completo si no hay filas. */
@@ -139,19 +147,30 @@ export type StatPeriod = 'total' | 'first' | 'second'
 
 /** Un par local/visitante para una métrica concreta, de `match_team_stats`. */
 export type TeamStatPair = {
-  key: string // ej. 'possession', 'shots', 'xg'
+  key: string // clave estable de Fotmob: 'BallPossesion', 'expected_goals'…
   label: string
   home: number
   away: number
-  /** true → mostrar con un decimal (xG); false → entero (tiros, pases...) */
+  /** Texto tal cual lo da Fotmob cuando trae más que el número ("585 (90%)"),
+   *  para enseñarlo completo sin perder el porcentaje. */
+  homeText?: string
+  awayText?: string
+  /** true → mostrar con dos decimales (xG); false → entero (tiros, pases...) */
   isDecimal?: boolean
-  /** true → valor en porcentaje (posesión, precisión de pase) */
+  /** true → valor en porcentaje (posesión) */
   isPercent?: boolean
+}
+
+/** Un bloque de la comparativa ("Tiros", "Pases"…) tal como lo agrupa Fotmob. */
+export type TeamStatGroup = {
+  key: string
+  label: string
+  stats: TeamStatPair[]
 }
 
 /** Comparativa de equipo completa de un partido, ya separada por periodo. */
 export type TeamStatsComparison = {
-  [period in StatPeriod]: TeamStatPair[]
+  [period in StatPeriod]: TeamStatGroup[]
 }
 
 export type ShotType = 'Goal' | 'Miss' | 'AttemptSaved' | 'Post'

@@ -13,6 +13,7 @@ import Live from './routes/Live'
 import Home from './routes/Home'
 import Upcoming from './routes/Upcoming'
 import Teams from './routes/Teams'
+import Standings from './routes/Standings'
 import TeamLineup from './routes/TeamLineup'
 import MatchStats from './routes/MatchStats'
 import MatchPredictions from './routes/MatchPredictions'
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { path: 'home', element: <Home /> },
       { path: 'proximos', element: <Upcoming /> },
       { path: 'equipos', element: <Teams /> },
+      { path: 'clasificacion', element: <Standings /> },
       { path: 'equipos/:teamId', element: <TeamLineup /> },
       { path: 'partidos/:fixtureId/estadisticas', element: <MatchStats /> },
       { path: 'partidos/:fixtureId/previsiones', element: <MatchPredictions /> },

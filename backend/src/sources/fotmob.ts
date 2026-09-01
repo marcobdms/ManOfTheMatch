@@ -238,6 +238,11 @@ export type FotmobTickerEvent = {
 export type FotmobStatItem = {
   title: string;
   key?: string;
+  /** 'title' = cabecera del grupo, no una estadística (valores [null, null]). */
+  type?: string;
+  /** 'integer' | 'double' | 'integerWithPercentage' — lo usa el frontend para
+   *  saber si "585 (90%)" trae porcentaje dentro. */
+  format?: string;
   stats?: [unknown, unknown] | unknown[]; // [home, away] — a veces string "290 (81%)"
 };
 

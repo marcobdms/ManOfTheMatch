@@ -41,10 +41,10 @@ type FixtureRow = {
 //     el saque inicial, que es cuando aún puede aparecer.
 const HIGHLIGHT_WINDOW_H = 72;
 const HIGHLIGHT_RETRY_H = 2;
-// Tope de partidos viejos por pasada: en un backfill grande (media temporada
-// sin mirar) el adapter de Fotmob serializa con ≥3s entre peticiones, así que
-// sin tope una sola pasada podría durar más que el propio intervalo del job.
-const HIGHLIGHT_BACKFILL_PER_RUN = 6;
+// Tope de partidos viejos por pasada (resumen en vídeo o comparativa que
+// faltan): en un backfill grande el adapter de Fotmob serializa con ≥3s entre
+// peticiones, así que sin tope una pasada duraría más que el propio job.
+const BACKFILL_PER_RUN = 6;
 
 function isBackfill(f: FixtureRow): boolean {
   return f.status === 'FINISHED' && !f.highlight_url && !f.highlight_checked_at;
@@ -69,6 +69,20 @@ export function syncMatchFacts() {
 
     const rows = (data ?? []) as unknown as FixtureRow[];
     const now = Date.now();
+
+    // Partidos ya marcados como sincronizados pero SIN comparativa de equipo:
+    // se quedaron así por el fallo silencioso de `writeTeamStats`, y como
+    // `detail_facts_synced_at` ya estaba puesto no se reintentaban nunca.
+    const finishedIds = rows.filter((f) => f.status === 'FINISHED').map((f) => f.id);
+    const withStats = new Set<string>();
+    if (finishedIds.length) {
+      const { data: statRows } = await db
+        .from('match_team_stats')
+        .select('fixture_id')
+        .in('fixture_id', finishedIds);
+      for (const r of (statRows ?? []) as Array<{ fixture_id: string }>) withStats.add(r.fixture_id);
+    }
+
     const always = rows.filter(
       (f) =>
         f.status === 'LIVE' ||
@@ -77,11 +91,15 @@ export function syncMatchFacts() {
         needsHighlightRetry(f, now),
     );
     // Los más recientes primero: son los que alguien va a abrir.
-    const backfill = rows
-      .filter((f) => isBackfill(f) && !always.includes(f))
+    const pending = rows
+      .filter(
+        (f) =>
+          !always.includes(f) &&
+          (isBackfill(f) || (f.status === 'FINISHED' && !withStats.has(f.id))),
+      )
       .sort((a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime())
-      .slice(0, HIGHLIGHT_BACKFILL_PER_RUN);
-    const due = [...always, ...backfill];
+      .slice(0, BACKFILL_PER_RUN);
+    const due = [...always, ...pending];
     if (due.length === 0) return 0;
 
     let written = 0;
@@ -165,12 +183,17 @@ async function writeTeamStats(fixtureId: string, details: FotmobMatchDetails): P
     const groups: FotmobStatGroup[] = periods[period]?.stats ?? [];
     for (const group of groups) {
       (group.stats ?? []).forEach((item, i) => {
+        // `type: 'title'` son cabeceras del propio Fotmob (valores [null,null]),
+        // no una estadística — guardarlas dejaba filas vacías en la comparativa.
+        if (item.type === 'title') return;
         const [home, away] = Array.isArray(item.stats) ? item.stats : [null, null];
+        if (home == null && away == null) return;
         rows.push({
           fixture_id: fixtureId,
           period,
           stat_group: group.title,
           stat_title: item.title,
+          stat_key: item.key ?? null,
           home_value: home == null ? null : String(home),
           away_value: away == null ? null : String(away),
           sort_key: i,
@@ -180,7 +203,13 @@ async function writeTeamStats(fixtureId: string, details: FotmobMatchDetails): P
     }
   }
   if (!rows.length) return;
-  await db.from('match_team_stats').upsert(rows, { onConflict: 'fixture_id,period,stat_group,stat_title' });
+  const { error } = await db
+    .from('match_team_stats')
+    .upsert(rows, { onConflict: 'fixture_id,period,stat_group,stat_title' });
+  // Antes esto no se miraba: la tabla llevaba vacía desde el principio y el
+  // job seguía marcando el partido como sincronizado, así que no había forma
+  // de enterarse ni de que se reintentara.
+  if (error) throw new Error(`match_team_stats: ${error.message}`);
 }
 
 /** Extrae valores comunes de alto uso del blob anidado de Fotmob; el resto

@@ -36,6 +36,15 @@ import type {
   UpcomingMatch,
 } from '../types/view'
 
+import {
+  groupLabel,
+  groupRank,
+  hasInlinePercent,
+  isDecimalStat,
+  statLabel,
+  statNumber,
+} from './matchStats'
+
 export const hasSupabaseEnv = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
 )
@@ -108,10 +117,17 @@ type FixtureRow = {
 type StandingsQueryRow = {
   team_id: string | null
   team_name: string
+  team: { tla: string; short_name: string } | { tla: string; short_name: string }[] | null
   position: number
+  won: number | null
+  draw: number | null
+  lost: number | null
+  goals_for: number | null
+  goals_against: number | null
+  goal_diff: number | null
+  form: string | null
   played: number | null
   points: number | null
-  team: { tla: string } | { tla: string }[] | null
 }
 
 type EventRow = {
@@ -393,7 +409,10 @@ async function fetchStandings(competitionId: string, limit: number): Promise<Sta
 
   const { data, error } = await supabase
     .from('standings')
-    .select('team_id, team_name, position, played, points, team:teams!team_id ( tla )')
+    .select(
+      'team_id, team_name, position, played, points, won, draw, lost, ' +
+        'goals_for, goals_against, goal_diff, form, team:teams!team_id ( tla, short_name )',
+    )
     .eq('competition_id', competitionId)
     .eq('captured_at', latest.data.captured_at)
     .order('position', { ascending: true })
@@ -402,11 +421,18 @@ async function fetchStandings(competitionId: string, limit: number): Promise<Sta
   if (error) throw error
   return (data ?? []).map((row) => ({
     teamId: row.team_id,
-    teamName: row.team_name,
+    teamName: asOne(row.team)?.short_name ?? row.team_name,
     tla: asOne(row.team)?.tla ?? null,
     position: row.position,
     played: row.played,
     points: row.points,
+    won: row.won ?? null,
+    draw: row.draw ?? null,
+    lost: row.lost ?? null,
+    goalsFor: row.goals_for ?? null,
+    goalsAgainst: row.goals_against ?? null,
+    goalDiff: row.goal_diff ?? null,
+    form: row.form ?? null,
   }))
 }
 
@@ -808,40 +834,71 @@ export function useMatchMomentum(fixtureId: string | undefined, opts: { live?: b
 
 type TeamStatRow = {
   period: string
-  stat_key: string
-  label: string
-  home_value: number
-  away_value: number
-  is_decimal: boolean | null
-  is_percent: boolean | null
+  stat_group: string
+  stat_title: string
+  stat_key: string | null
+  home_value: string | null
+  away_value: string | null
+  sort_key: number | null
 }
 
 const EMPTY_COMPARISON: TeamStatsComparison = { total: [], first: [], second: [] }
 
-/** Comparativa de equipo de `match_team_stats`, separada por periodo. Forma de
- *  fila esperada — a confirmar con el Agente A cuando exista la tabla real. */
+const PERIOD_FROM_FOTMOB: Record<string, StatPeriod> = {
+  All: 'total',
+  FirstHalf: 'first',
+  SecondHalf: 'second',
+}
+
+/** Comparativa de equipo de `match_team_stats` (Fotmob), agrupada como la
+ *  agrupa la fuente y traducida en lib/matchStats.ts. Los valores llegan como
+ *  texto ("585 (90%)", "3.04") — se guarda el número para las barras y el
+ *  texto original cuando dice más. */
 async function fetchTeamStats(fixtureId: string): Promise<TeamStatsComparison> {
   const { data, error } = await supabase
     .from('match_team_stats')
-    .select('period, stat_key, label, home_value, away_value, is_decimal, is_percent')
+    .select('period, stat_group, stat_title, stat_key, home_value, away_value, sort_key')
     .eq('fixture_id', fixtureId)
+    .order('sort_key', { ascending: true })
     .returns<TeamStatRow[]>()
   if (error) {
     if (isMissingTableError(error)) return EMPTY_COMPARISON
     throw error
   }
+
   const out: TeamStatsComparison = { total: [], first: [], second: [] }
   for (const row of data ?? []) {
-    const period = (row.period === 'first' || row.period === 'second' ? row.period : 'total') as StatPeriod
+    const period = PERIOD_FROM_FOTMOB[row.period]
+    if (!period) continue
+
+    const home = statNumber(row.home_value)
+    const away = statNumber(row.away_value)
+    if (home == null && away == null) continue
+
+    const key = row.stat_key ?? row.stat_title
     const pair: TeamStatPair = {
-      key: row.stat_key,
-      label: row.label,
-      home: row.home_value,
-      away: row.away_value,
-      isDecimal: row.is_decimal ?? false,
-      isPercent: row.is_percent ?? false,
+      key,
+      label: statLabel(row.stat_key, row.stat_title),
+      home: home ?? 0,
+      away: away ?? 0,
+      isDecimal: isDecimalStat(row.stat_key),
+      isPercent: row.stat_key === 'BallPossesion',
+      homeText: hasInlinePercent(row.home_value) ? row.home_value ?? undefined : undefined,
+      awayText: hasInlinePercent(row.away_value) ? row.away_value ?? undefined : undefined,
     }
-    out[period].push(pair)
+
+    let group = out[period].find((g) => g.key === row.stat_group)
+    if (!group) {
+      group = { key: row.stat_group, label: groupLabel(row.stat_group), stats: [] }
+      out[period].push(group)
+    }
+    // Fotmob repite alguna métrica en varios grupos (los tiros salen en
+    // "Resumen" y en "Tiros"): dentro de un grupo no se duplica.
+    if (!group.stats.some((p) => p.key === pair.key)) group.stats.push(pair)
+  }
+
+  for (const period of Object.keys(out) as StatPeriod[]) {
+    out[period].sort((a, b) => groupRank(a.key) - groupRank(b.key))
   }
   return out
 }
