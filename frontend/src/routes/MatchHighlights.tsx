@@ -4,8 +4,7 @@ import AppHeader from '../components/AppHeader'
 import { useFixtureById } from '../lib/queries'
 
 /** Saca el id de vídeo de un enlace de YouTube (watch?v=, youtu.be/, /embed/).
- *  Si no se reconoce, devuelve null y la vista cae al enlace externo — nunca
- *  se construye un embed a ciegas. */
+ *  Solo se usa para derivar la miniatura si Fotmob no la mandó. */
 function youtubeId(url: string | null): string | null {
   if (!url) return null
   try {
@@ -24,17 +23,31 @@ function youtubeId(url: string | null): string | null {
   return null
 }
 
-/** Resumen en vídeo de un partido ya jugado. El vídeo NO se rehospeda: se
- *  embebe con el reproductor oficial de YouTube (nocookie), que acredita al
- *  canal que lo subió y le cuenta las visualizaciones. Si el propietario tiene
- *  el embed desactivado, el enlace de abajo lleva a YouTube. */
+/**
+ * Resumen en vídeo de un partido ya jugado.
+ *
+ * NO se embebe el reproductor: LaLiga tiene desactivada la reproducción fuera
+ * de YouTube para sus vídeos ("este vídeo incluye contenido de LaLiga, que lo
+ * ha bloqueado para que no se muestre en este sitio web o aplicación"), y eso
+ * es una decisión del dueño de los derechos, no algo que se pueda rodear. Lo
+ * que sí funciona siempre: la miniatura oficial + un toque que abre el vídeo
+ * en YouTube, donde el canal se lleva su visualización.
+ *
+ * Tampoco se puede detectar desde el navegador si un vídeo concreto permite
+ * embed (el iframe es cross-origin y no avisa cuando lo bloquean), así que ni
+ * se intenta — mejor una miniatura que siempre carga que un reproductor que a
+ * veces sale con un error dentro.
+ */
 export default function MatchHighlights() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
   const navigate = useNavigate()
   const matchQuery = useFixtureById(fixtureId)
 
   const match = matchQuery.data
-  const videoId = youtubeId(match?.highlightUrl ?? null)
+  const url = match?.highlightUrl ?? null
+  const videoId = youtubeId(url)
+  const thumbnail =
+    match?.highlightThumbnail ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null)
 
   return (
     <>
@@ -55,56 +68,43 @@ export default function MatchHighlights() {
         </div>
 
         {matchQuery.isLoading && (
-          <div className="motm-skel" style={{ height: 220, margin: '0 16px' }} aria-hidden="true" />
+          <div className="motm-skel" style={{ height: 200, margin: '0 16px' }} aria-hidden="true" />
         )}
 
-        {!matchQuery.isLoading && !match?.highlightUrl && (
+        {!matchQuery.isLoading && !url && (
           <div className="motm-empty">
-            <b>Sin resumen todavía</b>
-            El vídeo se publica un rato después del partido. Vuelve más tarde.
+            <b>Aún no se ha subido el resumen</b>
+            Suele publicarse unas horas después del partido. Vuelve más tarde.
           </div>
         )}
 
-        {/* Hay enlace pero no es un YouTube que sepamos embeber: al menos que
-            se pueda abrir fuera, en vez de decir que no hay resumen. */}
-        {!videoId && match?.highlightUrl && (
-          <div className="motm-actions">
-            <a
-              className="motm-btn"
-              style={{ flex: 1 }}
-              href={match.highlightUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <YoutubeLogo size={18} weight="fill" />
-              Ver el resumen
-            </a>
-          </div>
-        )}
-
-        {videoId && (
+        {url && (
           <>
-            <div className="motm-video">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${videoId}`}
-                title="Resumen del partido"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            </div>
-            <div className="motm-actions" style={{ marginTop: 14 }}>
-              <a
-                className="motm-btn motm-btn--muted"
-                style={{ flex: 1 }}
-                href={match?.highlightUrl ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <YoutubeLogo size={18} weight="fill" />
-                Ver en YouTube
-              </a>
-            </div>
+            <a className="motm-video" href={url} target="_blank" rel="noreferrer" aria-label="Ver el resumen en YouTube">
+              {thumbnail && (
+                <img
+                  src={thumbnail}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  // maxresdefault no existe para todos los vídeos — si falla,
+                  // hqdefault sí está siempre.
+                  onError={(e) => {
+                    if (!videoId) return
+                    const img = e.currentTarget
+                    const fallback = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+                    if (img.src !== fallback) img.src = fallback
+                  }}
+                />
+              )}
+              <span className="motm-video__play" aria-hidden="true">
+                <YoutubeLogo size={30} weight="fill" />
+              </span>
+            </a>
+
+            <p className="motm-note" style={{ marginTop: 10 }}>
+              LaLiga solo permite ver sus resúmenes dentro de YouTube, así que el vídeo se abre allí.
+            </p>
           </>
         )}
       </div>

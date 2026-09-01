@@ -1,4 +1,4 @@
-import { ArrowLeft, ChartBar, PlayCircle } from '@phosphor-icons/react'
+import { ArrowLeft, ChartBar, YoutubeLogo } from '@phosphor-icons/react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import ScoreboardCard from '../components/ScoreboardCard'
@@ -43,11 +43,12 @@ export default function MatchDetail() {
                 <ChartBar size={16} />
                 Ver estadísticas
               </Link>
-              {/* Solo si Fotmob ya publicó el resumen — sin vídeo no hay botón
-                  que lleve a una pantalla vacía. */}
-              {match.highlightUrl && (
+              {/* En cualquier partido terminado, aunque todavía no haya vídeo:
+                  la vista explica que aún no se ha subido. Antes se ocultaba y
+                  no había forma de enterarse. */}
+              {match.status === 'FINISHED' && (
                 <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/highlights`}>
-                  <PlayCircle size={18} weight="fill" />
+                  <YoutubeLogo size={18} weight="fill" />
                   Ver highlights
                 </Link>
               )}

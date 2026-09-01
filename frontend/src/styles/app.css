@@ -247,21 +247,40 @@
   white-space: nowrap;
 }
 
-/* Resumen en vídeo (MatchHighlights.tsx) — 16:9 fluido; el iframe es el
-   reproductor oficial de YouTube, no se rehospeda nada. */
+/* Resumen en vídeo (MatchHighlights.tsx) — miniatura oficial que abre el
+   vídeo en YouTube. No hay iframe: LaLiga bloquea la reproducción embebida
+   de sus resúmenes (ver nota en MatchHighlights.tsx). */
 .motm-video {
+  position: relative;
+  display: block;
   margin: 0 16px;
   aspect-ratio: 16 / 9;
   border-radius: 14px;
   overflow: hidden;
   background: #000;
   border: 1px solid var(--line);
+  -webkit-tap-highlight-color: transparent;
 }
-.motm-video iframe {
+.motm-video img {
   width: 100%;
   height: 100%;
-  border: 0;
+  object-fit: cover;
   display: block;
+}
+.motm-video__play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  /* Velo suave: la miniatura de YouTube ya trae marcador y escudos, así que
+     solo hace falta bajarla lo justo para que el play se lea encima. */
+  background: radial-gradient(60% 60% at 50% 50%, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.2) 100%);
+  transition: background 0.18s ease;
+}
+.motm-video:hover .motm-video__play {
+  background: radial-gradient(60% 60% at 50% 50%, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.14) 100%);
 }
 
 /* action row */
