@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import AppHeader from '../components/AppHeader'
 import ScoreboardCard from '../components/ScoreboardCard'
 import { StaggerItem, StaggerList } from '../components/StaggerList'
-import { STAGGER_ITEM } from '../lib/motion'
 import TeamCrest from '../components/TeamCrest'
 import { useGoalChips, useLiveMatch, useNews, useStandings, useUpcomingFixtures } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
@@ -37,20 +35,12 @@ function NextMatchRow({ match }: { match: UpcomingMatch }) {
   )
 }
 
-/** Bloque de la portada. Fade corto escalonado, SIN desplazamiento vertical:
- *  la transición de página (App.tsx) ya mueve toda la vista, y encadenar un
- *  segundo `y` aquí producía un doble movimiento en cada carga. */
-function Section({ index, children }: { index: number; children: ReactNode }) {
-  return (
-    <motion.section
-      className="motm-home__section"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: index * 0.05, ...STAGGER_ITEM }}
-    >
-      {children}
-    </motion.section>
-  )
+/** Bloque de la portada. Sin fade de entrada: se pagaba en cada visita a
+ *  Home, justo cuando el usuario acaba de tocar la pestaña. `index` se
+ *  conserva en la firma porque las llamadas lo pasan y sigue documentando el
+ *  orden de los bloques. */
+function Section({ children }: { index: number; children: ReactNode }) {
+  return <section className="motm-home__section">{children}</section>
 }
 
 export default function Home() {

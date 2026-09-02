@@ -380,8 +380,7 @@
    Una sola capa con `backdrop-filter`: la del contenedor. Ni la pastilla del
    activo ni los items llevan la suya — anidar capas de desenfoque es lo que
    hace que Safari deje de acelerarlas por hardware y aparezcan los tirones en
-   la PWA. La pastilla es solo un degradado, y su movimiento entre pestañas es
-   `transform` (layoutId en BottomNav.tsx), que sí va por compositor. */
+   la PWA. La pastilla es solo un degradado que se mueve con `transform`. */
 .motm-nav {
   position: fixed;
   left: 0;
@@ -394,10 +393,6 @@
      tab bar de iOS) sin taparlo. En Safari la inset es 0 → quedan los 16px
      de siempre, que es como ya se veía bien. */
   bottom: max(16px, calc(var(--safe-b) - 16px));
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 2px;
   /* 12px a los lados, no 8: con el contenedor en cápsula, la curva de los
      extremos se comería una esquina de la pastilla del primer y último item
      (a la altura del borde de la pastilla la cápsula entra ~12px). */
@@ -433,6 +428,14 @@
   }
 }
 
+/* La pista: sin `gap`, para que cada uno de los 5 items mida exactamente 1/5
+   y la pastilla pueda colocarse por aritmética (translateX de n × 100% sobre
+   un ancho del 20%) en vez de midiendo posiciones. */
+.motm-nav__track {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
 .motm-nav__item {
   position: relative;
   z-index: 1;
@@ -441,7 +444,8 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  flex: 1;
+  flex: 1 1 20%;
+  min-width: 0;
   min-height: 50px;
   border-radius: 999px;
   color: var(--ink-soft);
@@ -449,21 +453,31 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   -webkit-tap-highlight-color: transparent;
-  /* El color debe llegar a la vez que la pastilla (BottomNav.tsx) — sin esto
-     el texto/icono cambian de golpe mientras el fondo aún desliza. */
-  transition: color 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  /* El color llega junto con la pastilla, no de golpe mientras aún desliza. */
+  transition: color 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* La pastilla del activo: cápsula completa que se desliza de pestaña a
-   pestaña. Va DETRÁS del icono y la etiqueta, envolviendo a los dos. */
+/* La pastilla del activo: una sola, cápsula completa, que se desliza entre
+   pestañas. La curva con rebote corto (el 1.5 del tercer punto) es lo que le
+   da vida: llega, se pasa un pelo y asienta, como el resorte de iOS. */
 .motm-nav__pill {
   position: absolute;
-  inset: 0;
-  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 20%;
+  z-index: 0;
   overflow: hidden;
   border-radius: 999px;
   background: var(--glass-pill-bg);
   border: 1px solid var(--glass-pill-line);
   box-shadow: var(--glass-pill-shadow);
+  transition: transform 0.42s cubic-bezier(0.34, 1.5, 0.64, 1), opacity 0.2s ease;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-nav__pill {
+    transition: opacity 0.2s ease;
+  }
 }
 /* El reflejo que la hace leer como una burbuja de vidrio y no como un chip de
    color plano — más marcado que el de la barra por ser una pieza más pequeña. */

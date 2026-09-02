@@ -1,4 +1,3 @@
-import { motion, useReducedMotion } from 'framer-motion'
 import type { TeamStatPair } from '../types/view'
 
 /** Formatea el valor según el tipo de métrica (entero, decimal tipo xG, %).
@@ -11,9 +10,11 @@ function formatValue(value: number, pair: TeamStatPair, text?: string): string {
   return String(Math.round(value))
 }
 
-/** Fila de comparativa local/visitante con barra partida. */
+/** Fila de comparativa local/visitante con barra partida.
+ *
+ *  Las barras crecían animadas al aparecer, pero eran ~45 métricas × 2 barras
+ *  animándose de golpe al abrir estadísticas. Ahora se pintan en su sitio. */
 export default function StatCompareRow({ pair }: { pair: TeamStatPair }) {
-  const reduceMotion = useReducedMotion()
   const total = pair.home + pair.away || 1
   const homePct = (pair.home / total) * 100
   const wide = !!(pair.homeText || pair.awayText)
@@ -24,17 +25,10 @@ export default function StatCompareRow({ pair }: { pair: TeamStatPair }) {
       <div className="motm-compare-row__mid">
         <span className="motm-compare-row__label">{pair.label}</span>
         <div className="motm-compare-row__bar motm-compare-row__bar--split">
-          <motion.span
-            className="motm-compare-row__bar-fill"
-            initial={reduceMotion ? false : { width: '50%' }}
-            animate={{ width: `${homePct}%` }}
-            transition={reduceMotion ? { duration: 0.001 } : { duration: 0.5, ease: 'easeOut' }}
-          />
-          <motion.span
+          <span className="motm-compare-row__bar-fill" style={{ width: `${homePct}%` }} />
+          <span
             className="motm-compare-row__bar-fill motm-compare-row__bar-fill--away"
-            initial={reduceMotion ? false : { width: '50%' }}
-            animate={{ width: `${100 - homePct}%` }}
-            transition={reduceMotion ? { duration: 0.001 } : { duration: 0.5, ease: 'easeOut' }}
+            style={{ width: `${100 - homePct}%` }}
           />
         </div>
       </div>

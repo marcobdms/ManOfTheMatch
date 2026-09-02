@@ -1,12 +1,10 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import { Segmented, SegmentedButton } from '../components/Segmented'
 import TeamCrest from '../components/TeamCrest'
 import { useFinishedFixtures, useUpcomingFixtures } from '../lib/queries'
-import { STAGGER_ITEM } from '../lib/motion'
 import type { LiveMatch, UpcomingMatch } from '../types/view'
 
 const FIXTURES_LIMIT = 30
@@ -183,17 +181,8 @@ export default function Upcoming() {
           </div>
         )}
 
-        {groups.map((group, gi) => (
-          // Fade corto sin desplazamiento: la vista ya entra animada desde
-          // App.tsx, y un `y` extra aquí duplicaba el movimiento al cambiar
-          // de filtro (que es cuando más se nota, porque los grupos cambian).
-          <motion.section
-            key={group.key}
-            className="motm-day-group"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: Math.min(gi, 6) * 0.04, ...STAGGER_ITEM }}
-          >
+        {groups.map((group) => (
+          <section key={group.key} className="motm-day-group">
             <h2 className="motm-day-group__label">{group.label}</h2>
             <div className="motm-fixture-list">
               {scope === 'upcoming'
@@ -206,7 +195,7 @@ export default function Upcoming() {
                   ))
                 : (group.matches as LiveMatch[]).map((match) => <PastRow key={match.id} match={match} />)}
             </div>
-          </motion.section>
+          </section>
         ))}
       </div>
     </>

@@ -101,7 +101,10 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
             <span className="motm-pcard-back__name">{player.shortName}</span>
             <span className="motm-pcard-back__row">
               <span className="motm-pcard-back__label">Edad</span>
-              <span>{player.age != null ? `${player.age} años` : '—'}</span>
+              {/* Solo el número: "23 años" no cabía en una línea y partía la
+                  fila en dos, desmontando el reverso. Con la etiqueta al lado
+                  se entiende igual. */}
+              <span>{player.age ?? '—'}</span>
             </span>
             <span className="motm-pcard-back__row">
               <span className="motm-pcard-back__label">País</span>

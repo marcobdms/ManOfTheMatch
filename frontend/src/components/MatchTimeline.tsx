@@ -1,6 +1,4 @@
 import type { JSX } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { PANEL_EXIT, STAGGER_ITEM } from '../lib/motion'
 import {
   ArrowsLeftRight,
   FlagPennant,
@@ -45,14 +43,9 @@ function badge(type: MatchEventType): { cls: string; node: JSX.Element } {
   }
 }
 
-// Un evento nuevo (gol recién llegado por realtime) entra deslizándose desde
-// la izquierda — llama la atención sin ser un simple fade genérico.
-const eventVariants = {
-  initial: { opacity: 0, x: -10 },
-  animate: { opacity: 1, x: 0, transition: STAGGER_ITEM },
-  exit: { opacity: 0, transition: PANEL_EXIT },
-}
-
+/** Histórico del partido. Sin animación de entrada: eran 20-30 filas
+ *  animándose a la vez cada vez que se abría la vista, y el coste se pagaba
+ *  justo en el momento de navegar. */
 export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <div className="motm-timeline">
@@ -60,40 +53,28 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
         Histórico del partido
       </span>
       <div style={{ marginTop: 8 }}>
-        <AnimatePresence initial={false}>
-          {events.map((e) => {
-            const b = badge(e.type)
-            const isGoal = e.type.includes('GOAL')
-            return (
-              // Sin `layout`: los eventos nuevos entran por arriba y los demás
-              // solo se desplazan hacia abajo. Animar esa recolocación en las
-              // 20-30 filas a la vez se veía como que la lista entera "salta".
-              <motion.div
-                className="motm-ev"
-                key={e.id}
-                variants={eventVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <span className={'motm-ev__badge' + b.cls}>{b.node}</span>
-                <span className={'motm-ev__min' + (isGoal ? ' motm-ev__min--goal' : '')}>
-                  {e.minuteLabel}
-                </span>
-                <span className="motm-ev__txt">
-                  {e.narration ? (
-                    // Frase de Groq (backend/lib/narrate.ts) — itálica, mismo
-                    // guiño visual que "Previsión IA": marca que esa línea la
-                    // puso la IA, no el dato plano de siempre.
-                    <span className="motm-ev__narration">{e.narration}</span>
-                  ) : (
-                    e.text
-                  )}
-                </span>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
+        {events.map((e) => {
+          const b = badge(e.type)
+          const isGoal = e.type.includes('GOAL')
+          return (
+            <div className="motm-ev" key={e.id}>
+              <span className={'motm-ev__badge' + b.cls}>{b.node}</span>
+              <span className={'motm-ev__min' + (isGoal ? ' motm-ev__min--goal' : '')}>
+                {e.minuteLabel}
+              </span>
+              <span className="motm-ev__txt">
+                {e.narration ? (
+                  // Frase de Groq (backend/lib/narrate.ts) — itálica, mismo
+                  // guiño visual que "Previsión IA": marca que esa línea la
+                  // puso la IA, no el dato plano de siempre.
+                  <span className="motm-ev__narration">{e.narration}</span>
+                ) : (
+                  e.text
+                )}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

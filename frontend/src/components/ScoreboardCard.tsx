@@ -1,9 +1,7 @@
-import { AnimatePresence, motion } from 'framer-motion'
 import { SoccerBall } from '@phosphor-icons/react'
 import laligaLogo from '../assets/crests/laliga.svg'
 import TeamCrest from './TeamCrest'
 import { useLiveMinute } from '../lib/useLiveMinute'
-import { STAGGER_ITEM } from '../lib/motion'
 import type { GoalChip, LiveMatch } from '../types/view'
 
 type Props = {
@@ -62,23 +60,12 @@ export default function ScoreboardCard({ match, goals }: Props) {
 
       {goals.length > 0 && (
         <div className="motm-goals" aria-label="Goles del partido">
-          <AnimatePresence initial={false}>
-            {/* Sin `delay` por índice: escalonar aquí re-animaba TODOS los
-                chips cada vez que llegaba un gol nuevo. Cada chip entra solo. */}
-            {goals.map((g) => (
-              <motion.span
-                className="motm-goal-chip"
-                key={`${g.minuteLabel}-${g.player}`}
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.85 }}
-                transition={STAGGER_ITEM}
-              >
-                <SoccerBall size={12} weight="fill" />
-                {g.minuteLabel} {g.player}
-              </motion.span>
-            ))}
-          </AnimatePresence>
+          {goals.map((g) => (
+            <span className="motm-goal-chip" key={`${g.minuteLabel}-${g.player}`}>
+              <SoccerBall size={12} weight="fill" />
+              {g.minuteLabel} {g.player}
+            </span>
+          ))}
         </div>
       )}
     </section>
