@@ -55,9 +55,15 @@
   /* Borde superior claro + inferior oscuro = grosor del vidrio. */
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(20, 21, 26, 0.06);
   --glass-shadow: 0 12px 34px -10px rgba(20, 21, 26, 0.26);
-  --glass-active: linear-gradient(150deg, rgba(225, 27, 34, 0.16), rgba(225, 27, 34, 0.05));
-  --glass-active-line: rgba(225, 27, 34, 0.28);
-  --glass-active-glow: 0 4px 16px -4px rgba(225, 27, 34, 0.32);
+  /* Pastilla del activo: una burbuja de vidrio más brillante que el resto de
+     la barra, no un tinte de color — el rojo lo pone el icono/texto encima,
+     no el material. `--glass-pill-sheen` es el reflejo diagonal propio de la
+     pastilla (más marcado que el de la barra, por ser más pequeña). */
+  --glass-pill-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55));
+  --glass-pill-line: rgba(255, 255, 255, 0.9);
+  --glass-pill-shadow: 0 3px 10px -4px rgba(20, 21, 26, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -6px 10px -6px rgba(20, 21, 26, 0.12);
+  --glass-pill-sheen: rgba(255, 255, 255, 0.95);
 }
 
 /* Modo oscuro: gris grafito, no negro puro — sigue el sistema si el usuario
@@ -87,9 +93,13 @@
     --glass-sheen: rgba(255, 255, 255, 0.16);
     --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
     --glass-shadow: 0 18px 46px -12px rgba(0, 0, 0, 0.66);
-    --glass-active: linear-gradient(150deg, rgba(255, 40, 45, 0.34), rgba(255, 20, 25, 0.1));
-    --glass-active-line: rgba(255, 70, 70, 0.38);
-    --glass-active-glow: 0 0 26px -2px rgba(255, 30, 37, 0.4);
+    /* Misma burbuja de vidrio que en claro, pero clara sobre grafito en vez
+       de blanca sobre blanco: sigue sin llevar tinte de color. */
+    --glass-pill-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08));
+    --glass-pill-line: rgba(255, 255, 255, 0.32);
+    --glass-pill-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -6px 10px -6px rgba(0, 0, 0, 0.35);
+    --glass-pill-sheen: rgba(255, 255, 255, 0.55);
   }
 }
 :root[data-theme='dark'] {
@@ -115,9 +125,11 @@
   --glass-sheen: rgba(255, 255, 255, 0.16);
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
   --glass-shadow: 0 18px 46px -12px rgba(0, 0, 0, 0.66);
-  --glass-active: linear-gradient(150deg, rgba(255, 40, 45, 0.34), rgba(255, 20, 25, 0.1));
-  --glass-active-line: rgba(255, 70, 70, 0.38);
-  --glass-active-glow: 0 0 26px -2px rgba(255, 30, 37, 0.4);
+  --glass-pill-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08));
+  --glass-pill-line: rgba(255, 255, 255, 0.32);
+  --glass-pill-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -6px 10px -6px rgba(0, 0, 0, 0.35);
+  --glass-pill-sheen: rgba(255, 255, 255, 0.55);
 }
 
 * {

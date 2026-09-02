@@ -1,4 +1,4 @@
-import { ChartBar, UsersThree } from '@phosphor-icons/react'
+import { ChartBar, ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import ScoreboardCard from '../components/ScoreboardCard'
@@ -133,10 +133,19 @@ export default function Live() {
           <ScoreboardCard match={match} goals={goals} />
 
           <div className="motm-actions">
-            <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/estadisticas`}>
-              <ChartBar size={16} />
-              Ver estadísticas
-            </Link>
+            {/* Antes del pitido inicial no hay estadísticas que mostrar —
+                el hueco natural es la previsión pre-partido. */}
+            {match.status === 'SCHEDULED' ? (
+              <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/previsiones`}>
+                <ChartLineUp size={16} />
+                Ver previsiones
+              </Link>
+            ) : (
+              <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/estadisticas`}>
+                <ChartBar size={16} />
+                Ver estadísticas
+              </Link>
+            )}
             <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/alineaciones`}>
               <UsersThree size={16} />
               Ver alineaciones

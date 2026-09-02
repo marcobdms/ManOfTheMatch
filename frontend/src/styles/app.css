@@ -459,10 +459,22 @@
   position: absolute;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
   border-radius: 999px;
-  background: var(--glass-active);
-  border: 1px solid var(--glass-active-line);
-  box-shadow: var(--glass-active-glow), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  background: var(--glass-pill-bg);
+  border: 1px solid var(--glass-pill-line);
+  box-shadow: var(--glass-pill-shadow);
+}
+/* El reflejo que la hace leer como una burbuja de vidrio y no como un chip de
+   color plano — más marcado que el de la barra por ser una pieza más pequeña. */
+.motm-nav__pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, var(--glass-pill-sheen), transparent 50%);
+  opacity: 0.85;
+  pointer-events: none;
 }
 .motm-nav__ico {
   display: flex;
