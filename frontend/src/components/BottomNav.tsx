@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { MICRO } from '../lib/motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   Broadcast,
   CalendarDots,
@@ -17,7 +16,16 @@ const items = [
   { to: '/perfil', label: 'Perfil', Icon: User, end: false },
 ]
 
+/** Tab bar de cristal. La pastilla del activo se DESLIZA de pestaña a pestaña
+ *  con `layoutId` (una sola pastilla montada, framer interpola su posición).
+ *
+ *  Esto antes no se podía: la medición del layout caía justo en el frame en
+ *  que AnimatePresence montaba/desmontaba la página y la pastilla llegaba
+ *  descuadrada. Desde que las pestañas cambian de forma instantánea
+ *  (App.tsx) ya no hay tal remonte, y la medición es estable. */
 export default function BottomNav() {
+  const reduceMotion = useReducedMotion()
+
   return (
     <nav className="motm-nav">
       {items.map(({ to, label, Icon, end }) => (
@@ -25,26 +33,24 @@ export default function BottomNav() {
           key={to}
           to={to}
           end={end}
-          className={({ isActive }) =>
-            'motm-nav__item' + (isActive ? ' is-active' : '')
-          }
+          className={({ isActive }) => 'motm-nav__item' + (isActive ? ' is-active' : '')}
         >
           {({ isActive }) => (
             <>
-              <span className="motm-nav__ico">
-                {/* Cada pestaña anima SU propio fondo (escala + opacidad), sin
-                    `layoutId` compartido: ese modo mide la posición del
-                    resaltado viejo y el nuevo para interpolar, y esa medición
-                    caía justo en el frame en que AnimatePresence monta/desmonta
-                    la página — con el layout aún moviéndose, salía descuadrado
-                    y "llegando tarde". Esto es local, así que es exacto. */}
+              {isActive && (
                 <motion.span
-                  className="motm-nav__ico-bg"
-                  initial={false}
-                  animate={{ opacity: isActive ? 1 : 0, scale: isActive ? 1 : 0.7 }}
-                  transition={MICRO}
+                  className="motm-nav__pill"
+                  layoutId="motm-nav-pill"
+                  // Sin rebote: el vidrio de iOS asienta, no salta.
+                  transition={
+                    reduceMotion
+                      ? { duration: 0.001 }
+                      : { type: 'spring', stiffness: 420, damping: 38, mass: 0.7 }
+                  }
                 />
-                <Icon size={22} weight={isActive ? 'fill' : 'regular'} style={{ position: 'relative' }} />
+              )}
+              <span className="motm-nav__ico">
+                <Icon size={23} weight={isActive ? 'fill' : 'regular'} />
               </span>
               {label}
             </>

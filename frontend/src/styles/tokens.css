@@ -22,12 +22,10 @@
   --r-card: 20px;
   --r-btn: 999px;
   --r-icon: 16px;
-  --r-nav: 26px;
 
   --sh-card: 0 1px 2px rgba(20, 21, 26, 0.06), 0 10px 26px -10px rgba(20, 21, 26, 0.14);
   --sh-btn: 0 1px 2px rgba(16, 17, 20, 0.22), 0 8px 18px -8px rgba(16, 17, 20, 0.38);
   --sh-dark: 0 16px 36px -14px rgba(0, 0, 0, 0.5);
-  --sh-nav: 0 10px 30px -8px rgba(20, 21, 26, 0.16);
 
   --f-display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --f-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -40,6 +38,26 @@
   --space-6: 24px;
 
   --safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* ── Cristal (tab bar estilo iOS 26) ──────────────────────────────────
+     La distorsión real del cristal de Apple necesita filtros SVG de
+     desplazamiento, que Safari móvil NO aplica — y esta app vive en una PWA
+     de iPhone. Así que el material se construye solo con lo que sí acelera
+     por hardware ahí: `backdrop-filter` + capas de luz (borde superior
+     brillante, sombra interior abajo, brillo diagonal).
+     En claro el cristal es blanco sobre el fondo; en oscuro, blanco muy
+     tenue sobre grafito. */
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+  --glass-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
+  --glass-line: rgba(255, 255, 255, 0.75);
+  --glass-sheen: rgba(255, 255, 255, 0.65);
+  /* Borde superior claro + inferior oscuro = grosor del vidrio. */
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(20, 21, 26, 0.06);
+  --glass-shadow: 0 12px 34px -10px rgba(20, 21, 26, 0.26);
+  --glass-active: linear-gradient(150deg, rgba(225, 27, 34, 0.16), rgba(225, 27, 34, 0.05));
+  --glass-active-line: rgba(225, 27, 34, 0.28);
+  --glass-active-glow: 0 4px 16px -4px rgba(225, 27, 34, 0.32);
 }
 
 /* Modo oscuro: gris grafito, no negro puro — sigue el sistema si el usuario
@@ -61,6 +79,17 @@
     --yellow-tint: #3a2f10;
     --yellow-ink: #e0b34d;
     --good: #4ade80;
+
+    /* Cristal en oscuro: blanco muy tenue sobre grafito, borde superior
+       brillante y sombra profunda — el material de iOS 26. */
+    --glass-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045));
+    --glass-line: rgba(255, 255, 255, 0.16);
+    --glass-sheen: rgba(255, 255, 255, 0.16);
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+    --glass-shadow: 0 18px 46px -12px rgba(0, 0, 0, 0.66);
+    --glass-active: linear-gradient(150deg, rgba(255, 40, 45, 0.34), rgba(255, 20, 25, 0.1));
+    --glass-active-line: rgba(255, 70, 70, 0.38);
+    --glass-active-glow: 0 0 26px -2px rgba(255, 30, 37, 0.4);
   }
 }
 :root[data-theme='dark'] {
@@ -78,6 +107,17 @@
   --yellow-tint: #3a2f10;
   --yellow-ink: #e0b34d;
   --good: #4ade80;
+
+  /* Cristal en oscuro: blanco muy tenue sobre grafito, borde superior
+     brillante y sombra profunda — el material de iOS 26. */
+  --glass-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045));
+  --glass-line: rgba(255, 255, 255, 0.16);
+  --glass-sheen: rgba(255, 255, 255, 0.16);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --glass-shadow: 0 18px 46px -12px rgba(0, 0, 0, 0.66);
+  --glass-active: linear-gradient(150deg, rgba(255, 40, 45, 0.34), rgba(255, 20, 25, 0.1));
+  --glass-active-line: rgba(255, 70, 70, 0.38);
+  --glass-active-glow: 0 0 26px -2px rgba(255, 30, 37, 0.4);
 }
 
 * {

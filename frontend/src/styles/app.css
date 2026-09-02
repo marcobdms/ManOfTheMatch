@@ -376,6 +376,12 @@
 }
 
 /* bottom nav */
+/* ===== Tab bar de cristal (estilo iOS 26) =================================
+   Una sola capa con `backdrop-filter`: la del contenedor. Ni la pastilla del
+   activo ni los items llevan la suya — anidar capas de desenfoque es lo que
+   hace que Safari deje de acelerarlas por hardware y aparezcan los tirones en
+   la PWA. La pastilla es solo un degradado, y su movimiento entre pestañas es
+   `transform` (layoutId en BottomNav.tsx), que sí va por compositor. */
 .motm-nav {
   position: fixed;
   left: 0;
@@ -391,45 +397,89 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  padding: 10px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-nav);
-  box-shadow: var(--sh-nav);
+  gap: 2px;
+  /* 12px a los lados, no 8: con el contenedor en cápsula, la curva de los
+     extremos se comería una esquina de la pastilla del primer y último item
+     (a la altura del borde de la pastilla la cápsula entra ~12px). */
+  padding: 7px 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-line);
+  /* Cápsula completa, como la tab bar flotante de iOS 26. */
+  border-radius: 999px;
+  box-shadow: var(--glass-shadow), var(--glass-edge);
+  /* Sin `overflow: hidden`: la pastilla ya vive dentro del padding y recortar
+     con un radio de cápsula le comería las esquinas en los extremos. */
+  isolation: isolate;
 }
-.motm-nav__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  color: var(--ink-faint);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 2px 0;
-  /* El color debe llegar a la vez que el fondo animado (BottomNav.tsx) —
-     sin esto el texto/icono cambian de golpe mientras el fondo aún desliza. */
-  transition: color 0.16s ease-out;
-}
-.motm-nav__ico {
-  position: relative;
-  width: 38px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-}
-.motm-nav__ico-bg {
+/* Brillo especular: la luz entra por arriba-izquierda y se apaga enseguida,
+   que es lo que hace que se lea como vidrio y no como plástico translúcido. */
+.motm-nav::before {
+  content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--brand-tint);
+  background: linear-gradient(125deg, var(--glass-sheen), transparent 38%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Sin `backdrop-filter` el fondo translúcido dejaría ver el contenido nítido
+   por debajo — en ese caso se opta por un fondo sólido. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .motm-nav {
+    background: var(--card);
+    border-color: var(--line);
+  }
+}
+
+.motm-nav__item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  min-height: 50px;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  -webkit-tap-highlight-color: transparent;
+  /* El color debe llegar a la vez que la pastilla (BottomNav.tsx) — sin esto
+     el texto/icono cambian de golpe mientras el fondo aún desliza. */
+  transition: color 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* La pastilla del activo: cápsula completa que se desliza de pestaña a
+   pestaña. Va DETRÁS del icono y la etiqueta, envolviendo a los dos. */
+.motm-nav__pill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--glass-active);
+  border: 1px solid var(--glass-active-line);
+  box-shadow: var(--glass-active-glow), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.motm-nav__ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .motm-nav__item.is-active {
   color: var(--brand);
+}
+.motm-nav__item.is-active .motm-nav__ico {
+  transform: scale(1.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-nav__item.is-active .motm-nav__ico {
+    transform: none;
+  }
 }
 
 /* live view — loading / empty / notice states */
