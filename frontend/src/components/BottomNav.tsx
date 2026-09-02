@@ -1,18 +1,22 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  Broadcast,
-  CalendarDots,
-  House,
-  ShieldChevron,
-  User,
+  BroadcastIcon,
+  CalendarIcon,
+  HouseIcon,
+  ShieldIcon,
+  UserIcon,
 } from '@phosphor-icons/react'
 
+// `Shield` en vez de `ShieldChevron` y `Calendar` en vez de `CalendarDots`:
+// a 23px, sobre un fondo sólido (ya no hay desenfoque detrás que suavice el
+// trazo), el detalle extra de esos dos se apelmazaba con el relleno del
+// icono activo — la silueta simple se lee mejor de un vistazo.
 const items = [
-  { to: '/home', label: 'Home', Icon: House, end: false },
-  { to: '/proximos', label: 'Próximos', Icon: CalendarDots, end: false },
-  { to: '/', label: 'En vivo', Icon: Broadcast, end: true },
-  { to: '/equipos', label: 'Equipos', Icon: ShieldChevron, end: false },
-  { to: '/perfil', label: 'Perfil', Icon: User, end: false },
+  { to: '/home', label: 'Home', Icon: HouseIcon, end: false },
+  { to: '/proximos', label: 'Próximos', Icon: CalendarIcon, end: false },
+  { to: '/', label: 'En vivo', Icon: BroadcastIcon, end: true },
+  { to: '/equipos', label: 'Equipos', Icon: ShieldIcon, end: false },
+  { to: '/perfil', label: 'Perfil', Icon: UserIcon, end: false },
 ]
 
 /** Qué pestaña corresponde a la ruta actual. Mismo criterio que `NavLink`:
@@ -26,7 +30,9 @@ function activeIndexFor(pathname: string): number {
 }
 
 /**
- * Tab bar de cristal.
+ * Tab bar sólida (nada de cristal/blur — ver la nota de `--nav-*` en
+ * tokens.css), con sombra marcada para que se lea como una barra física
+ * flotando sobre el contenido, no como un panel translúcido.
  *
  * La pastilla es UN solo elemento fijo dentro de la barra, colocado por índice
  * (`translateX(n * 100%)` sobre un ancho de 1/5). Antes era una pastilla por
