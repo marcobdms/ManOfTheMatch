@@ -15,7 +15,7 @@ import { GOAL_EVENT_TYPES, mapEspnEvent, mapEspnStatus } from '../lib/map.js';
 import { nextClockAnchor } from './liveLoop.js';
 import { reconcileRetracted } from '../lib/eventReconcile.js';
 import { narrateEvent } from '../lib/narrate.js';
-import { pushGoal } from '../notify.js';
+import { pushGoal, pushToMatchFollowers } from '../notify.js';
 import { isTrackedSlug, teamName, teamSlugByEspnId } from '../lib/ids.js';
 
 type FixtureRow = {
@@ -201,8 +201,8 @@ async function upsertEvents(
 
   if (toInsert.length) {
     await db.from('match_events').upsert(toInsert, { onConflict: 'fixture_id,source,source_event_id', ignoreDuplicates: true });
-    const newGoals = toInsert.filter((r) => GOAL_EVENT_TYPES.has(r.type as never));
-    if (newGoals.length) await narrateNewGoals(f, newGoals, homeScore, awayScore);
+    const narratable = toInsert.filter((r) => NARRATED_KIND[r.type as string] != null);
+    if (narratable.length) await narrateNewEvents(f, narratable, homeScore, awayScore);
   }
 
   // `details` es el estado ACTUAL de ESPN, no un log (ver lib/eventReconcile.ts).
@@ -213,26 +213,36 @@ async function upsertEvents(
   return freshGoals;
 }
 
-const GOAL_KIND: Partial<Record<string, 'goal' | 'own_goal' | 'penalty_goal'>> = {
+/** Qué eventos merecen una frase narrada. Además de los goles se narran las
+ *  expulsiones y los penaltis fallados: son los otros momentos que cambian un
+ *  partido, y el histórico se leía muy plano con solo los goles. Amarillas,
+ *  córners y cambios se quedan fuera a propósito — narrar 30 amarillas por
+ *  partido es ruido, y cada narración es una llamada a Groq. */
+const NARRATED_KIND: Partial<
+  Record<string, 'goal' | 'own_goal' | 'penalty_goal' | 'penalty_miss' | 'red_card' | 'second_yellow'>
+> = {
   GOAL: 'goal',
   OWN_GOAL: 'own_goal',
   PENALTY_GOAL: 'penalty_goal',
+  PENALTY_MISS: 'penalty_miss',
+  RED: 'red_card',
+  SECOND_YELLOW: 'second_yellow',
 };
 
-async function narrateNewGoals(
+async function narrateNewEvents(
   f: FixtureRow,
-  goals: Array<{ type: string; team_id: string | null; player_name: string | null; source_event_id: string; minute: number | null }>,
+  events: Array<{ type: string; team_id: string | null; player_name: string | null; source_event_id: string; minute: number | null }>,
   homeScore: number | null,
   awayScore: number | null,
 ): Promise<void> {
-  for (const g of goals) {
+  for (const g of events) {
     const isHome = g.team_id === f.home_team_id;
     const team = teamName(g.team_id);
     const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
     if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
 
     const narration = await narrateEvent({
-      kind: GOAL_KIND[g.type] ?? 'goal',
+      kind: NARRATED_KIND[g.type] ?? 'goal',
       minute: g.minute,
       team,
       opponent,
@@ -285,6 +295,14 @@ async function maybePushGoals(
         body,
       });
     }
+
+    // Suscritos a ESTE partido (0016): una sola vez por gol y sin filtrar por
+    // equipo — se avisa aunque ninguno de los dos sea un club seguido.
+    await pushToMatchFollowers(f.id, {
+      title: `Gol del ${scoringName ?? 'equipo'}`,
+      body,
+      tag: `goal-${f.id}`,
+    });
   };
 
   if (dHome > 0) await fire('home');

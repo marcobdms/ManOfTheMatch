@@ -80,6 +80,33 @@ async function pushToTeamFollowers(teamId: string, prefKey: PushPrefKey, payload
   await sendToSubs(subs, payload);
 }
 
+/**
+ * Push a los dispositivos suscritos a ESTE partido concreto (0016), sin mirar
+ * equipo favorito ni `prefs`: si alguien activó la campana de un partido, es
+ * porque quiere sus avisos aunque no sea de su equipo.
+ *
+ * Se llama UNA vez por gol (desde el lado que marca), no una por equipo, para
+ * no mandar dos push al mismo dispositivo. Un dispositivo que además siga a
+ * uno de los dos equipos recibirá los dos, pero comparten `tag`, así que el
+ * navegador los colapsa en una sola notificación.
+ */
+export async function pushToMatchFollowers(fixtureId: string, payload: Payload): Promise<void> {
+  const { data } = await db
+    .from('match_subscriptions')
+    .select('endpoint, push_subscriptions!inner(endpoint, p256dh, auth)')
+    .eq('fixture_id', fixtureId);
+
+  const subs: PushSub[] = [];
+  const seen = new Set<string>();
+  for (const row of (data ?? []) as Array<{ push_subscriptions: PushSub | PushSub[] | null }>) {
+    const ps = Array.isArray(row.push_subscriptions) ? row.push_subscriptions[0] : row.push_subscriptions;
+    if (!ps || seen.has(ps.endpoint)) continue;
+    seen.add(ps.endpoint);
+    subs.push(ps);
+  }
+  await sendToSubs(subs, payload);
+}
+
 async function logNotification(args: {
   fixtureId: string;
   teamId: string;

@@ -306,7 +306,13 @@ function buildEventText(row: EventRow): string {
     case 'KEY_PASS':
       return `Pase filtrado${player ? ' de ' + player : ''}${assist ? ' para ' + assist : ''}`
     case 'CHANCE':
-      return `Ocasión clara desperdiciada${team ? ' por el ' + team : ''}${player ? ' — ' + player : ''}`
+      // `detail` trae lo que se sabe del disparo ("la para el portero · tras
+      // córner", liveTicker.shotDetail) — sin él todas las ocasiones se leían
+      // exactamente igual.
+      return (
+        `Ocasión clara${team ? ' del ' + team : ''}${player ? ' — ' + player : ''}` +
+        (detail ? ` (${detail})` : '')
+      )
     case 'INSIGHT':
       // La frase real vive en `narration`; esto solo aplica si Groq/plantilla
       // fallaron, y entonces `detail` ya trae el tipo de momento ("Asedio").

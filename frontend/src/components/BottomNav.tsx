@@ -1,22 +1,24 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  BroadcastIcon,
   CalendarIcon,
   HouseIcon,
   ShieldIcon,
   UserIcon,
 } from '@phosphor-icons/react'
+import LiveBroadcastIcon from './LiveBroadcastIcon'
 
 // `Shield` en vez de `ShieldChevron` y `Calendar` en vez de `CalendarDots`:
 // a 23px, sobre un fondo sólido (ya no hay desenfoque detrás que suavice el
 // trazo), el detalle extra de esos dos se apelmazaba con el relleno del
 // icono activo — la silueta simple se lee mejor de un vistazo.
+// "En vivo" no usa un icono de Phosphor: lleva el suyo propio para poder
+// animar el punto y las ondas por separado (ver LiveBroadcastIcon).
 const items = [
-  { to: '/home', label: 'Home', Icon: HouseIcon, end: false },
-  { to: '/proximos', label: 'Próximos', Icon: CalendarIcon, end: false },
-  { to: '/', label: 'En vivo', Icon: BroadcastIcon, end: true },
-  { to: '/equipos', label: 'Equipos', Icon: ShieldIcon, end: false },
-  { to: '/perfil', label: 'Perfil', Icon: UserIcon, end: false },
+  { to: '/home', label: 'Home', Icon: HouseIcon, end: false, live: false },
+  { to: '/proximos', label: 'Próximos', Icon: CalendarIcon, end: false, live: false },
+  { to: '/', label: 'En vivo', Icon: null, end: true, live: true },
+  { to: '/equipos', label: 'Equipos', Icon: ShieldIcon, end: false, live: false },
+  { to: '/perfil', label: 'Perfil', Icon: UserIcon, end: false, live: false },
 ]
 
 /** Qué pestaña corresponde a la ruta actual. Mismo criterio que `NavLink`:
@@ -63,7 +65,7 @@ export default function BottomNav() {
           }}
         />
 
-        {items.map(({ to, label, Icon, end }) => (
+        {items.map(({ to, label, Icon, end, live }) => (
           <NavLink
             key={to}
             to={to}
@@ -73,7 +75,11 @@ export default function BottomNav() {
             {({ isActive }) => (
               <>
                 <span className="motm-nav__ico">
-                  <Icon size={23} weight={isActive ? 'fill' : 'regular'} />
+                  {live || !Icon ? (
+                    <LiveBroadcastIcon size={23} active={isActive} />
+                  ) : (
+                    <Icon size={23} weight={isActive ? 'fill' : 'regular'} />
+                  )}
                 </span>
                 {label}
               </>

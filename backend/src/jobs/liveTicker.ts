@@ -207,7 +207,11 @@ async function narrateNewGoals(
 // xG a partir del cual un disparo fallado se narra como "ocasión clara" en el
 // histórico — 0.35 es lo que suele marcarse "big chance" en la práctica
 // (un mano a mano o un remate franco dentro del área), no cualquier tiro.
-const BIG_CHANCE_XG = 0.35;
+// Umbral de xG para que un disparo entre en el histórico como ocasión. 0.35
+// dejaba el histórico muy vacío (en un partido normal caen 2-3 disparos así);
+// 0.18 mete también los remates claros que no son mano a mano y da un relato
+// mucho más vivo, sin llenarlo de tiros lejanos sin peligro.
+const BIG_CHANCE_XG = 0.18;
 
 async function upsertShots(
   f: LiveFixtureRow,
@@ -261,6 +265,31 @@ async function upsertShots(
   return rows.length;
 }
 
+/** Frase corta de reserva a partir de los campos reales de `match_shots`.
+ *  Nunca menciona el palo: Fotmob no lo marca (ver 0008). */
+function shotDetail(s: {
+  event_type: string;
+  situation: string | null;
+  is_on_target: boolean | null;
+  is_blocked: boolean | null;
+}): string | null {
+  const parts: string[] = [];
+  if (s.is_blocked) parts.push('remate bloqueado');
+  else if (s.event_type === 'AttemptSaved') parts.push('la para el portero');
+  else if (s.is_on_target === false) parts.push('se va fuera');
+
+  const origen: Record<string, string> = {
+    FromCorner: 'tras córner',
+    FreeKick: 'de falta',
+    SetPiece: 'a balón parado',
+    FastBreak: 'al contraataque',
+  };
+  const from = s.situation ? origen[s.situation] : undefined;
+  if (from) parts.push(from);
+
+  return parts.length ? parts.join(' · ') : null;
+}
+
 /** Inserta la ocasión en el histórico (`match_events`, tipo CHANCE) y la
  *  narra. `source:'fotmob-shot'` a propósito — distinto de 'fotmob' (los
  *  eventos del ticker) para que `reconcileRetracted`, que solo mira
@@ -272,6 +301,10 @@ async function narrateBigChances(
     player_name: string | null | undefined;
     minute: number | null;
     expected_goals: number | null;
+    event_type: string;
+    situation: string | null;
+    is_on_target: boolean | null;
+    is_blocked: boolean | null;
     source_shot_id: string;
   }>,
 ): Promise<void> {
@@ -298,6 +331,14 @@ async function narrateBigChances(
       homeScore: fx.home_score ?? 0,
       awayScore: fx.away_score ?? 0,
       xg: c.expected_goals,
+      // Datos reales del disparo (`match_shots`, 0008): sin esto todas las
+      // ocasiones se narraban igual de genéricas.
+      shot: {
+        result: c.event_type,
+        situation: c.situation,
+        onTarget: c.is_on_target,
+        blocked: c.is_blocked,
+      },
     });
 
     await db.from('match_events').upsert(
@@ -307,7 +348,10 @@ async function narrateBigChances(
         minute: c.minute,
         team_id: c.team_id,
         player_name: playerName,
-        detail: c.expected_goals != null ? `xG ${c.expected_goals.toFixed(2)}` : null,
+        // Detalle legible con lo que sí sabemos del disparo — es lo que pinta
+        // el frontend cuando no hay narración de Groq, así que sin esto el
+        // histórico se queda en "Ocasión clara desperdiciada" y poco más.
+        detail: shotDetail(c),
         source: 'fotmob-shot',
         source_event_id: c.source_shot_id,
         narration,

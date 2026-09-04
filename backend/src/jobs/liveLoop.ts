@@ -4,7 +4,7 @@ import { getMatch } from '../sources/footballData.js';
 import { getSummary } from '../sources/espn.js';
 import { getLivescores, getTimeline } from '../sources/theSportsDB.js';
 import type { TsdbLiveEvent } from '../sources/theSportsDB.js';
-import { pushGoal, pushKickoff, pushMatchday } from '../notify.js';
+import { pushGoal, pushKickoff, pushMatchday, pushToMatchFollowers } from '../notify.js';
 import { GOAL_EVENT_TYPES, mapFootballDataStatus, mapTheSportsDbEvent, mapTheSportsDbStatus } from '../lib/map.js';
 import { isTrackedSlug, teamName, teamSlugByTsdbId } from '../lib/ids.js';
 
@@ -396,6 +396,14 @@ async function maybePushGoals(
         body,
       });
     }
+
+    // Suscritos a ESTE partido (0016): una sola vez por gol y sin filtrar por
+    // equipo — se avisa aunque ninguno de los dos sea un club seguido.
+    await pushToMatchFollowers(f.id, {
+      title: `Gol del ${scoringName ?? 'equipo'}`,
+      body,
+      tag: `goal-${f.id}`,
+    });
   };
 
   if (dHome > 0) await fire('home');

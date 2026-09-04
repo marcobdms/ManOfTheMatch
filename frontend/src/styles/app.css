@@ -308,6 +308,12 @@
   color: var(--ink);
   box-shadow: none;
 }
+/* Campana de avisos del partido encendida: se tiñe de marca para que se lea
+   de un vistazo que ESTE partido está siendo seguido. */
+.motm-btn--icon.is-on {
+  background: var(--brand);
+  color: #fff;
+}
 .motm-btn--icon .motm-dot {
   position: absolute;
   top: 11px;
@@ -460,6 +466,43 @@
   justify-content: center;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Icono "En vivo": el punto late con las mismas keyframes que el del marcador
+   (`motm-pulse`) y las ondas salen hacia fuera escalonadas. Solo opacity y
+   transform — va por compositor, sin reflow. */
+.motm-liveico__dot {
+  transform-origin: 128px 128px;
+  animation: motm-pulse 1.4s ease-in-out infinite;
+}
+.motm-liveico__wave {
+  transform-origin: 128px 128px;
+  animation: motm-wave 1.8s ease-out infinite;
+}
+.motm-liveico__wave--2 {
+  animation-delay: 0.35s;
+}
+@keyframes motm-wave {
+  0% {
+    opacity: 0.25;
+    transform: scale(0.72);
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+    transform: scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-liveico__dot,
+  .motm-liveico__wave {
+    animation: none;
+  }
+  .motm-liveico__wave {
+    opacity: 1;
+  }
+}
+
 .motm-nav__item.is-active {
   color: var(--brand);
 }
