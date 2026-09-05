@@ -518,6 +518,35 @@ export function useLiveMatch(opts: { enabled?: boolean; favoriteTeamId?: string 
 }
 
 /** Un fixture concreto por id — para el histórico (partido ya jugado, sin polling). */
+/**
+ * ¿Hay algún partido en juego AHORA MISMO? Consulta mínima (una fila, solo el
+ * id) para que el navbar sepa si animar el icono de "En vivo": una animación
+ * permanente en todas las pantallas es ruido visual y gasta batería cuando no
+ * hay nada que mirar.
+ *
+ * No filtra por equipo favorito a propósito — el icono señala "hay fútbol",
+ * no "juega el tuyo"; para eso ya está la propia pestaña.
+ */
+export function useAnyLiveMatch() {
+  return useQuery({
+    queryKey: ['anyLiveMatch'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('fixtures')
+        .select('id')
+        .in('status', ['LIVE', 'PAUSED'])
+        .limit(1)
+      if (error) throw error
+      return (data?.length ?? 0) > 0
+    },
+    enabled: hasSupabaseEnv,
+    // Un partido empieza cada mucho rato: no hace falta más fino, y así el
+    // navbar no genera tráfico constante.
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  })
+}
+
 export function useFixtureById(fixtureId: string | undefined) {
   return useQuery({
     queryKey: ['fixtureById', fixtureId],

@@ -3,6 +3,9 @@ type Props = {
   /** Relleno del punto central, para igualar el `weight="fill"` de Phosphor
    *  cuando la pestaña está activa. */
   active?: boolean
+  /** Solo se mueve si hay algo en juego. En reposo el icono es idéntico pero
+   *  quieto: animar siempre era ruido y gasto de batería sin nada que mirar. */
+  animated?: boolean
 }
 
 /** Icono "En vivo" del navbar. Es un SVG propio en vez del `BroadcastIcon` de
@@ -14,10 +17,10 @@ type Props = {
  *  JavaScript ni framer, así que puede quedarse animando siempre sin el coste
  *  que tenían las cartas de la alineación. Con `prefers-reduced-motion` se
  *  queda quieto y legible. */
-export default function LiveBroadcastIcon({ size = 23, active = false }: Props) {
+export default function LiveBroadcastIcon({ size = 23, active = false, animated = false }: Props) {
   return (
     <svg
-      className="motm-liveico"
+      className={'motm-liveico' + (animated ? ' is-animated' : '')}
       width={size}
       height={size}
       viewBox="0 0 256 256"

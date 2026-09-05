@@ -466,18 +466,115 @@
   justify-content: center;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Avisos de un partido: interruptor en la cabecera + panel de confirmación.
+   Va en la cabecera (no en la fila de acciones) para no competir con los
+   botones grandes de "ver X" — es un ajuste, no una navegación. */
+.motm-alert-toggle {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.motm-alert-toggle.is-on {
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--brand-tint);
+}
+.motm-alert-toggle:disabled {
+  opacity: 0.6;
+}
+.motm-alert-toggle__track {
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--line);
+  position: relative;
+  transition: background 0.18s ease;
+}
+.motm-alert-toggle.is-on .motm-alert-toggle__track {
+  background: var(--brand);
+}
+.motm-alert-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s ease;
+}
+.motm-alert-toggle.is-on .motm-alert-toggle__thumb {
+  transform: translateX(12px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-alert-toggle,
+  .motm-alert-toggle__track,
+  .motm-alert-toggle__thumb {
+    transition: none;
+  }
+}
+
+.motm-alert-ask {
+  margin: 10px 16px 0;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--muted);
+  border: 1px solid var(--line);
+}
+.motm-alert-ask__text {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.motm-alert-ask__row {
+  display: flex;
+  gap: 8px;
+}
+.motm-alert-ask__no,
+.motm-alert-ask__yes {
+  flex: 1;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.motm-alert-ask__no {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.motm-alert-ask__yes {
+  background: var(--brand);
+  color: #fff;
+}
+
 /* Icono "En vivo": el punto late con las mismas keyframes que el del marcador
    (`motm-pulse`) y las ondas salen hacia fuera escalonadas. Solo opacity y
-   transform — va por compositor, sin reflow. */
-.motm-liveico__dot {
+   transform — va por compositor, sin reflow. Solo se mueve con `.is-animated`
+   (hay partido en juego); en reposo es el mismo icono, quieto. */
+.motm-liveico.is-animated .motm-liveico__dot {
   transform-origin: 128px 128px;
   animation: motm-pulse 1.4s ease-in-out infinite;
 }
-.motm-liveico__wave {
+.motm-liveico.is-animated .motm-liveico__wave {
   transform-origin: 128px 128px;
   animation: motm-wave 1.8s ease-out infinite;
 }
-.motm-liveico__wave--2 {
+.motm-liveico.is-animated .motm-liveico__wave--2 {
   animation-delay: 0.35s;
 }
 @keyframes motm-wave {

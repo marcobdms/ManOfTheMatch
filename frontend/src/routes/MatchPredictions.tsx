@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import { Segmented, SegmentedButton } from '../components/Segmented'
 import BackButton from '../components/BackButton'
+import MatchAlertToggle from '../components/MatchAlertToggle'
 import TeamCrest from '../components/TeamCrest'
 import StatCompareRow from '../components/StatCompareRow'
 import { useFixtureById, useGenerateAiPrediction, useMatchOdds, useMatchPrediction } from '../lib/queries'
@@ -64,6 +65,10 @@ export default function MatchPredictions() {
               <p className="motm-lineup__meta">{match.home.shortName} – {match.away.shortName}</p>
             )}
           </div>
+
+          {/* Avisos solo de este partido: aquí, antes del pitido inicial, es
+              cuando de verdad decides si vas a seguirlo. */}
+          <MatchAlertToggle fixtureId={fixtureId} />
         </div>
 
         {loading && <div className="motm-skel" style={{ height: 260, margin: '16px' }} aria-hidden="true" />}

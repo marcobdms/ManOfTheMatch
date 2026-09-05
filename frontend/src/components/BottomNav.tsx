@@ -6,6 +6,7 @@ import {
   UserIcon,
 } from '@phosphor-icons/react'
 import LiveBroadcastIcon from './LiveBroadcastIcon'
+import { useAnyLiveMatch } from '../lib/queries'
 
 // `Shield` en vez de `ShieldChevron` y `Calendar` en vez de `CalendarDots`:
 // a 23px, sobre un fondo sólido (ya no hay desenfoque detrás que suavice el
@@ -50,6 +51,8 @@ function activeIndexFor(pathname: string): number {
 export default function BottomNav() {
   const { pathname } = useLocation()
   const activeIndex = activeIndexFor(pathname)
+  // El icono de "En vivo" solo se mueve si hay algo en juego ahora mismo.
+  const { data: hasLive } = useAnyLiveMatch()
 
   return (
     <nav className="motm-nav">
@@ -76,7 +79,7 @@ export default function BottomNav() {
               <>
                 <span className="motm-nav__ico">
                   {live || !Icon ? (
-                    <LiveBroadcastIcon size={23} active={isActive} />
+                    <LiveBroadcastIcon size={23} active={isActive} animated={!!hasLive} />
                   ) : (
                     <Icon size={23} weight={isActive ? 'fill' : 'regular'} />
                   )}
