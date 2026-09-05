@@ -41,6 +41,10 @@ de fallar en cada muestra.
 |-------|-------------|
 | Fixture en Supabase | El partido existe y tiene datos |
 | Teams / Standings / Competitions | Tablas base pobladas |
+| Migraciones aplicadas | `match_subscriptions` (0016), `profiles` (0006), `match_shots` (0008), `match_highlights` (0014). Si falta una se marca SKIP diciendo qué migración falta — explica fallos que si no parecen bugs de código |
+| Teams con ids resueltos | Equipos sin `source_ids` de fotmob/espn: no cruzan con las fuentes y se quedan sin alineaciones ni eventos |
+| **Recorrido de rutas** | Visita las 12 vistas (En vivo, Home, Próximos, Equipos, Clasificación, Perfil, y estadísticas/alineaciones/previsiones del partido) y comprueba que cada una **pinta contenido** y no lanza. Antes solo se miraba `/`, así que una vista podía estar en blanco y el tester pasaba |
+| **Errores JS** | Excepciones sin capturar, `console.error` y respuestas HTTP 4xx/5xx. Es lo que detecta una pantalla en blanco por env var mal puesta (`supabaseUrl is required`) o un asset que falta |
 | Lineups con XY (`pos_x`/`pos_y`) | Alineaciones con posiciones del campo |
 | Fixture status/score | Estado y marcador actualizándose |
 | Delay LIVE | Mide cuánto tarda en pasar a LIVE |

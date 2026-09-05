@@ -380,7 +380,82 @@ async def run_static_checks(client, fid) -> list[Check]:
     else:
         checks.append(Check("Match facts", facts is not None, "Presentes" if facts else "Pendientes", lat))
 
+    # Migraciones aplicadas: una tabla que falta explica fallos que si no
+    # parecen bugs de codigo. Mismo patron que match_facts — si no existe se
+    # marca SKIP con el numero de migracion, no FAIL.
+    for table, migration in [("match_subscriptions", "0016"), ("profiles", "0006"),
+                             ("match_shots", "0008"), ("match_highlights", "0014")]:
+        try:
+            rows, lat = await sb_get(client, table, {"select": "*", "limit": "1"})
+            checks.append(Check(f"Tabla {table}", True, f"existe (migracion {migration})", lat))
+        except Exception as e:
+            msg = str(e)
+            missing_table = "does not exist" in msg or "PGRST205" in msg or "404" in msg
+            checks.append(Check(
+                f"Tabla {table}",
+                True if missing_table else False,
+                f"NO existe - falta migracion {migration}" if missing_table else msg,
+                skipped=missing_table,
+            ))
+
+    # Escudos: un equipo sin `source_ids` resueltos no cruza con las fuentes y
+    # se queda sin alineaciones ni eventos (ver resolveTeamIds.ts).
+    try:
+        rows, lat = await sb_get(client, "teams", {"select": "id,source_ids", "limit": "50"})
+        unresolved = [r["id"] for r in rows if not (r.get("source_ids") or {}).get("fotmob")
+                      and not (r.get("source_ids") or {}).get("espn")]
+        checks.append(Check("Teams con ids resueltos", len(unresolved) == 0,
+                             "todos" if not unresolved else f"sin resolver: {', '.join(unresolved[:6])}", lat))
+    except Exception as e:
+        checks.append(Check("Teams con ids resueltos", False, str(e)))
+
     return checks
+
+# ── Errores de navegador ──────────────────────────────────────────────────────
+# El fallo que más veces se ha colado en producción no fue de datos: fue la app
+# entera en blanco por una excepción sin capturar ("supabaseUrl is required" con
+# una env var mal puesta). Ninguno de los checks de DOM lo detectaba, porque un
+# `query_selector` que no encuentra nada se lee igual que "aún cargando".
+#
+# Estos tres listeners se enganchan UNA vez a la página y van acumulando; cada
+# ronda de checks los vacía con `drain_browser_errors`, así que un error se
+# atribuye a la vista donde ocurrió y no se repite en las siguientes muestras.
+BROWSER_ERRORS: list[str] = []
+
+# Ruido conocido que no indica un fallo de la app.
+IGNORED_ERROR_PATTERNS = (
+    "apple-mobile-web-app-capable",   # aviso de deprecación de iOS, cosmético
+    "favicon",
+    "ERR_INTERNET_DISCONNECTED",
+)
+
+def _is_noise(text: str) -> bool:
+    return any(p.lower() in text.lower() for p in IGNORED_ERROR_PATTERNS)
+
+def attach_error_listeners(page: Page) -> None:
+    def on_console(msg):
+        if msg.type == "error" and not _is_noise(msg.text):
+            BROWSER_ERRORS.append(f"console: {msg.text[:200]}")
+
+    def on_page_error(exc):
+        text = str(exc)
+        if not _is_noise(text):
+            BROWSER_ERRORS.append(f"excepcion: {text[:200]}")
+
+    def on_response(res):
+        # 4xx/5xx de la propia app o de Supabase. Los assets que faltan (los
+        # iconos del PWA, sin ir más lejos) también salen aquí.
+        if res.status >= 400 and not _is_noise(res.url):
+            BROWSER_ERRORS.append(f"HTTP {res.status}: {res.url[:160]}")
+
+    page.on("console", on_console)
+    page.on("pageerror", on_page_error)
+    page.on("response", on_response)
+
+def drain_browser_errors() -> list[str]:
+    out = list(BROWSER_ERRORS)
+    BROWSER_ERRORS.clear()
+    return out
 
 # ── Screenshot ────────────────────────────────────────────────────────────────
 async def take_screenshot(page: Page, app_url: str, fid: str, label: str) -> str | None:
@@ -431,8 +506,75 @@ async def browser_checks(page: Page, app_url: str) -> list[Check]:
         nav = await page.query_selector('.motm-shell, [class*="bottom-nav"]')
         checks.append(Check("Shell/nav", nav is not None, "OK" if nav else "No encontrada"))
 
+        errs = drain_browser_errors()
+        checks.append(Check("Sin errores JS (En vivo)", len(errs) == 0,
+                             "Limpio" if not errs else " | ".join(errs[:3])))
+
     except Exception as e:
         checks.append(Check("Browser checks", False, str(e)))
+    return checks
+
+# Rutas que tiene que aguantar la app. Antes solo se visitaba '/', así que una
+# vista entera podía estar reventada (pantalla en blanco) y el tester pasaba.
+# `needs_fixture` marca las que cuelgan de un partido concreto.
+ROUTES: list[tuple[str, str, bool]] = [
+    ("/", "En vivo", False),
+    ("/home", "Home", False),
+    ("/proximos", "Próximos", False),
+    ("/equipos", "Equipos", False),
+    ("/clasificacion", "Clasificación", False),
+    ("/perfil", "Perfil", False),
+    ("/entrar", "Entrar", False),
+    ("/partidos/{fid}", "Detalle del partido", True),
+    ("/partidos/{fid}/estadisticas", "Estadísticas del partido", True),
+    ("/partidos/{fid}/alineaciones", "Alineaciones del partido", True),
+    ("/partidos/{fid}/previsiones", "Previsiones del partido", True),
+    ("/partidos/{fid}/highlights", "Highlights del partido", True),
+]
+
+async def route_checks(page: Page, app_url: str, fid: str) -> list[Check]:
+    """Recorre todas las vistas y comprueba que cada una PINTA algo y no lanza.
+
+    "Pinta algo" = hay contenido real dentro del shell. Una excepción en el
+    render de React deja el contenedor vacío pero el HTML sigue ahí, así que
+    mirar solo si existe el shell no vale: hay que mirar que tenga contenido.
+    """
+    checks: list[Check] = []
+    drain_browser_errors()  # empezamos limpio: lo anterior ya se reportó
+
+    for path, label, needs_fixture in ROUTES:
+        url = app_url.rstrip("/") + path.replace("{fid}", fid)
+        try:
+            t0 = time.time()
+            await page.goto(url, wait_until="networkidle", timeout=25000)
+            await page.wait_for_timeout(900)  # margen para el primer render de datos
+            lat = (time.time() - t0) * 1000
+
+            main = await page.query_selector(".motm-shell__main, main")
+            text = (await main.inner_text()).strip() if main else ""
+            # El nav inferior sale en todas las vistas: si SOLO está eso, la
+            # vista no ha pintado nada suyo.
+            rendered = len(text) > 40
+
+            errs = drain_browser_errors()
+            ok = rendered and not errs
+            detail = []
+            if not rendered:
+                detail.append("vista vacía (posible crash de render)")
+            if errs:
+                detail.append(" | ".join(errs[:2]))
+            if ok:
+                detail.append(f"{len(text)} chars")
+            checks.append(Check(f"Ruta {label}", ok, "; ".join(detail), lat))
+        except Exception as e:
+            checks.append(Check(f"Ruta {label}", False, f"no cargó: {e}"))
+
+    # Se vuelve a "En vivo": el resto del muestreo asume esa vista.
+    try:
+        await page.goto(app_url, wait_until="networkidle", timeout=20000)
+        drain_browser_errors()
+    except Exception:
+        pass
     return checks
 
 # ── Single sample ─────────────────────────────────────────────────────────────
@@ -800,9 +942,20 @@ async def run_test(fixture_id, kickoff_iso, home, away, app_url, screenshots_ena
                     headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"]
                 )
                 page = await browser.new_page(viewport={"width": 390, "height": 844})
+                attach_error_listeners(page)
                 await page.goto(app_url, wait_until="networkidle", timeout=20000)
                 report.app_available = True
                 print(f"[tester] App cargada OK en {app_url}")
+
+                # Recorrido completo de vistas: se hace UNA vez al arrancar,
+                # no en cada muestra (son 9 navegaciones, no tiene sentido
+                # repetirlas cada 30s durante todo el partido).
+                print("[tester] Recorriendo rutas...")
+                route_results = await route_checks(page, app_url, fixture_id)
+                report.static_checks.extend(route_results)
+                for c in route_results:
+                    tag = "SKIP" if c.skipped else ("OK" if c.passed else "XX")
+                    print(f"  {tag} {c.name}: {c.detail}")
             except Exception as e:
                 report.app_available = False
                 msg = f"App no disponible en {app_url} ({e}) - checks de navegador y capturas omitidos"
