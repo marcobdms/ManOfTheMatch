@@ -11,6 +11,8 @@
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { getMatchDetails } from '../sources/fotmob.js';
+import { findYoutubeHighlight } from '../sources/youtubeHighlights.js';
+import type { CompetitionId } from '../lib/shared.js';
 import type {
   FotmobMatchDetails,
   FotmobPlayerStatsEntry,
@@ -25,6 +27,9 @@ type FixtureRow = {
   detail_facts_synced_at: string | null;
   home_team_id: string | null;
   away_team_id: string | null;
+  competition_id: string | null;
+  home_score: number | null;
+  away_score: number | null;
   kickoff_at: string;
   highlight_url: string | null;
   highlight_checked_at: string | null;
@@ -40,7 +45,13 @@ type FixtureRow = {
 //   - Ya mirado y sin vídeo: solo se insiste durante HIGHLIGHT_WINDOW_H tras
 //     el saque inicial, que es cuando aún puede aparecer.
 const HIGHLIGHT_WINDOW_H = 72;
-const HIGHLIGHT_RETRY_H = 2;
+// En las primeras horas tras el partido el resumen ya está en YouTube pero el
+// feed RSS (15 entradas) lo va perdiendo en una jornada llena, así que se
+// mira seguido; pasada esa ventana, cada 2h, que es cuando ya solo queda
+// esperar a que Fotmob lo indexe.
+const HIGHLIGHT_RETRY_FAST_H = 0.5;
+const HIGHLIGHT_RETRY_SLOW_H = 2;
+const HIGHLIGHT_FAST_WINDOW_H = 8;
 // Tope de partidos viejos por pasada (resumen en vídeo o comparativa que
 // faltan): en un backfill grande el adapter de Fotmob serializa con ≥3s entre
 // peticiones, así que sin tope una pasada duraría más que el propio job.
@@ -54,7 +65,10 @@ function needsHighlightRetry(f: FixtureRow, now: number): boolean {
   if (f.status !== 'FINISHED' || f.highlight_url || !f.highlight_checked_at) return false;
   const sinceKickoffH = (now - new Date(f.kickoff_at).getTime()) / 3_600_000;
   if (sinceKickoffH > HIGHLIGHT_WINDOW_H) return false;
-  return (now - new Date(f.highlight_checked_at).getTime()) / 3_600_000 >= HIGHLIGHT_RETRY_H;
+  const gapH = (now - new Date(f.highlight_checked_at).getTime()) / 3_600_000;
+  const retryEvery =
+    sinceKickoffH <= HIGHLIGHT_FAST_WINDOW_H ? HIGHLIGHT_RETRY_FAST_H : HIGHLIGHT_RETRY_SLOW_H;
+  return gapH >= retryEvery;
 }
 
 export function syncMatchFacts() {
@@ -63,7 +77,7 @@ export function syncMatchFacts() {
       .from('fixtures')
       .select(
         'id, status, source_ids, detail_facts_synced_at, home_team_id, away_team_id, ' +
-          'kickoff_at, highlight_url, highlight_checked_at',
+          'competition_id, home_score, away_score, kickoff_at, highlight_url, highlight_checked_at',
       )
       .in('status', ['LIVE', 'PAUSED', 'FINISHED']);
 
@@ -107,8 +121,7 @@ export function syncMatchFacts() {
       (f) =>
         f.status === 'LIVE' ||
         f.status === 'PAUSED' ||
-        (f.status === 'FINISHED' && !f.detail_facts_synced_at) ||
-        needsHighlightRetry(f, now),
+        (f.status === 'FINISHED' && !f.detail_facts_synced_at),
     );
     // Los más recientes primero: son los que alguien va a abrir.
     const pending = rows
@@ -120,7 +133,13 @@ export function syncMatchFacts() {
       .sort((a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime())
       .slice(0, BACKFILL_PER_RUN);
     const due = [...always, ...pending];
-    if (due.length === 0) return 0;
+
+    // Partidos a los que solo les falta el resumen y ya tienen el resto de
+    // datos: se resuelven con YouTube (feed cacheado, barato) sin pedir de
+    // nuevo el payload entero a Fotmob.
+    const highlightOnly = rows.filter(
+      (f) => !due.includes(f) && needsHighlightRetry(f, now),
+    );
 
     let written = 0;
     for (const f of due) {
@@ -136,22 +155,85 @@ export function syncMatchFacts() {
         console.error(`[syncMatchFacts] ${f.id} falló, se conserva lo anterior`, err);
       }
     }
-    console.log(`[syncMatchFacts] ${written}/${due.length} partidos actualizados`);
+
+    for (const f of highlightOnly) {
+      try {
+        if (await retryHighlightViaYoutube(f)) written++;
+      } catch (err) {
+        console.error(`[syncMatchFacts] highlight de ${f.id} falló`, err);
+      }
+    }
+
+    if (due.length + highlightOnly.length > 0) {
+      console.log(
+        `[syncMatchFacts] ${written} actualizados (${due.length} facts, ${highlightOnly.length} solo highlight)`,
+      );
+    }
     return written;
   });
 }
 
-/** Guarda el enlace de YouTube del resumen. `highlight_checked_at` se sella
- *  siempre (haya vídeo o no) para espaciar los reintentos. */
+/** Reintento de solo-resumen vía YouTube. Sella `highlight_checked_at` igual
+ *  que el camino de Fotmob para espaciar los siguientes intentos. */
+async function retryHighlightViaYoutube(f: FixtureRow): Promise<boolean> {
+  const yt = await findYoutubeHighlight({
+    homeTeamId: f.home_team_id,
+    awayTeamId: f.away_team_id,
+    homeScore: f.home_score,
+    awayScore: f.away_score,
+    competitionId: (f.competition_id as CompetitionId) ?? 'laliga',
+    kickoffMs: new Date(f.kickoff_at).getTime(),
+  });
+  const patch: Record<string, string | null> = { highlight_checked_at: new Date().toISOString() };
+  if (yt) {
+    patch.highlight_url = yt.url;
+    patch.highlight_thumbnail = yt.thumbnail;
+    console.log(`[syncMatchFacts] resumen de ${f.id} vía ${yt.source}`);
+  }
+  const { error } = await db.from('fixtures').update(patch).eq('id', f.id);
+  if (error) {
+    console.warn(`[syncMatchFacts] highlight de ${f.id} no se guardó`, error);
+    return false;
+  }
+  return !!yt;
+}
+
+/**
+ * Guarda el enlace del resumen. Primero mira el que trae Fotmob; si no hay,
+ * lo busca en los canales oficiales de YouTube (Fotmob se salta bastantes
+ * resúmenes de LaLiga). `highlight_checked_at` se sella siempre —haya vídeo o
+ * no— para espaciar los reintentos.
+ */
 async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promise<void> {
   if (f.status !== 'FINISHED' || f.highlight_url) return;
 
+  let url: string | null = null;
+  let thumbnail: string | null = null;
+
   const h = details.content?.matchFacts?.highlights ?? null;
-  const url = h?.url?.trim() || null;
+  if (h?.url?.trim()) {
+    url = h.url.trim();
+    thumbnail = h.image?.trim() || null;
+  } else {
+    const yt = await findYoutubeHighlight({
+      homeTeamId: f.home_team_id,
+      awayTeamId: f.away_team_id,
+      homeScore: f.home_score,
+      awayScore: f.away_score,
+      competitionId: (f.competition_id as CompetitionId) ?? 'laliga',
+      kickoffMs: new Date(f.kickoff_at).getTime(),
+    });
+    if (yt) {
+      url = yt.url;
+      thumbnail = yt.thumbnail;
+      console.log(`[syncMatchFacts] resumen de ${f.id} vía ${yt.source}`);
+    }
+  }
+
   const patch: Record<string, string | null> = { highlight_checked_at: new Date().toISOString() };
   if (url) {
     patch.highlight_url = url;
-    patch.highlight_thumbnail = h?.image?.trim() || null;
+    patch.highlight_thumbnail = thumbnail;
   }
   const { error } = await db.from('fixtures').update(patch).eq('id', f.id);
   if (error) console.warn(`[syncMatchFacts] highlight de ${f.id} no se guardó`, error);
