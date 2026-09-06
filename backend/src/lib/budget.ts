@@ -38,11 +38,14 @@ export async function apiFootballHasBudget(cost: number): Promise<boolean> {
 
 /**
  * Groq free tier con `openai/gpt-oss-20b`: 1.000 req/día y 200.000 tokens/día
- * (comprobado 2026-09-06). Una pieza gasta ~1.400 tokens, así que el tope lo
- * ponemos nosotros muy por debajo: las noticias son trabajo derivado y
- * comparten cubo con la narración en vivo, que sí es urgente.
+ * (comprobado 2026-09-06). Una pieza gasta ~1.800 tokens → el techo real por
+ * tokens son ~110/día. La narración en vivo comparte cubo pero gasta una
+ * miseria (~200 tokens por gol), así que las noticias pueden llevarse casi
+ * todo. 90/día aclara el backlog en un par de días y sigue el ritmo de
+ * entrada (~40-50 que pasan el filtro). Configurable por si Groq mueve los
+ * límites otra vez — así se ajusta en Coolify sin tocar código.
  */
-export const NEWS_DAILY_BUDGET = 40;
+export const NEWS_DAILY_BUDGET = Number(process.env.NEWS_DAILY_BUDGET) || 90;
 
 export async function newsUsedToday(): Promise<number> {
   const start = new Date();
