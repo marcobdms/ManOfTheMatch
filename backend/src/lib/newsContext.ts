@@ -55,18 +55,22 @@ export async function buildNewsContext(
   };
   if (!teamId) return ctx;
 
-  // La clasificación se guarda por captura; interesa la más reciente.
+  // Solo la de LaLiga: un equipo en Champions tiene también filas de esa
+  // competición y a veces con captured_at más reciente pero sin poblar
+  // (pretemporada: J0, 0 puntos). Y aun dentro de LaLiga, se descarta una
+  // captura con jugados=0 — es un placeholder, no una clasificación real.
   const { data: st } = await db
     .from('standings')
     .select('position, points, played, form, goals_for, goals_against')
     .eq('team_id', teamId)
     .eq('season_id', CURRENT_SEASON)
+    .eq('competition_id', 'laliga')
     .order('captured_at', { ascending: false })
     .limit(1);
   const row = st?.[0] as
     | { position: number; points: number | null; played: number | null; form: string | null; goals_for: number | null; goals_against: number | null }
     | undefined;
-  if (row) {
+  if (row && (row.played ?? 0) > 0) {
     ctx.clasificacion = { puesto: row.position, puntos: row.points, jugados: row.played, forma: null };
     ctx.forma_reciente = describeForm(row.form);
     ctx.balance_goles = { a_favor: row.goals_for, en_contra: row.goals_against };

@@ -31,17 +31,41 @@ type Fx = {
 
 const name = (id: string | null) => (id ? TEAM_NAME[id as TeamId] ?? id : 'rival');
 
-/** Inserta si no existía ya una noticia para ese partido y tema. */
+/**
+ * Inserta la noticia si es nueva. Si ya existía y SIGUE en draft, le refresca
+ * la pista y los datos: entre pasada y pasada pueden confirmarse los onces de
+ * una previa, o quedar goles registrados en una crónica. Una vez publicada no
+ * se toca — ya la reescribió el modelo.
+ */
 async function insertDraft(row: Record<string, unknown>): Promise<boolean> {
-  const { data, error } = await db
+  const { data: existing } = await db
     .from('news')
-    .upsert(row, { onConflict: 'url', ignoreDuplicates: true })
-    .select('id');
+    .select('id, status')
+    .eq('url', row.url as string)
+    .maybeSingle();
+
+  if (existing) {
+    if ((existing as { status: string }).status === 'draft') {
+      await db
+        .from('news')
+        .update({
+          original_title: row.original_title,
+          summary: row.summary ?? null,
+          team_id: row.team_id,
+          subject: row.subject,
+          topic: row.topic,
+        })
+        .eq('id', (existing as { id: string }).id);
+    }
+    return false;
+  }
+
+  const { error } = await db.from('news').insert(row);
   if (error) {
     console.error('[generateOwnNews] insert falló', error);
     return false;
   }
-  return (data?.length ?? 0) > 0;
+  return true;
 }
 
 export function generateOwnNews() {
@@ -136,27 +160,56 @@ export function generateOwnNews() {
       if (f.home_score == null || f.away_score == null) continue;
       const home = name(f.home_team_id);
       const away = name(f.away_team_id);
+      const homeWon = f.home_score > f.away_score;
+      const draw = f.home_score === f.away_score;
+
+      // Los goles, atribuidos a su equipo: sin esto la pista decía "terminan
+      // 0-5, goles de Pedri..." y el modelo no sabía que el 5 era del Barça
+      // (jugaba fuera) — llegó a titular "Barcelona pierde 0-5".
       const { data: scorers } = await db
         .from('match_events')
-        .select('player_name')
+        .select('player_name, team_id')
         .eq('fixture_id', f.id)
         .in('type', ['GOAL', 'PENALTY_GOAL', 'OWN_GOAL'])
-        .limit(10);
-      const names = [...new Set((scorers ?? []).map((s: { player_name: string | null }) => s.player_name).filter(Boolean))];
+        .limit(12);
+      const goalsFor = (team: string | null) =>
+        [
+          ...new Set(
+            (scorers ?? [])
+              .filter((s: { team_id: string | null }) => s.team_id === team)
+              .map((s: { player_name: string | null }) => s.player_name)
+              .filter((n): n is string => !!n),
+          ),
+        ];
+      const homeGoals = goalsFor(f.home_team_id);
+      const awayGoals = goalsFor(f.away_team_id);
+
+      const winnerId = draw ? f.home_team_id : homeWon ? f.home_team_id : f.away_team_id;
+      const ws = Math.max(f.home_score, f.away_score);
+      const ls = Math.min(f.home_score, f.away_score);
+
+      const goalLine = (label: string, list: string[]) =>
+        list.length ? ` Goles del ${label}: ${list.join(', ')}.` : '';
+
+      const pista = draw
+        ? `El ${home} y el ${away} empatan ${f.home_score}-${f.away_score} (el ${home} jugaba en casa).` +
+          goalLine(home, homeGoals) +
+          goalLine(away, awayGoals)
+        : `El ${name(winnerId)} gana ${ws}-${ls} ${homeWon ? 'en casa al' : 'a domicilio al'} ${homeWon ? away : home}.` +
+          goalLine(home, homeGoals) +
+          goalLine(away, awayGoals);
 
       const ok = await insertDraft({
         title: `${home} ${f.home_score}-${f.away_score} ${away}`,
-        original_title:
-          `El ${home} y el ${away} terminan ${f.home_score}-${f.away_score}` +
-          (names.length ? `. Goles de ${names.join(', ')}` : ''),
+        original_title: pista,
         url: `motm://cronica/${f.id}`,
         original_url: null,
         original_source: 'ManOfTheMatch',
         published_at: new Date().toISOString(),
-        team_id: f.home_score >= f.away_score ? f.home_team_id : f.away_team_id,
+        team_id: winnerId,
         fixture_id: f.id,
         topic: 'CRONICA',
-        subject: names[0] ?? null,
+        subject: (winnerId === f.home_team_id ? homeGoals : awayGoals)[0] ?? null,
         status: 'draft',
         image_state: 'pending',
       });
