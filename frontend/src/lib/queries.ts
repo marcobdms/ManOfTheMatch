@@ -601,7 +601,10 @@ export function useAnyLiveMatch() {
   })
 }
 
-export function useFixtureById(fixtureId: string | undefined) {
+export function useFixtureById(
+  fixtureId: string | undefined,
+  opts: { pollWhileNoHighlight?: boolean } = {},
+) {
   return useQuery({
     queryKey: ['fixtureById', fixtureId],
     queryFn: async () => {
@@ -614,6 +617,13 @@ export function useFixtureById(fixtureId: string | undefined) {
       return data?.[0] ? toLiveMatch(data[0]) : null
     },
     enabled: hasSupabaseEnv && !!fixtureId,
+    // Vista de Highlights: el resumen lo publica Fotmob horas después del
+    // pitido y el worker lo recoge en su siguiente pasada. Refrescamos solo
+    // mientras falta, para que aparezca sin recargar.
+    refetchInterval: opts.pollWhileNoHighlight
+      ? (query) =>
+          query.state.data && !query.state.data.highlightUrl ? 60_000 : false
+      : false,
   })
 }
 

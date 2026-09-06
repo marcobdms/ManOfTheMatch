@@ -1,4 +1,4 @@
-import { PlayCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, PlayCircle } from '@phosphor-icons/react'
 import { useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import BackButton from '../components/BackButton'
@@ -34,16 +34,25 @@ function youtubeId(url: string | null): string | null {
  * es del dueño de los derechos, no algo que se pueda rodear. Tampoco se puede
  * detectar desde el navegador si un vídeo concreto permite embed (el iframe es
  * cross-origin y no avisa cuando lo bloquean), así que ni se intenta.
+ *
+ * El vídeo se publica en YouTube horas después del pitido final. El worker lo
+ * busca en Fotmob cada 2h (72h de margen); esta vista solo lee la BD, así que
+ * mientras falta: refresca sola cada minuto y ofrece un botón para forzar la
+ * lectura. No hay nada que "cargar": es una imagen de la CDN de YouTube y un
+ * enlace, se piden solo al abrir esta pantalla.
  */
 export default function MatchHighlights() {
   const { fixtureId } = useParams<{ fixtureId: string }>()
-  const matchQuery = useFixtureById(fixtureId)
+  const matchQuery = useFixtureById(fixtureId, { pollWhileNoHighlight: true })
 
   const match = matchQuery.data
   const url = match?.highlightUrl ?? null
   const videoId = youtubeId(url)
   const thumbnail =
     match?.highlightThumbnail ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null)
+
+  // `isFetching` cubre tanto el refetch manual del botón como el automático.
+  const checking = matchQuery.isFetching && !matchQuery.isLoading
 
   return (
     <>
@@ -68,7 +77,18 @@ export default function MatchHighlights() {
         {!matchQuery.isLoading && !url && (
           <div className="motm-empty">
             <b>Aún no se ha subido el resumen</b>
-            Suele publicarse unas horas después del partido. Vuelve más tarde.
+            Suele publicarse unas horas después del partido. Esta pantalla se
+            actualiza sola; también puedes comprobarlo ahora.
+            <button
+              type="button"
+              className="motm-btn motm-highlights__retry"
+              onClick={() => void matchQuery.refetch()}
+              disabled={checking}
+              aria-busy={checking}
+            >
+              <ArrowClockwise size={16} className={checking ? 'motm-spin' : undefined} />
+              {checking ? 'Comprobando…' : 'Comprobar de nuevo'}
+            </button>
           </div>
         )}
 

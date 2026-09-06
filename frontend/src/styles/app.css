@@ -667,6 +667,20 @@
   background: var(--muted);
   animation: motm-shimmer 1.4s ease-in-out infinite;
 }
+/* Spinner reutilizable: cualquier icono con .motm-spin gira. */
+.motm-spin {
+  animation: motm-spin 0.7s linear infinite;
+}
+@keyframes motm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.motm-highlights__retry {
+  display: flex;
+  width: fit-content;
+  margin: 14px auto 0;
+}
 @keyframes motm-shimmer {
   0%,
   100% {
