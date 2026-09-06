@@ -58,12 +58,27 @@ export type StandingRow = {
 }
 
 /** One `news` row — tabla vacía hoy; Home la omite por completo si no hay filas. */
+export type NewsTopic = 'ONCE' | 'PREVIA' | 'CRONICA' | 'LESION' | 'TECNICO' | 'FICHAJES'
+
+/** Pieza propia (escrita por nosotros sobre datos propios), nunca el artículo
+ *  ajeno: `originalUrl`/`originalSource` son solo la atribución de la pista. */
 export type NewsItem = {
   id: string
   title: string
   summary: string | null
+  body: string | null
+  topic: NewsTopic | null
+  teamId: string | null
+  subject: string | null
   url: string | null
   imageUrl: string | null
+  imageAuthor: string | null
+  imageLicense: string | null
+  imageLicenseUrl: string | null
+  imageSourceUrl: string | null
+  originalUrl: string | null
+  originalSource: string | null
+  originalAuthor: string | null
   publishedAt: string | null
 }
 

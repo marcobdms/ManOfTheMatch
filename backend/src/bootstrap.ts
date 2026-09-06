@@ -11,6 +11,10 @@ import { runDueMatchDetails } from './jobs/syncMatchDetail.js';
 import { syncLineups } from './jobs/syncLineups.js';
 import { syncPredictions } from './jobs/syncPredictions.js';
 import { syncInsights } from './jobs/syncInsights.js';
+import { syncNews } from './jobs/syncNews.js';
+import { generateOwnNews } from './jobs/generateOwnNews.js';
+import { rewriteNews, pruneStaleDrafts } from './jobs/rewriteNews.js';
+import { resolveNewsImages } from './jobs/resolveNewsImage.js';
 
 console.log('[ingest] worker ManOfTheMatch arrancando…');
 
@@ -60,6 +64,17 @@ new Cron('*/30 * * * *', { protect: true }, guard(syncPredictions));
 // que ya esta en la base, no corre prisa, y asi el backfill del historico se
 // reparte en vez de disparar decenas de llamadas a Groq de golpe.
 new Cron('*/10 * * * *', { protect: true }, guard(syncInsights));
+
+// Noticias. La ingesta (RSS de Marca + las que salen de nuestra propia base)
+// es barata y va cada 30 min; la reescritura con Groq va aparte cada 5 min y
+// de 3 en 3, porque lo que aprieta en el free tier no es el tope diario sino
+// los 6.000 tokens/minuto. Las imágenes, más lentas todavía: Wikimedia pide
+// cortesía y la foto puede esperar a la siguiente vuelta.
+new Cron('*/30 * * * *', { protect: true }, guard(syncNews));
+new Cron('*/15 * * * *', { protect: true }, guard(generateOwnNews));
+new Cron('*/5 * * * *', { protect: true }, guard(rewriteNews));
+new Cron('*/7 * * * *', { protect: true }, guard(resolveNewsImages));
+new Cron('20 4 * * *', guard(pruneStaleDrafts));
 
 // Kick one calendar sync on boot so a fresh deploy isn't empty.
 guard(syncFixtures)();

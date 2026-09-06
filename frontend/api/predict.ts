@@ -7,13 +7,14 @@
 // backend (mismos datos que pinta MatchPredictions.tsx) — nunca sale a
 // buscar nada por su cuenta ni inventa estadísticas fuera de ese contexto.
 //
-// De momento (petición explícita) NO se cachea: cada click genera una
-// llamada real a Groq, sin leer ni devolver una previa. Se sigue guardando
-// en match_ai_predictions (se sobrescribe) solo como histórico/debug, nadie
-// la lee. Con el modelo actual (openai/gpt-oss-120b, free tier de Groq:
-// 1000 req/día y 200k tokens/día) y ~1200 tokens por llamada, el techo real
-// es el de tokens: ~166 generaciones/día antes de toparse — de sobra para
-// el uso actual. Si el uso crece, aquí es donde reintroducir el caché.
+// Se genera UNA vez por usuario y partido (migración 0018): la segunda
+// petición del mismo usuario devuelve la guardada sin llamar a Groq. Los
+// visitantes sin sesión comparten la fila del uuid nil, así que un anónimo
+// tampoco puede gastar más de una.
+//
+// Con openai/gpt-oss-120b (free tier: 1000 req/día, 200k tokens/día) y ~1200
+// tokens por llamada el techo son ~166 generaciones/día; al ser una por
+// usuario y partido, eso da para bastantes usuarios activos.
 import { impliedResultPercent, translateFact } from '../src/lib/predictions'
 
 export const config = { runtime: 'edge' }
@@ -27,6 +28,7 @@ type PredictedResult = 'home' | 'draw' | 'away'
 
 type AiRow = {
   fixture_id: string
+  user_id: string
   paragraph: string
   predicted_result: PredictedResult
   pros: string[]
@@ -37,6 +39,25 @@ type AiRow = {
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+const ANON_USER = '00000000-0000-0000-0000-000000000000'
+
+/** Id del usuario a partir del bearer que manda el cliente. Sin sesión (o con
+ *  un token que Supabase ya no acepta) se cae al cubo anónimo. */
+async function userIdFrom(req: Request): Promise<string> {
+  const auth = req.headers.get('Authorization')
+  if (!auth?.startsWith('Bearer ')) return ANON_USER
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SERVICE_KEY as string, Authorization: auth },
+    })
+    if (!res.ok) return ANON_USER
+    const user = (await res.json()) as { id?: string }
+    return user?.id ?? ANON_USER
+  } catch {
+    return ANON_USER
+  }
 }
 
 function toApi(row: AiRow) {
@@ -83,6 +104,14 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'Body inválido' }, 400)
   }
   if (!fixtureId) return json({ error: 'fixtureId requerido' }, 400)
+
+  // Una por usuario y partido: si ya la tiene, se devuelve sin tocar Groq.
+  const userId = await userIdFrom(req)
+  const cachedRes = await sbFetch(
+    `match_ai_predictions?fixture_id=eq.${fixtureId}&user_id=eq.${userId}&select=*`,
+  )
+  const cachedRows = cachedRes.ok ? await cachedRes.json() : []
+  if (cachedRows[0]) return json(toApi(cachedRows[0] as AiRow), 200)
 
   // partido + nombres de equipo.
   const fxSelect = 'id,status,home:teams!home_team_id(short_name),away:teams!away_team_id(short_name)'
@@ -175,6 +204,7 @@ REGLAS ESTRICTAS:
 
   const row: AiRow = {
     fixture_id: fixtureId,
+    user_id: userId,
     paragraph: parsed.paragraph,
     predicted_result: parsed.predictedResult as PredictedResult,
     pros: parsed.pros,
@@ -183,7 +213,6 @@ REGLAS ESTRICTAS:
     generated_at: new Date().toISOString(),
   }
 
-  // Se sobrescribe cada vez — solo histórico, nada lee esto (ver nota de arriba).
   await sbFetch('match_ai_predictions', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates' },

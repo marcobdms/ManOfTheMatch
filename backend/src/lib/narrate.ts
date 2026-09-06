@@ -10,7 +10,9 @@
  * un adorno, no debe poder romper la ingesta de eventos en vivo.
  */
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_MODEL = process.env.GROQ_NARRATION_MODEL || 'llama-3.1-8b-instant';
+// Groq retiró los Llama de chat: `llama-3.1-8b-instant` responde 404
+// model_not_found. El más barato que queda es gpt-oss-20b.
+const GROQ_MODEL = process.env.GROQ_NARRATION_MODEL || 'openai/gpt-oss-20b';
 
 export type NarrationEvent = {
   kind:

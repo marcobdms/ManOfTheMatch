@@ -447,24 +447,78 @@ async function fetchStandings(competitionId: string, limit: number): Promise<Sta
   }))
 }
 
-async function fetchNews(limit: number): Promise<NewsItem[]> {
-  const { data, error } = await supabase
-    .from('news')
-    .select('id, title, summary, url, image_url, published_at')
-    .order('published_at', { ascending: false })
-    .limit(limit)
-    .returns<
-      { id: string; title: string; summary: string | null; url: string | null; image_url: string | null; published_at: string | null }[]
-    >()
-  if (error) throw error
-  return (data ?? []).map((row) => ({
+type NewsRow = {
+  id: string; title: string; summary: string | null; body: string | null
+  topic: string | null; team_id: string | null; subject: string | null
+  url: string | null; image_url: string | null
+  image_author: string | null; image_license: string | null
+  image_license_url: string | null; image_source_url: string | null
+  original_url: string | null; original_source: string | null
+  original_author: string | null; published_at: string | null
+}
+
+const NEWS_COLS =
+  'id, title, summary, body, topic, team_id, subject, url, image_url, image_author, image_license, image_license_url, image_source_url, original_url, original_source, original_author, published_at'
+
+function mapNewsRow(row: NewsRow): NewsItem {
+  return {
     id: row.id,
     title: row.title,
     summary: row.summary,
+    body: row.body,
+    topic: (row.topic as NewsItem['topic']) ?? null,
+    teamId: row.team_id,
+    subject: row.subject,
     url: row.url,
     imageUrl: row.image_url,
+    imageAuthor: row.image_author,
+    imageLicense: row.image_license,
+    imageLicenseUrl: row.image_license_url,
+    imageSourceUrl: row.image_source_url,
+    originalUrl: row.original_url,
+    originalSource: row.original_source,
+    originalAuthor: row.original_author,
     publishedAt: row.published_at,
-  }))
+  }
+}
+
+/** La RLS de 0017 solo deja salir `status = 'published'`, así que no hace
+ *  falta filtrarlo aquí: un draft no llega nunca al cliente. */
+async function fetchNews(limit: number): Promise<NewsItem[]> {
+  const { data, error } = await supabase
+    .from('news')
+    .select(NEWS_COLS)
+    .order('published_at', { ascending: false })
+    .limit(limit)
+    .returns<NewsRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return []
+    throw error
+  }
+  return (data ?? []).map(mapNewsRow)
+}
+
+async function fetchNewsItem(id: string): Promise<NewsItem | null> {
+  const { data, error } = await supabase
+    .from('news')
+    .select(NEWS_COLS)
+    .eq('id', id)
+    .maybeSingle()
+    .returns<NewsRow>()
+  if (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
+  return data ? mapNewsRow(data) : null
+}
+
+export function useNewsItem(id: string | undefined) {
+  return useQuery({
+    queryKey: ['newsItem', id],
+    queryFn: () => fetchNewsItem(id as string),
+    enabled: hasSupabaseEnv && !!id,
+    staleTime: 60 * 60 * 1000,
+  })
 }
 
 async function fetchGoalChips(fixtureId: string): Promise<GoalChip[]> {
@@ -630,7 +684,6 @@ export function useStandings(competitionId: string, limit: number) {
   })
 }
 
-/** `news` está vacía hoy — Home comprueba `data.length` para omitir la sección. */
 export function useNews(limit: number) {
   return useQuery({
     queryKey: ['news', limit],
@@ -1110,11 +1163,16 @@ function mapAiPredictionRow(row: AiPredictionRow): AiPrediction {
 
 /** `match_ai_predictions` — supabase/migrations/0011_ai_predictions.sql.
  *  Se cachea al generarla (frontend/api/predict.ts); esta query solo lee. */
+const ANON_USER = '00000000-0000-0000-0000-000000000000'
+
 async function fetchAiPrediction(fixtureId: string): Promise<AiPrediction | null> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const userId = sessionData.session?.user.id ?? ANON_USER
   const { data, error } = await supabase
     .from('match_ai_predictions')
     .select('fixture_id, paragraph, predicted_result, pros, cons, model, generated_at')
     .eq('fixture_id', fixtureId)
+    .eq('user_id', userId)
     .maybeSingle()
     .returns<AiPredictionRow>()
   if (error) {
@@ -1141,9 +1199,16 @@ export function useGenerateAiPrediction() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (fixtureId: string): Promise<AiPrediction> => {
+      // El bearer identifica al usuario en la Edge Function, que es quien
+      // decide si ya gastó su única generación para este partido.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
       const res = await fetch('/api/predict', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ fixtureId }),
       })
       const json = await res.json().catch(() => null)

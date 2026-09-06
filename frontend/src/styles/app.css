@@ -1762,16 +1762,18 @@
   font-weight: 800;
 }
 
-/* Home — news */
+/* ===== Noticias (portada + detalle) =====
+   Carta de lista: texto a la izquierda, arte a la derecha. La primera va en
+   variante `--hero`, con el arte arriba a todo el ancho. */
 .motm-news-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
-.motm-news-item {
+.motm-news {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 12px;
+  align-items: flex-start;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -1779,14 +1781,120 @@
   text-decoration: none;
   color: var(--ink);
 }
-.motm-news-item__title {
-  font-size: 14px;
-  font-weight: 700;
+.motm-news--hero {
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 0 14px;
+  overflow: hidden;
 }
-.motm-news-item__summary {
+.motm-news__text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.motm-news--hero .motm-news__text {
+  padding: 0 14px;
+}
+.motm-news__eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.motm-news__title {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+  margin: 0;
+}
+.motm-news--hero .motm-news__title {
+  font-size: 20px;
+}
+.motm-news__summary {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin: 0;
+}
+.motm-news__meta {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+/* Arte: foto libre o, mucho más a menudo, el escudo sobre el color del club. */
+.motm-news__art {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--muted);
+}
+.motm-news__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.motm-news__art--tall {
+  flex: none;
+  width: 100%;
+  height: 200px;
+  border-radius: 0;
+}
+.motm-news__art--crest {
+  display: grid;
+  place-items: center;
+  /* Velo oscuro sobre el color del club: sin él, los amarillos y azules
+     claros dejan el escudo sin contraste. */
+  background:
+    linear-gradient(160deg, rgb(0 0 0 / 0.05), rgb(0 0 0 / 0.42)),
+    var(--news-tint, var(--muted));
+}
+.motm-news__art--crest .motm-teamcrest {
+  filter: drop-shadow(0 3px 10px rgb(0 0 0 / 0.4));
+}
+.motm-news__credit {
+  font-size: 10px;
+  color: var(--ink-soft);
+  margin: 6px 16px 0;
+  line-height: 1.4;
+}
+.motm-news__credit a {
+  color: inherit;
+  text-decoration: underline;
+}
+.motm-newsdetail {
+  padding-bottom: 32px;
+}
+.motm-newsdetail .motm-news__eyebrow {
+  display: block;
+  margin: 14px 16px 0;
+}
+.motm-newsdetail__title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 6px 16px 10px;
+}
+.motm-newsdetail__body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0 16px 18px;
+}
+.motm-newsdetail__source {
+  margin: 0 16px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.motm-ai__note {
   font-size: 12px;
   color: var(--ink-soft);
-  line-height: 1.4;
+  text-align: center;
+  margin-top: 10px;
 }
 
 /* ===== Estadísticas del partido (botón "Ver estadísticas" en En vivo) ===== */

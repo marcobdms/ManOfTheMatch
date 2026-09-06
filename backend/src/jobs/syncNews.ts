@@ -1,0 +1,79 @@
+/**
+ * Ingesta de noticias: lee los feeds de Marca, se queda con lo que encaja en
+ * la taxonomía y lo guarda como `draft`. Barato — aquí no se llama a Groq.
+ * La reescritura va aparte (jobs/rewriteNews.ts) para que un fallo del modelo
+ * no arrastre a la ingesta ni al revés.
+ */
+import { db } from '../db.js';
+import { withRun } from '../lib/run.js';
+import { fetchAllNews } from '../sources/marcaRss.js';
+import { classifyFeedItem, subjectFromCategories, teamFromItem } from '../lib/newsTaxonomy.js';
+
+/** Los feeds de equipo guardan ~45 items, que pueden ser de hace semanas.
+ *  Una noticia vieja ya no interesa y gastaría una llamada a Groq igual. */
+const MAX_AGE_DAYS = 3;
+/** Techo por pasada: la primera vez el feed trae cientos acumulados. */
+const MAX_DRAFTS_PER_RUN = 40;
+
+export function syncNews() {
+  return withRun('syncNews', 'news', async () => {
+    const items = await fetchAllNews();
+    if (!items.length) return 0;
+
+    const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 3600_000;
+    const candidates = [];
+
+    for (const it of items) {
+      const topic = classifyFeedItem(it.title, it.summary);
+      if (!topic) continue;
+      const published = it.publishedAt ? Date.parse(it.publishedAt) : NaN;
+      if (!Number.isFinite(published) || published < cutoff) continue;
+
+      candidates.push({
+        topic,
+        published,
+        row: {
+          // Mientras es draft esto guarda el original (la RLS de 0017 no deja
+          // salir un draft); al reescribir, ambos se sustituyen por lo nuestro.
+          title: it.title,
+          summary: it.summary,
+          url: it.link,
+          original_title: it.title,
+          original_url: it.link,
+          original_source: 'Marca',
+          original_author: it.author,
+          published_at: it.publishedAt,
+          team_id: teamFromItem(it.categories, it.feedTeamId),
+          subject: subjectFromCategories(it.categories, it.title),
+          topic,
+          status: 'draft',
+          image_state: 'pending',
+        },
+      });
+    }
+
+    // Las más recientes primero: si hay que recortar, que caiga lo viejo.
+    candidates.sort((a, b) => b.published - a.published);
+    const batch = candidates.slice(0, MAX_DRAFTS_PER_RUN);
+    if (!batch.length) return 0;
+
+    // `url` es unique desde 0001 → ignoreDuplicates deja pasar las ya vistas
+    // sin pisar una pieza ya reescrita.
+    const { data, error } = await db
+      .from('news')
+      .upsert(
+        batch.map((c) => c.row),
+        { onConflict: 'url', ignoreDuplicates: true },
+      )
+      .select('id');
+
+    if (error) {
+      console.error('[syncNews] upsert falló', error);
+      return 0;
+    }
+
+    const inserted = data?.length ?? 0;
+    console.log(`[syncNews] ${items.length} leídas, ${candidates.length} encajan, ${inserted} nuevas`);
+    return inserted;
+  });
+}

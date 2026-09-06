@@ -35,3 +35,26 @@ export async function apiFootballHasBudget(cost: number): Promise<boolean> {
   const used = await apiFootballUsedToday();
   return used + cost <= API_FOOTBALL_DAILY_BUDGET;
 }
+
+/**
+ * Groq free tier con `openai/gpt-oss-20b`: 1.000 req/día y 200.000 tokens/día
+ * (comprobado 2026-09-06). Una pieza gasta ~1.400 tokens, así que el tope lo
+ * ponemos nosotros muy por debajo: las noticias son trabajo derivado y
+ * comparten cubo con la narración en vivo, que sí es urgente.
+ */
+export const NEWS_DAILY_BUDGET = 40;
+
+export async function newsUsedToday(): Promise<number> {
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  const { data } = await db
+    .from('sync_runs')
+    .select('items')
+    .eq('source', 'groq-news')
+    .gte('started_at', start.toISOString());
+  return (data ?? []).reduce((sum: number, r: { items: number | null }) => sum + (r.items ?? 0), 0);
+}
+
+export async function newsHasBudget(cost: number): Promise<boolean> {
+  return (await newsUsedToday()) + cost <= NEWS_DAILY_BUDGET;
+}

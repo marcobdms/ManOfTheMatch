@@ -241,14 +241,9 @@ export default function MatchPredictions() {
                   </ul>
                 )}
 
-                <button
-                  type="button"
-                  className="motm-ai__retry"
-                  disabled={generateAi.isPending}
-                  onClick={() => generateAi.mutate(fixtureId)}
-                >
-                  {generateAi.isPending ? 'Generando…' : 'Generar otra previsión'}
-                </button>
+                {/* Una previsión por usuario y partido (migración 0018): ya no
+                    hay botón de regenerar, devolvería la misma. */}
+                <p className="motm-ai__note">Tu previsión para este partido</p>
                   </motion.div>
                 )}
               </AnimatePresence>

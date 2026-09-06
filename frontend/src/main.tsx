@@ -11,6 +11,7 @@ import { setupPwaUpdates } from './lib/pwaUpdate'
 import App from './App'
 import Live from './routes/Live'
 import Home from './routes/Home'
+import NewsDetail from './routes/NewsDetail'
 import Upcoming from './routes/Upcoming'
 import Teams from './routes/Teams'
 import Standings from './routes/Standings'
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { index: true, element: <Live /> },
       { path: 'home', element: <Home /> },
       { path: 'proximos', element: <Upcoming /> },
+      { path: 'noticias/:newsId', element: <NewsDetail /> },
       { path: 'equipos', element: <Teams /> },
       { path: 'clasificacion', element: <Standings /> },
       { path: 'equipos/:teamId', element: <TeamLineup /> },
