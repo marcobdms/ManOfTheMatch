@@ -20,9 +20,9 @@ export default function MatchPredictions() {
   const matchQuery = useFixtureById(fixtureId)
   const predictionQuery = useMatchPrediction(fixtureId)
   const oddsQuery = useMatchOdds(fixtureId)
-  // De momento sin caché (petición explícita): el resultado vive solo en el
-  // estado de esta mutación, así que al salir de la vista y volver (o dar
-  // "Generar otra") se pide una previsión nueva de verdad, no una guardada.
+  // Una previsión por usuario y partido (0018): la Edge Function devuelve la
+  // guardada si ya la generaste, así que volver a esta vista no gasta otra
+  // llamada a Groq y ya no hay botón de regenerar.
   const generateAi = useGenerateAiPrediction()
   const [bookmakerId, setBookmakerId] = useState<number | null>(null)
   const [aiOpen, setAiOpen] = useState(true)
