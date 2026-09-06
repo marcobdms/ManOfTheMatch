@@ -29,7 +29,11 @@ REGLAS ESTRICTAS:
 - No copies códigos ni siglas del JSON tal cual: escribe siempre en castellano corriente.
 - Escribe en pasado o presente, según lo que ya ha ocurrido; no uses futuro para algo que ya pasó.
 - Si los DATOS vienen vacíos, escribe la pieza solo con lo que dice la pista, sin rellenar con suposiciones.
-- No copies el titular de la pista: escribe uno tuyo, de 4 a 10 palabras, concreto y sin puntuación final.
+- EL TITULAR TIENE QUE CONTAR EL HECHO CONCRETO, no describir el tema. De 4 a 10 palabras, sin puntuación final, y distinto al de la pista.
+  · Si es un resultado: quién gana a quién y por cuánto ("El Alavés golea 5-2 al Osasuna").
+  · Si es una declaración: quién habla y qué dice ("Luís Castro: el punto no es malo").
+  · Si es una lesión o un fichaje: a quién le pasa y qué ("Lobete se rompe el cruzado").
+  PROHIBIDOS los titulares genéricos que valdrían para cualquier equipo cualquier día: nada de "analiza su rendimiento", "hace balance", "mira al futuro", "busca la victoria", "afronta un nuevo reto". Si tu titular no nombra un hecho verificable del JSON, está mal.
 - El párrafo son 2-3 frases (máximo 60 palabras). Directo, sin floritura y sin frases de relleno.
 - No cites al otro medio por su nombre ni digas "según informa": el enlace a la fuente ya se muestra aparte.
 - No uses comillas de declaraciones salvo que aparezcan literales en la pista.
@@ -38,9 +42,16 @@ REGLAS ESTRICTAS:
 Responde SOLO con JSON válido, sin texto fuera:
 {"titular":"...","parrafo":"...","tema":"LESION"|"TECNICO"|"FICHAJES"|"ONCE"|"PREVIA"|"CRONICA"}`;
 
+/** Titulares de relleno que valdrían para cualquier equipo cualquier día. El
+ *  prompt ya los prohíbe, pero el modelo reincide: salió "Levante analiza su
+ *  rendimiento" de una declaración concreta de su entrenador. */
+const VAGUE_TITLE_RE =
+  /analiza su|analisis|hace balance|mira al futuro|busca la victoria|afronta (un|el) |nuevo reto|se prepara para|repasa (su|el)|valora (su|el)|reflexiona|rendimiento del equipo/i;
+
 function sane(piece: WrittenPiece | null): piece is WrittenPiece {
   if (!piece) return false;
   const { title, body } = piece;
+  if (VAGUE_TITLE_RE.test(title)) return false;
   if (title.length < 10 || title.length > 120) return false;
   if (body.length < 40 || body.length > 600) return false;
   if (/```|\{|\}|no puedo|as an ai|lo siento|seg[uú]n informa/i.test(title + body)) return false;

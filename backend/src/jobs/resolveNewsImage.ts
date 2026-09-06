@@ -10,6 +10,8 @@
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { resolveSubjectImage } from '../sources/wikimedia.js';
+import { TEAM_NAME } from '../lib/newsTaxonomy.js';
+import type { TeamId } from '../lib/shared.js';
 
 const BUCKET = 'news-images';
 const PER_RUN = 5;
@@ -52,13 +54,13 @@ async function upload(objectPath: string, bytes: Uint8Array, contentType: string
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${objectPath}`;
 }
 
-type Row = { id: string; subject: string | null };
+type Row = { id: string; subject: string | null; team_id: string | null };
 
 export function resolveNewsImages() {
   return withRun('resolveNewsImages', 'news-images', async () => {
     const { data } = await db
       .from('news')
-      .select('id, subject')
+      .select('id, subject, team_id')
       .eq('status', 'published')
       .eq('image_state', 'pending')
       .order('published_at', { ascending: false })
@@ -70,8 +72,13 @@ export function resolveNewsImages() {
     let resolved = 0;
     for (const row of rows) {
       try {
+        // El club va como pista para poder descartar fotos con otra camiseta
+        // (la categoría de un jugador incluye su selección y sus ex-equipos).
+        const clubHints = row.team_id
+          ? [TEAM_NAME[row.team_id as TeamId] ?? '', row.team_id.replace(/-/g, ' ')].filter(Boolean)
+          : [];
         // Sin protagonista no hay a quién fotografiar: directo a la carta.
-        const img = row.subject ? await resolveSubjectImage(row.subject) : null;
+        const img = row.subject ? await resolveSubjectImage(row.subject, clubHints) : null;
         if (!img) {
           await db.from('news').update({ image_state: 'fallback' }).eq('id', row.id);
           continue;

@@ -94,7 +94,7 @@ export function subjectFromCategories(categories: string[], title: string): stri
   }
   // Marca titula media sección como «Apellido: "declaración"» — cuando las
   // categorías no dan a nadie, el que habla es el protagonista.
-  const speaker = /^([A-ZÁÉÍÓÚÑ][wÁÉÍÓÚÑáéíóúñ'.-]+(?: [A-ZÁÉÍÓÚÑ][wÁÉÍÓÚÑáéíóúñ'.-]+){0,2}),? (?:sobre|:)/.exec(title.trim());
+  const speaker = /^([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'.-]+(?: [A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'.-]+){0,2}),? (?:sobre|:)/.exec(title.trim());
   if (speaker?.[1] && speaker[1].length > 3) return speaker[1];
   return null;
 }

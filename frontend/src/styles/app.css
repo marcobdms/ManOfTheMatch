@@ -566,6 +566,12 @@
    (`motm-pulse`) y las ondas salen hacia fuera escalonadas. Solo opacity y
    transform — va por compositor, sin reflow. Solo se mueve con `.is-animated`
    (hay partido en juego); en reposo es el mismo icono, quieto. */
+/* Hay partido en juego: el icono se pone rojo esté activa o no la pestaña.
+   Es la señal de "hay fútbol AHORA", y tiene que verse desde cualquier vista
+   sin tener que entrar a comprobarlo. */
+.motm-liveico.is-animated {
+  color: var(--brand);
+}
 .motm-liveico.is-animated .motm-liveico__dot {
   transform-origin: 128px 128px;
   animation: motm-pulse 1.4s ease-in-out infinite;
@@ -1762,6 +1768,19 @@
   font-weight: 800;
 }
 
+/* Logo de competición dentro de la pastilla del switcher de la portada. */
+.motm-seg-comp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.motm-seg-comp__logo {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  flex: none;
+}
+
 /* ===== Noticias (portada + detalle) =====
    Carta de lista: texto a la izquierda, arte a la derecha. La primera va en
    variante `--hero`, con el arte arriba a todo el ancho. */
@@ -1867,6 +1886,12 @@
 }
 .motm-newsdetail {
   padding-bottom: 32px;
+}
+/* La flecha de volver quedaba pegada a la cabecera y a la foto, sin sitio
+   para el pulgar. Se le da aire arriba y abajo y un área táctil mayor. */
+.motm-newsdetail .motm-lineup__back {
+  margin: 10px 0 12px 10px;
+  padding: 10px;
 }
 .motm-newsdetail .motm-news__eyebrow {
   display: block;
