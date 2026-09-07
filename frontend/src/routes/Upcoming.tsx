@@ -66,7 +66,10 @@ function hoursUntil(iso: string): number {
 function UpcomingRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
   return (
     <div className="motm-fixture-row">
-      <Link to={`/equipos/${match.home.id}`} className="motm-fixture-row__main">
+      {/* La fila NO navega: en Próximos solo se entra por los botones de
+          abajo (previsiones / alineaciones). Antes llevaba al perfil del
+          equipo local, poco intuitivo. */}
+      <div className="motm-fixture-row__main motm-fixture-row__main--static">
         <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
         <span className="motm-fixture-row__team">
           <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
@@ -81,7 +84,7 @@ function UpcomingRow({ match, showPredictions }: { match: UpcomingMatch; showPre
           {match.competitionShort}
           {match.matchday ? ` · J${match.matchday}` : ''}
         </span>
-      </Link>
+      </div>
       {showPredictions && (
         <div className="motm-fixture-row__actions">
           <Link to={`/partidos/${match.id}/previsiones`} className="motm-fixture-row__action">

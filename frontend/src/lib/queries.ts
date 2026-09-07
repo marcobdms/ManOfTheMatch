@@ -692,6 +692,89 @@ export function useTeamMatchHistory(teamId: string | undefined, limit = 20) {
   })
 }
 
+export type TeamSeasonStats = {
+  matches: number
+  possession: number | null
+  shots: number | null
+  shotsOnTarget: number | null
+  xg: number | null
+  bigChances: number | null
+}
+
+/** "38 (51%)" | "1.68" | "17" -> 38 | 1.68 | 17 */
+function leadingNumber(v: string | null | undefined): number | null {
+  if (!v) return null
+  const m = /-?\d+(?:\.\d+)?/.exec(v)
+  return m ? Number(m[0]) : null
+}
+
+/**
+ * Medias del equipo esta temporada, agregando `match_team_stats` (Fotmob) de
+ * sus partidos ya jugados. Solo LaLiga: Fotmob no cubre el resto. Devuelve
+ * `matches: 0` si aún no hay datos.
+ */
+export function useTeamSeasonStats(teamId: string | undefined) {
+  return useQuery({
+    queryKey: ['teamSeasonStats', teamId],
+    queryFn: async (): Promise<TeamSeasonStats> => {
+      const empty: TeamSeasonStats = {
+        matches: 0,
+        possession: null,
+        shots: null,
+        shotsOnTarget: null,
+        xg: null,
+        bigChances: null,
+      }
+
+      const { data: fx } = await supabase
+        .from('fixtures')
+        .select('id, home_team_id')
+        .eq('status', 'FINISHED')
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .limit(60)
+      const fixtures = (fx ?? []) as Array<{ id: string; home_team_id: string | null }>
+      if (!fixtures.length) return empty
+      const homeById = new Map(fixtures.map((f) => [f.id, f.home_team_id === teamId]))
+
+      const KEYS = ['BallPossesion', 'total_shots', 'ShotsOnTarget', 'expected_goals', 'big_chance']
+      const { data: stats } = await supabase
+        .from('match_team_stats')
+        .select('fixture_id, stat_key, home_value, away_value')
+        .in('fixture_id', [...homeById.keys()])
+        .eq('period', 'All')
+        .in('stat_key', KEYS)
+        .returns<
+          Array<{ fixture_id: string; stat_key: string; home_value: string | null; away_value: string | null }>
+        >()
+
+      const acc: Record<string, number[]> = {}
+      for (const r of stats ?? []) {
+        const isHome = homeById.get(r.fixture_id)
+        if (isHome == null) continue
+        const n = leadingNumber(isHome ? r.home_value : r.away_value)
+        if (n == null) continue
+        ;(acc[r.stat_key] ??= []).push(n)
+      }
+      const avg = (k: string): number | null => {
+        const xs = acc[k]
+        if (!xs?.length) return null
+        return xs.reduce((a, b) => a + b, 0) / xs.length
+      }
+
+      return {
+        matches: fixtures.length,
+        possession: avg('BallPossesion'),
+        shots: avg('total_shots'),
+        shotsOnTarget: avg('ShotsOnTarget'),
+        xg: avg('expected_goals'),
+        bigChances: avg('big_chance'),
+      }
+    },
+    enabled: hasSupabaseEnv && !!teamId,
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
 /** All 20 LaLiga clubs — for the favorite-team picker (Profile) and Teams browse. */
 export function useTeams() {
   return useQuery({
