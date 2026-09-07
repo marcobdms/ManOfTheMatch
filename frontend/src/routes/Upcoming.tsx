@@ -69,13 +69,13 @@ function UpcomingRow({ match, showPredictions }: { match: UpcomingMatch; showPre
       <Link to={`/equipos/${match.home.id}`} className="motm-fixture-row__main">
         <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
         <span className="motm-fixture-row__team">
-          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
+          <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
           <span className="motm-fixture-row__name">{match.home.shortName}</span>
         </span>
         <span className="motm-fixture-row__vs">–</span>
         <span className="motm-fixture-row__team motm-fixture-row__team--away">
           <span className="motm-fixture-row__name">{match.away.shortName}</span>
-          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
+          <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
         </span>
         <span className="motm-fixture-row__meta">
           {match.competitionShort}
@@ -106,7 +106,7 @@ function PastRow({ match }: { match: LiveMatch }) {
       <Link to={`/partidos/${match.id}`} className="motm-fixture-row__main">
         <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
         <span className="motm-fixture-row__team">
-          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
+          <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
           <span className="motm-fixture-row__name">{match.home.shortName}</span>
         </span>
         <span className="motm-fixture-row__vs motm-fixture-row__vs--score">
@@ -114,7 +114,7 @@ function PastRow({ match }: { match: LiveMatch }) {
         </span>
         <span className="motm-fixture-row__team motm-fixture-row__team--away">
           <span className="motm-fixture-row__name">{match.away.shortName}</span>
-          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
+          <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
         </span>
         <span className="motm-fixture-row__meta">{match.competitionShort}</span>
       </Link>

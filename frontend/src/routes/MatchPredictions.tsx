@@ -83,9 +83,9 @@ export default function MatchPredictions() {
         {!loading && match && hasPercent && (
           <div className="motm-compare">
             <div className="motm-compare__head">
-              <TeamCrest teamId={match.home.id} tla={match.home.tla} size={28} />
+              <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={28} />
               <span className="motm-label">Quién gana</span>
-              <TeamCrest teamId={match.away.id} tla={match.away.tla} size={28} />
+              <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={28} />
             </div>
             <div className="motm-predict-percent">
               <span className="motm-predict-percent__val">{percentHome ?? '—'}%</span>
@@ -134,7 +134,7 @@ export default function MatchPredictions() {
             {activeBookmaker && match && (
               <div className="motm-predict-odds">
                 <div className="motm-predict-odds__col">
-                  <TeamCrest teamId={match.home.id} tla={match.home.tla} size={24} />
+                  <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={24} />
                   <span>{activeBookmaker.home.toFixed(2)}</span>
                 </div>
                 <div className="motm-predict-odds__col">
@@ -142,7 +142,7 @@ export default function MatchPredictions() {
                   <span>{activeBookmaker.draw.toFixed(2)}</span>
                 </div>
                 <div className="motm-predict-odds__col">
-                  <TeamCrest teamId={match.away.id} tla={match.away.tla} size={24} />
+                  <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={24} />
                   <span>{activeBookmaker.away.toFixed(2)}</span>
                 </div>
               </div>

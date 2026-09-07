@@ -40,11 +40,11 @@ export default function MatchLineups() {
         {match && (
           <Segmented id="side" ariaLabel="Equipo">
             <SegmentedButton active={side === 'home'} onClick={() => setSide('home')}>
-              <TeamCrest teamId={match.home.id} tla={match.home.tla} size={18} />
+              <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={18} />
               {match.home.shortName}
             </SegmentedButton>
             <SegmentedButton active={side === 'away'} onClick={() => setSide('away')}>
-              <TeamCrest teamId={match.away.id} tla={match.away.tla} size={18} />
+              <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={18} />
               {match.away.shortName}
             </SegmentedButton>
           </Segmented>

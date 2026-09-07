@@ -106,9 +106,9 @@ export default function MatchStats() {
             {totalGroups.length > 0 && (
               <div className="motm-compare">
                 <div className="motm-compare__head">
-                  <TeamCrest teamId={match.home.id} tla={match.home.tla} size={28} />
+                  <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={28} />
                   <span className="motm-label">Comparativa</span>
-                  <TeamCrest teamId={match.away.id} tla={match.away.tla} size={28} />
+                  <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={28} />
                 </div>
 
                 <Segmented id="period" ariaLabel="Periodo del partido">

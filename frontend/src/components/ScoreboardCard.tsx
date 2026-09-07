@@ -1,12 +1,38 @@
 import { SoccerBall } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
 import laligaLogo from '../assets/crests/laliga.svg'
 import TeamCrest from './TeamCrest'
 import { useLiveMinute } from '../lib/useLiveMinute'
-import type { GoalChip, LiveMatch } from '../types/view'
+import type { GoalChip, LiveMatch, TeamLite } from '../types/view'
 
 type Props = {
   match: LiveMatch
   goals: GoalChip[]
+  /** El escudo lleva al perfil del equipo. Se desactiva cuando la tarjeta
+   *  entera ya es un enlace (lista de "En vivo"), para no anidar dos <a>. */
+  linkTeams?: boolean
+}
+
+/** Slug real de un equipo seguido (no un `ext:Nombre` de Champions ni `tbd`). */
+function realSlug(id: string): boolean {
+  return !!id && !id.startsWith('ext:') && id !== 'tbd' && id !== 'demo'
+}
+
+function TeamBlock({ team, linked }: { team: TeamLite; linked: boolean }) {
+  const inner = (
+    <>
+      <TeamCrest teamId={team.id} name={team.name} tla={team.tla} size={56} className="motm-crest" />
+      <span className="motm-team__name">{team.shortName}</span>
+    </>
+  )
+  if (linked && realSlug(team.id)) {
+    return (
+      <Link to={`/equipos/${team.id}`} className="motm-team motm-team--link">
+        {inner}
+      </Link>
+    )
+  }
+  return <div className="motm-team">{inner}</div>
 }
 
 /** "sáb 13 sept, 18:45" — hora de un partido aún por jugarse. */
@@ -22,7 +48,7 @@ function kickoffLabel(iso: string): string {
   }).format(d)
 }
 
-export default function ScoreboardCard({ match, goals }: Props) {
+export default function ScoreboardCard({ match, goals, linkTeams = true }: Props) {
   const isLive = match.status === 'LIVE' || match.status === 'PAUSED'
   const isScheduled = match.status === 'SCHEDULED'
   const statusLabel = isLive ? 'En directo' : match.status === 'FINISHED' ? 'Finalizado' : 'Previa'
@@ -43,9 +69,7 @@ export default function ScoreboardCard({ match, goals }: Props) {
           )}
           {match.competitionShort} · {statusLabel}
         </span>
-        {isScheduled && (
-          <span className="motm-score__kickoff">{kickoffLabel(match.kickoffAt)}</span>
-        )}
+        {isScheduled && <span className="motm-score__kickoff">{kickoffLabel(match.kickoffAt)}</span>}
         {isLive && (
           <span
             className="motm-live"
@@ -60,19 +84,13 @@ export default function ScoreboardCard({ match, goals }: Props) {
       </div>
 
       <div className="motm-score__grid">
-        <div className="motm-team">
-          <TeamCrest teamId={match.home.id} tla={match.home.tla} size={56} className="motm-crest" />
-          <span className="motm-team__name">{match.home.shortName}</span>
-        </div>
+        <TeamBlock team={match.home} linked={linkTeams} />
         <div className="motm-score__num">
           <b>{match.homeScore}</b>
           <span>–</span>
           <b>{match.awayScore}</b>
         </div>
-        <div className="motm-team">
-          <TeamCrest teamId={match.away.id} tla={match.away.tla} size={56} className="motm-crest" />
-          <span className="motm-team__name">{match.away.shortName}</span>
-        </div>
+        <TeamBlock team={match.away} linked={linkTeams} />
       </div>
 
       {goals.length > 0 && (

@@ -1,17 +1,9 @@
-import { ChartBar, ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
+import LiveMatchView from '../components/LiveMatchView'
 import ScoreboardCard from '../components/ScoreboardCard'
-import MatchTimeline from '../components/MatchTimeline'
-import type { GoalChip, LiveMatch, TimelineEvent } from '../types/view'
-import {
-  hasSupabaseEnv,
-  isLiveStatus,
-  useGoalChips,
-  useLiveMatch,
-  useLiveRealtime,
-  useTimeline,
-} from '../lib/queries'
+import type { GoalChip, LiveMatch } from '../types/view'
+import { hasSupabaseEnv, isLiveStatus, useGoalChips, useLiveMatches } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
 
 // Dev-only fallback: used exclusively when running `vite` with no Supabase URL.
@@ -39,29 +31,6 @@ const MOCK_GOALS: GoalChip[] = [
   { minuteLabel: "63'", player: 'Bellingham' },
 ]
 
-const MOCK_EVENTS: TimelineEvent[] = [
-  { id: '1', type: 'CORNER', minuteLabel: "74'", text: 'Córner a favor del Real Madrid', narration: null },
-  { id: '2', type: 'KEY_PASS', minuteLabel: "72'", text: 'Pase filtrado de Bellingham para Vinícius Jr.', narration: null },
-  { id: '3', type: 'YELLOW', minuteLabel: "68'", text: 'Tarjeta amarilla a Araújo — falta táctica', narration: null },
-  { id: '4', type: 'GOAL', minuteLabel: "63'", text: 'GOL del Real Madrid — Bellingham (asist. Vinícius)', narration: null },
-  { id: '5', type: 'SUB', minuteLabel: "60'", text: 'Cambio en el Barça — entra Fermín, sale Gavi', narration: null },
-  { id: '6', type: 'PENALTY_GOAL', minuteLabel: "45+2'", text: 'GOL del Barça — Lewandowski (de penalti)', narration: null },
-  { id: '7', type: 'YELLOW', minuteLabel: "34'", text: 'Tarjeta amarilla a Gavi', narration: null },
-  { id: '8', type: 'GOAL', minuteLabel: "12'", text: 'GOL del Real Madrid — Vinícius Jr.', narration: null },
-]
-
-function formatKickoff(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('es-ES', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
 function ScoreboardSkeleton() {
   return <div className="motm-skel" aria-hidden="true" />
 }
@@ -81,16 +50,15 @@ function EmptyState({ note, hasFavorite }: { note?: string; hasFavorite: boolean
   )
 }
 
-function PrematchNote({ match, hasFavorite }: { match: LiveMatch; hasFavorite: boolean }) {
-  const subject = hasFavorite ? 'Tu equipo no juega ahora' : 'Ningún equipo juega ahora'
-  const text =
-    match.status === 'FINISHED'
-      ? `${subject} — último: ${match.home.tla} ${match.homeScore}–${match.awayScore} ${match.away.tla}`
-      : `${subject} — próximo: ${match.home.tla}–${match.away.tla} · ${formatKickoff(match.kickoffAt)}`
+/** Una tarjeta de la lista cuando hay varios en directo. Mismo tamaño que la
+ *  del directo (incluye los goles), y toda ella es un enlace a su propio
+ *  directo `/en-vivo/:id`. */
+function LiveMatchCard({ match }: { match: LiveMatch }) {
+  const goalsQuery = useGoalChips(match.id, { live: isLiveStatus(match.status) })
   return (
-    <p className="motm-note" role="note">
-      {text}
-    </p>
+    <Link to={`/en-vivo/${match.id}`} className="motm-live-card">
+      <ScoreboardCard match={match} goals={goalsQuery.data ?? []} linkTeams={false} />
+    </Link>
   )
 }
 
@@ -98,20 +66,12 @@ export default function Live() {
   const { profile } = useAuth()
   const favoriteTeamId = USE_MOCK ? null : profile?.favorite_team_id ?? null
 
-  const liveQuery = useLiveMatch({ enabled: !USE_MOCK, favoriteTeamId })
-  const match: LiveMatch | null | undefined = USE_MOCK ? MOCK_MATCH : liveQuery.data
-  const fixtureId = USE_MOCK ? undefined : match?.id
-  const live = isLiveStatus(match?.status)
+  const query = useLiveMatches({ enabled: !USE_MOCK, favoriteTeamId })
+  const matches: LiveMatch[] = USE_MOCK ? [MOCK_MATCH] : query.data ?? []
+  const liveOnes = matches.filter((m) => isLiveStatus(m.status))
 
-  const goalsQuery = useGoalChips(fixtureId, { enabled: !USE_MOCK, live })
-  const timelineQuery = useTimeline(fixtureId, { enabled: !USE_MOCK, live })
-  useLiveRealtime(fixtureId, !USE_MOCK)
-
-  const goals: GoalChip[] = USE_MOCK ? MOCK_GOALS : goalsQuery.data ?? []
-  const events: TimelineEvent[] = USE_MOCK ? MOCK_EVENTS : timelineQuery.data ?? []
-
-  const loading = !USE_MOCK && liveQuery.isLoading
-  const showEmpty = !USE_MOCK && !loading && !match
+  const loading = !USE_MOCK && query.isLoading
+  const showEmpty = !USE_MOCK && !loading && matches.length === 0
 
   return (
     <>
@@ -126,35 +86,25 @@ export default function Live() {
         />
       )}
 
-      {match && (
-        <>
-          {!live && <PrematchNote match={match} hasFavorite={!!favoriteTeamId} />}
+      {USE_MOCK && <LiveMatchViewMock />}
 
-          <ScoreboardCard match={match} goals={goals} />
-
-          <div className="motm-actions">
-            {/* Antes del pitido inicial no hay estadísticas que mostrar —
-                el hueco natural es la previsión pre-partido. */}
-            {match.status === 'SCHEDULED' ? (
-              <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/previsiones`}>
-                <ChartLineUp size={16} />
-                Ver previsiones
-              </Link>
-            ) : (
-              <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/estadisticas`}>
-                <ChartBar size={16} />
-                Ver estadísticas
-              </Link>
-            )}
-            <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/alineaciones`}>
-              <UsersThree size={16} />
-              Ver alineaciones
-            </Link>
-          </div>
-
-          <MatchTimeline events={events} />
-        </>
+      {/* Varios en directo: lista de tarjetas, cada una lleva a su directo. */}
+      {!USE_MOCK && liveOnes.length > 1 && (
+        <div className="motm-live-list">
+          <p className="motm-live-list__head">{liveOnes.length} partidos en directo</p>
+          {liveOnes.map((m) => (
+            <LiveMatchCard key={m.id} match={m} />
+          ))}
+        </div>
       )}
+
+      {/* Uno solo (en directo, o el próximo/último como respaldo). */}
+      {!USE_MOCK && liveOnes.length <= 1 && matches[0] && <LiveMatchView match={matches[0]} />}
     </>
   )
+}
+
+/** El mock de desarrollo no pasa por react-query. */
+function LiveMatchViewMock() {
+  return <ScoreboardCard match={MOCK_MATCH} goals={MOCK_GOALS} />
 }

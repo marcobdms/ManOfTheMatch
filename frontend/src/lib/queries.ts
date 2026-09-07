@@ -364,6 +364,39 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
   return null
 }
 
+/**
+ * TODOS los partidos en juego ahora (LaLiga + Champions, seguidos o no) para
+ * la vista "En vivo" cuando hay varios a la vez. Si no hay ninguno, cae al
+ * único partido de `fetchLiveMatch` (próximo / último), envuelto en lista.
+ */
+async function fetchLiveMatches(favoriteTeamId?: string | null): Promise<LiveMatch[]> {
+  const inPlay = await supabase
+    .from('fixtures')
+    .select(FIXTURE_SELECT)
+    .in('status', ['LIVE', 'PAUSED'])
+    .order('kickoff_at', { ascending: true })
+    .returns<FixtureRow[]>()
+  if (inPlay.error) throw inPlay.error
+
+  if (inPlay.data?.length) {
+    const matches = inPlay.data.map(toLiveMatch)
+    return matches.sort((a, b) => {
+      // El del equipo favorito primero; luego LaLiga antes que Champions;
+      // luego por hora de inicio.
+      const favA = a.home.id === favoriteTeamId || a.away.id === favoriteTeamId
+      const favB = b.home.id === favoriteTeamId || b.away.id === favoriteTeamId
+      if (favA !== favB) return favA ? -1 : 1
+      const ligaA = a.competitionShort === 'LaLiga'
+      const ligaB = b.competitionShort === 'LaLiga'
+      if (ligaA !== ligaB) return ligaA ? -1 : 1
+      return a.kickoffAt.localeCompare(b.kickoffAt)
+    })
+  }
+
+  const single = await fetchLiveMatch(favoriteTeamId)
+  return single ? [single] : []
+}
+
 /** Next `limit` LaLiga+Champions fixtures still to be played, soonest first.
  *  `favoriteTeamId` narrows to that club only (Próximos "solo mi equipo"). */
 async function fetchUpcomingFixtures(
@@ -568,6 +601,18 @@ export function useLiveMatch(opts: { enabled?: boolean; favoriteTeamId?: string 
     staleTime: 15_000,
     refetchInterval: (query) =>
       isLiveStatus(query.state.data?.status) ? LIVE_MS : false,
+  })
+}
+
+/** Todos los partidos en juego a la vez — vista "En vivo". */
+export function useLiveMatches(opts: { enabled?: boolean; favoriteTeamId?: string | null } = {}) {
+  return useQuery({
+    queryKey: ['liveMatches', opts.favoriteTeamId ?? null],
+    queryFn: () => fetchLiveMatches(opts.favoriteTeamId),
+    enabled: (opts.enabled ?? true) && hasSupabaseEnv,
+    staleTime: 15_000,
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((m) => isLiveStatus(m.status)) ? LIVE_MS : 60_000,
   })
 }
 

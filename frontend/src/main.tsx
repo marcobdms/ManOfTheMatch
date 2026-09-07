@@ -16,6 +16,8 @@ import Upcoming from './routes/Upcoming'
 import Teams from './routes/Teams'
 import Standings from './routes/Standings'
 import TeamLineup from './routes/TeamLineup'
+import TeamProfile from './routes/TeamProfile'
+import LiveMatchRoute from './routes/LiveMatchRoute'
 import MatchStats from './routes/MatchStats'
 import MatchPredictions from './routes/MatchPredictions'
 import MatchLineups from './routes/MatchLineups'
@@ -32,13 +34,15 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <Live /> },
+      { path: 'en-vivo/:fixtureId', element: <LiveMatchRoute /> },
       { path: 'home', element: <Home /> },
       { path: 'proximos', element: <Upcoming /> },
       { path: 'noticias/:newsId', element: <NewsDetail /> },
       { path: 'equipos', element: <Teams /> },
       { path: 'clasificacion', element: <Standings /> },
       { path: 'clasificacion/champions', element: <Standings competition="ucl" /> },
-      { path: 'equipos/:teamId', element: <TeamLineup /> },
+      { path: 'equipos/:teamId', element: <TeamProfile /> },
+      { path: 'equipos/:teamId/alineacion', element: <TeamLineup /> },
       { path: 'partidos/:fixtureId/estadisticas', element: <MatchStats /> },
       { path: 'partidos/:fixtureId/previsiones', element: <MatchPredictions /> },
       { path: 'partidos/:fixtureId/alineaciones', element: <MatchLineups /> },
