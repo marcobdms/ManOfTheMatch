@@ -58,7 +58,7 @@ const NAME_TO_CREST: Record<string, string> = {
   'RB Leipzig': 'rb-leipzig',
   'SK Slavia Praha': 'slavia-praha',
   'Racing Club de Lens': 'rc-lens',
-  // Falta el SVG de ŠK Slovan Bratislava — cae al círculo con las siglas.
+  'ŠK Slovan Bratislava': 'slovan-bratislava',
 }
 
 const norm = (s: string) =>

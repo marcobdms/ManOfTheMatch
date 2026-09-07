@@ -9,8 +9,22 @@ type Props = {
   goals: GoalChip[]
 }
 
+/** "sáb 13 sept, 18:45" — hora de un partido aún por jugarse. */
+function kickoffLabel(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('es-ES', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}
+
 export default function ScoreboardCard({ match, goals }: Props) {
   const isLive = match.status === 'LIVE' || match.status === 'PAUSED'
+  const isScheduled = match.status === 'SCHEDULED'
   const statusLabel = isLive ? 'En directo' : match.status === 'FINISHED' ? 'Finalizado' : 'Previa'
   // Reloj nativo si hay ancla; si no (recién LIVE, o PAUSED — el reloj se
   // congela en el descanso), cae al minuteLabel que ya trae el backend.
@@ -29,6 +43,9 @@ export default function ScoreboardCard({ match, goals }: Props) {
           )}
           {match.competitionShort} · {statusLabel}
         </span>
+        {isScheduled && (
+          <span className="motm-score__kickoff">{kickoffLabel(match.kickoffAt)}</span>
+        )}
         {isLive && (
           <span
             className="motm-live"

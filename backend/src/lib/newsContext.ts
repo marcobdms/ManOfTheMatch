@@ -76,41 +76,60 @@ export async function buildNewsContext(
     ctx.balance_goles = { a_favor: row.goals_for, en_contra: row.goals_against };
   }
 
+  // Nombre del rival: catálogo de LaLiga, o el nombre inline de la fila para
+  // los rivales de Champions (que no tienen slug). null si de verdad no lo
+  // sabemos — mejor omitir el rival que escribir "contra rival".
+  const rivalName = (
+    isHome: boolean,
+    homeId: string | null,
+    awayId: string | null,
+    homeName: string | null,
+    awayName: string | null,
+  ): string | null => {
+    const id = isHome ? awayId : homeId;
+    const inline = isHome ? awayName : homeName;
+    if (id && TEAM_NAME[id as TeamId]) return TEAM_NAME[id as TeamId];
+    return inline?.trim() || null;
+  };
+
   const { data: played } = await db
     .from('fixtures')
-    .select('home_team_id, away_team_id, home_score, away_score, kickoff_at')
+    .select('home_team_id, away_team_id, home_team_name, away_team_name, home_score, away_score, kickoff_at')
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .eq('status', 'FINISHED')
     .order('kickoff_at', { ascending: false })
     .limit(5);
   for (const f of (played ?? []) as Array<{
     home_team_id: string | null; away_team_id: string | null;
+    home_team_name: string | null; away_team_name: string | null;
     home_score: number | null; away_score: number | null;
   }>) {
     if (f.home_score == null || f.away_score == null) continue;
     const isHome = f.home_team_id === teamId;
-    const rivalId = (isHome ? f.away_team_id : f.home_team_id) as TeamId | null;
+    const rival = rivalName(isHome, f.home_team_id, f.away_team_id, f.home_team_name, f.away_team_name);
     const gf = isHome ? f.home_score : f.away_score;
     const ga = isHome ? f.away_score : f.home_score;
     ctx.ultimos_partidos.push(
-      `${resultLabel(gf, ga)} ${gf}-${ga} ${isHome ? 'en casa' : 'fuera'} contra ${rivalId ? TEAM_NAME[rivalId] ?? rivalId : 'rival'}`,
+      `${resultLabel(gf, ga)} ${gf}-${ga} ${isHome ? 'en casa' : 'fuera'}` + (rival ? ` contra ${rival}` : ''),
     );
   }
 
   const { data: next } = await db
     .from('fixtures')
-    .select('home_team_id, away_team_id, kickoff_at')
+    .select('home_team_id, away_team_id, home_team_name, away_team_name, kickoff_at')
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .eq('status', 'SCHEDULED')
     .gte('kickoff_at', new Date().toISOString())
     .order('kickoff_at', { ascending: true })
     .limit(1);
-  const nf = next?.[0] as { home_team_id: string | null; away_team_id: string | null; kickoff_at: string } | undefined;
+  const nf = next?.[0] as
+    | { home_team_id: string | null; away_team_id: string | null; home_team_name: string | null; away_team_name: string | null; kickoff_at: string }
+    | undefined;
   if (nf) {
     const isHome = nf.home_team_id === teamId;
-    const rivalId = (isHome ? nf.away_team_id : nf.home_team_id) as TeamId | null;
+    const rival = rivalName(isHome, nf.home_team_id, nf.away_team_id, nf.home_team_name, nf.away_team_name);
     ctx.proximo_partido = {
-      rival: rivalId ? TEAM_NAME[rivalId] ?? rivalId : 'rival',
+      rival: rival ?? 'por determinar',
       donde: isHome ? 'casa' : 'fuera',
       cuando: new Intl.DateTimeFormat('es-ES', {
         weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',

@@ -4,11 +4,21 @@ import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
 import { StaggerItem, StaggerList } from '../components/StaggerList'
 import { useStandings } from '../lib/queries'
+import { crestForUclTeam } from '../lib/crestsUcl'
 import type { StandingRow } from '../types/view'
 
+type Competition = 'laliga' | 'ucl'
+
 // LaLiga: 4 primeros a Champions, 5º Europa League, 6º Conference, 3 últimos
-// descienden. Solo colorea el borde — la posición ya va escrita al lado.
-function zoneClass(position: number, total: number): string {
+// descienden. Champions (fase liga, 36 equipos): 1-8 a octavos directo, 9-24
+// a la ronda previa (playoff), 25-36 eliminados. Solo colorea el borde — la
+// posición ya va escrita al lado.
+function zoneClass(comp: Competition, position: number, total: number): string {
+  if (comp === 'ucl') {
+    if (position <= 8) return ' is-ucl'
+    if (position <= 24) return ' is-uel'
+    return ' is-drop'
+  }
   if (position <= 4) return ' is-ucl'
   if (position === 5) return ' is-uel'
   if (position === 6) return ' is-conf'
@@ -31,11 +41,13 @@ function FormPill({ form }: { form: string }) {
   )
 }
 
-function Row({ row, total }: { row: StandingRow; total: number }) {
+function Row({ row, total, comp }: { row: StandingRow; total: number; comp: Competition }) {
+  const crestSrc = comp === 'ucl' ? crestForUclTeam(row.teamName) : undefined
+  const tla = row.tla ?? row.teamName.slice(0, 3).toUpperCase()
   const inner = (
     <>
-      <span className={'motm-table__pos' + zoneClass(row.position, total)}>{row.position}</span>
-      <TeamCrest teamId={row.teamId ?? undefined} tla={row.tla ?? '—'} size={22} className="motm-table__crest" />
+      <span className={'motm-table__pos' + zoneClass(comp, row.position, total)}>{row.position}</span>
+      <TeamCrest teamId={row.teamId ?? undefined} tla={tla} size={22} className="motm-table__crest" src={crestSrc} />
       <span className="motm-table__name">{row.teamName}</span>
       <span className="motm-table__num">{row.played ?? '—'}</span>
       <span className="motm-table__num motm-table__num--record">
@@ -58,13 +70,14 @@ function Row({ row, total }: { row: StandingRow; total: number }) {
   )
 }
 
-/** Clasificación completa de LaLiga — desde "Ver tabla" en Home. Una sola
- *  lectura de `standings` (la instantánea más reciente), sin cálculos propios:
- *  los puntos y el golaverage vienen ya hechos de la fuente. */
-export default function Standings() {
-  const standingsQuery = useStandings('laliga', 30)
+/** Clasificación completa — desde "Ver tabla" en Home. Una sola lectura de
+ *  `standings` (la instantánea más reciente), sin cálculos propios: los puntos
+ *  y el golaverage vienen ya hechos de la fuente. */
+export default function Standings({ competition = 'laliga' }: { competition?: Competition }) {
+  const standingsQuery = useStandings(competition, 40)
   const rows = standingsQuery.data ?? []
   const withForm = rows.filter((r) => r.form)
+  const isUcl = competition === 'ucl'
 
   return (
     <>
@@ -74,7 +87,7 @@ export default function Standings() {
           <BackButton />
           <div className="motm-lineup__identity">
             <h1 className="motm-lineup__name">Clasificación</h1>
-            <p className="motm-lineup__meta">LaLiga</p>
+            <p className="motm-lineup__meta">{isUcl ? 'Champions' : 'LaLiga'}</p>
           </div>
         </div>
 
@@ -85,7 +98,9 @@ export default function Standings() {
         {!standingsQuery.isLoading && rows.length === 0 && (
           <div className="motm-empty">
             <b>Sin clasificación todavía</b>
-            Aún no hay una tabla publicada para esta temporada.
+            {isUcl
+              ? 'La fase de liga de la Champions aún no ha empezado.'
+              : 'Aún no hay una tabla publicada para esta temporada.'}
           </div>
         )}
 
@@ -104,7 +119,7 @@ export default function Standings() {
             <StaggerList className="motm-table__body">
               {rows.map((row) => (
                 <StaggerItem key={row.teamId ?? row.teamName}>
-                  <Row row={row} total={rows.length} />
+                  <Row row={row} total={rows.length} comp={competition} />
                 </StaggerItem>
               ))}
             </StaggerList>
@@ -114,7 +129,12 @@ export default function Standings() {
                 <h2 className="motm-label motm-subs__title">Racha (últimos 5)</h2>
                 {withForm.map((row) => (
                   <div className="motm-table__form-row" key={`form-${row.teamId ?? row.teamName}`}>
-                    <TeamCrest teamId={row.teamId ?? undefined} tla={row.tla ?? '—'} size={20} />
+                    <TeamCrest
+                      teamId={row.teamId ?? undefined}
+                      tla={row.tla ?? row.teamName.slice(0, 3).toUpperCase()}
+                      size={20}
+                      src={isUcl ? crestForUclTeam(row.teamName) : undefined}
+                    />
                     <span className="motm-table__name">{row.teamName}</span>
                     <FormPill form={row.form!} />
                   </div>
@@ -123,10 +143,20 @@ export default function Standings() {
             )}
 
             <div className="motm-table__legend">
-              <span><i className="motm-table__key is-ucl" /> Champions</span>
-              <span><i className="motm-table__key is-uel" /> Europa League</span>
-              <span><i className="motm-table__key is-conf" /> Conference</span>
-              <span><i className="motm-table__key is-drop" /> Descenso</span>
+              {isUcl ? (
+                <>
+                  <span><i className="motm-table__key is-ucl" /> Octavos</span>
+                  <span><i className="motm-table__key is-uel" /> Playoff</span>
+                  <span><i className="motm-table__key is-drop" /> Eliminado</span>
+                </>
+              ) : (
+                <>
+                  <span><i className="motm-table__key is-ucl" /> Champions</span>
+                  <span><i className="motm-table__key is-uel" /> Europa League</span>
+                  <span><i className="motm-table__key is-conf" /> Conference</span>
+                  <span><i className="motm-table__key is-drop" /> Descenso</span>
+                </>
+              )}
             </div>
           </div>
         )}

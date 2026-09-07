@@ -32,3 +32,6 @@ tester/reports/
 
 # Supabase CLI cache
 supabase/.temp/
+
+# fuentes originales de assets (los SVG en uso están en frontend/src/assets)
+assets-raw/

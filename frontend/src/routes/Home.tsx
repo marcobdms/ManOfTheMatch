@@ -152,6 +152,7 @@ export default function Home() {
           <Section>
             <div className="motm-home__section-head">
               <h2 className="motm-label">Clasificación · Champions</h2>
+              <Link to="/clasificacion/champions" className="motm-home__see-all">Ver tabla</Link>
             </div>
             <StandingsTable
               rows={uclQuery.data}

@@ -384,10 +384,14 @@ async function writeShots(
     is_from_inside_box: s.isFromInsideBox ?? null,
     expected_goals: s.expectedGoals ?? null,
     shot_type: s.shotType ?? null,
+    source: 'fotmob',
     source_shot_id: s.id != null ? String(s.id) : null,
   }));
 
-  await db.from('match_shots').upsert(rows, { onConflict: 'fixture_id,source_shot_id' });
+  // La restricción única de `match_shots` (0008) es de TRES columnas
+  // (fixture_id, source, source_shot_id). Con solo dos, Postgres devuelve
+  // 42P10 "no unique constraint matching the ON CONFLICT specification".
+  await db.from('match_shots').upsert(rows, { onConflict: 'fixture_id,source,source_shot_id' });
 }
 
 async function writeMatchFacts(fixtureId: string, details: FotmobMatchDetails): Promise<void> {

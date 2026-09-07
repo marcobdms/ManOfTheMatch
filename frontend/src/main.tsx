@@ -37,6 +37,7 @@ const router = createBrowserRouter([
       { path: 'noticias/:newsId', element: <NewsDetail /> },
       { path: 'equipos', element: <Teams /> },
       { path: 'clasificacion', element: <Standings /> },
+      { path: 'clasificacion/champions', element: <Standings competition="ucl" /> },
       { path: 'equipos/:teamId', element: <TeamLineup /> },
       { path: 'partidos/:fixtureId/estadisticas', element: <MatchStats /> },
       { path: 'partidos/:fixtureId/previsiones', element: <MatchPredictions /> },

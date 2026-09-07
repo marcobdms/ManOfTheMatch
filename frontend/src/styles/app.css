@@ -142,6 +142,15 @@
   filter: brightness(0) invert(1);
   opacity: 0.6;
 }
+/* Hora del partido a la derecha de "Champions · Previa" (solo si aún no ha
+   empezado). El `space-between` de `.motm-score__top` la empuja al borde. */
+.motm-score__kickoff {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
 .motm-live {
   display: flex;
   align-items: center;
@@ -1540,8 +1549,12 @@
   position: absolute;
   inset: 0;
   border-radius: var(--r-btn);
-  background: var(--card);
-  box-shadow: var(--sh-card);
+  /* En oscuro `--card` y `--muted` (la pista) casi coinciden y el activo no
+     se distinguía. `--seg-pill-bg` es un tono más claro que la pista + un
+     borde y una sombra marcada para que el seleccionado se lea de un vistazo. */
+  background: var(--seg-pill-bg);
+  border: 1px solid var(--seg-pill-line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 6px 16px -6px rgba(0, 0, 0, 0.3);
 }
 .motm-segmented__label {
   position: relative;

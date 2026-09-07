@@ -26,20 +26,21 @@ Escribes una pieza BREVE Y ORIGINAL. No traduces ni reescribes el artículo ajen
 REGLAS ESTRICTAS:
 - Usa EXCLUSIVAMENTE los datos del JSON. Prohibido inventar cifras, fechas, dorsales, declaraciones, lesiones o fichajes que no estén ahí.
 - NUNCA digas la posición ni el rol de un futbolista (delantero, mediocentro, lateral, capitán...): ese dato NO lo recibes. Si no está en el JSON, no lo escribas.
+- NUNCA nombres el estadio, la ciudad, el árbitro, el entrenador rival ni la asistencia: no vienen en el JSON. Nada de "en el Bernabéu", "en Montjuïc".
 - No copies códigos ni siglas del JSON tal cual: escribe siempre en castellano corriente.
 - Escribe en pasado o presente, según lo que ya ha ocurrido; no uses futuro para algo que ya pasó.
 - Si los DATOS vienen vacíos, escribe la pieza solo con lo que dice la pista, sin rellenar con suposiciones.
 - NOMBRA SIEMPRE a los equipos y a las personas por su nombre. Está PROHIBIDO escribir "el rival", "el equipo", "el conjunto", "los locales" o "los visitantes" en lugar del nombre. Si la pista dice "El Getafe recibe al Celta", el titular nombra a Getafe y a Celta.
-- EL TITULAR TIENE QUE CONTAR EL HECHO CONCRETO, no describir el tema. De 4 a 10 palabras, sin puntuación final, y distinto al de la pista.
+- SI LA PISTA TRAE UNA DECLARACIÓN LITERAL (texto entre comillas: "…", «…»), esa cita ES EL TITULAR — estilo prensa deportiva. El titular DEBE tener la forma exacta 'Apellido: "cita"' — con las comillas dobles SIEMPRE puestas alrededor de la cita. Puedes acortar la cita sin cambiar el sentido, pero nunca quites las comillas. Ej.: pista 'Mourinho, tras el penalti: "El VAR nos ha perjudicado claramente"' → titular: 'Mourinho: "El VAR nos ha perjudicado"'. MAL (sin comillas): 'Mourinho: El VAR nos ha perjudicado'. Y mete esa misma cita, literal y entrecomillada, en el párrafo.
+- Sin cita literal, EL TITULAR CUENTA EL HECHO CONCRETO, no el tema. De 4 a 10 palabras, sin puntuación final, y distinto al de la pista.
   · Resultado: quién gana a quién y por cuánto ("El Alavés golea 5-2 al Osasuna").
-  · Declaración: quién habla y qué dice ("Luís Castro: el punto no es malo").
   · Lesión o fichaje: a quién le pasa y qué ("Lobete se rompe el cruzado").
   · Previa: los dos equipos y qué está en juego o la jornada ("Getafe-Celta abre la quinta jornada").
   · Once: el equipo y algo del once ("El Elche confirma su once con un 4-3-3").
   PROHIBIDOS los titulares genéricos que valdrían para cualquier equipo cualquier día: "analiza su rendimiento", "hace balance", "mira al futuro", "busca la victoria", "afronta un nuevo reto", "se enfrenta a su rival". Si tu titular no nombra a los protagonistas y un hecho verificable del JSON, está mal.
 - El párrafo son 2-3 frases (máximo 60 palabras). Directo, sin floritura y sin frases de relleno.
 - No cites al otro medio por su nombre ni digas "según informa": el enlace a la fuente ya se muestra aparte.
-- No uses comillas de declaraciones salvo que aparezcan literales en la pista.
+- No te inventes comillas: solo se entrecomilla lo que venga literal en la pista.
 - Clasifica la pieza en uno de estos temas: LESION (bajas y estado físico), TECNICO (decisiones y declaraciones del entrenador), FICHAJES (mercado, altas y salidas), ONCE (alineaciones confirmadas), PREVIA (partido por jugarse), CRONICA (partido ya jugado).
 
 Responde SOLO con JSON válido, sin texto fuera:
@@ -52,11 +53,32 @@ Responde SOLO con JSON válido, sin texto fuera:
 const VAGUE_TITLE_RE =
   /analiza su|analisis|hace balance|mira al futuro|busca la victoria|afronta (un|el) |nuevo reto|se prepara para|repasa (su|el)|valora (su|el)|reflexiona|rendimiento del equipo|\b(el|su|al|del) rival\b|el equipo se |el conjunto |los locales|los visitantes|nuevo encuentro|proxim[oa] (partido|jornada|encuentro|duelo)$/i;
 
+/** Quita las comillas SOLO si envuelven el título entero ('"Sancet brilla"' →
+ *  'Sancet brilla'). Un titular-declaración ('Mourinho: "El VAR nos ha
+ *  perjudicado"') lleva comillas internas y se deja intacto. */
+function tidyTitle(raw: string): string {
+  const t = raw.trim();
+  const pairs: Array<[string, string]> = [
+    ['"', '"'],
+    ["'", "'"],
+    ['«', '»'],
+    ['“', '”'],
+  ];
+  for (const [open, close] of pairs) {
+    if (t.startsWith(open) && t.endsWith(close) && t.length > 2) {
+      const inner = t.slice(1, -1);
+      if (!/["'«»“”]/.test(inner)) return inner.trim();
+    }
+  }
+  return t;
+}
+
 function sane(piece: WrittenPiece | null): piece is WrittenPiece {
   if (!piece) return false;
   const { title, body } = piece;
   if (VAGUE_TITLE_RE.test(title)) return false;
-  if (title.length < 10 || title.length > 120) return false;
+  // Hasta 140: un titular-declaración entrecomillado se estira más que uno normal.
+  if (title.length < 10 || title.length > 140) return false;
   if (body.length < 40 || body.length > 600) return false;
   if (/```|\{|\}|no puedo|as an ai|lo siento|seg[uú]n informa/i.test(title + body)) return false;
   return true;
@@ -99,7 +121,7 @@ export async function writeNewsPiece(input: {
         // presupuesto: con 350 se quedaba sin margen para el JSON y Groq
         // devolvía json_validate_failed con la generación vacía.
         reasoning_effort: 'low',
-        temperature: 0.5,
+        temperature: 0.4,
         max_tokens: 900,
       }),
     }).finally(() => clearTimeout(timeout));
@@ -122,7 +144,7 @@ export async function writeNewsPiece(input: {
         : input.topicHint;
 
     const piece: WrittenPiece = {
-      title: parsed.titular.trim().replace(/^["'«»]|["'«»]$/g, ''),
+      title: tidyTitle(parsed.titular),
       body: parsed.parrafo.trim(),
       topic,
     };
