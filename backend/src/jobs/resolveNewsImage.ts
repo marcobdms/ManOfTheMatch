@@ -1,11 +1,13 @@
 /**
  * Busca foto libre para las noticias publicadas y la deja en el bucket
  * `news-images`. Mismo patrón que scripts/resolvePlayerPhotos.ts: se resuelve
- * una vez, se guarda, y se sirve desde nuestro almacenamiento — así no
- * dependemos de que Commons siga sirviendo ese archivo ni le mandamos tráfico.
+ * una vez, se guarda, y se sirve desde nuestro almacenamiento.
  *
- * Sin foto buena no se inventa nada: `image_state = 'fallback'` y el front
- * pinta la carta con el escudo del club sobre su color.
+ * DESACTIVADO por ahora (`NEWS_IMAGES_WIKIMEDIA` no está a "1"): las fotos de
+ * Wikimedia no acertaban —Pedri con España, jugadores con ex-clubes, firmando
+ * autógrafos— y la carta con el escudo del club sobre su color, que sí
+ * funciona, es lo único que se publica. Para reactivar la búsqueda: poner
+ * NEWS_IMAGES_WIKIMEDIA=1 en el entorno.
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
@@ -13,6 +15,7 @@ import { resolveSubjectImage } from '../sources/wikimedia.js';
 import { TEAM_NAME } from '../lib/newsTaxonomy.js';
 import type { TeamId } from '../lib/shared.js';
 
+const WIKIMEDIA_ENABLED = process.env.NEWS_IMAGES_WIKIMEDIA === '1';
 const BUCKET = 'news-images';
 const PER_RUN = 5;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -68,6 +71,13 @@ export function resolveNewsImages() {
 
     const rows = (data ?? []) as unknown as Row[];
     if (!rows.length) return 0;
+
+    if (!WIKIMEDIA_ENABLED) {
+      // Todas a la carta del escudo; no se llama a Wikimedia.
+      const ids = rows.map((r) => r.id);
+      await db.from('news').update({ image_state: 'fallback' }).in('id', ids);
+      return 0;
+    }
 
     let resolved = 0;
     for (const row of rows) {

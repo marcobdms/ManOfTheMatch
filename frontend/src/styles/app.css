@@ -1782,17 +1782,29 @@
   font-weight: 800;
 }
 
-/* Logo de competición dentro de la pastilla del switcher de la portada. */
-.motm-seg-comp {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+/* Pastillas de LaLiga / Champions en el switcher de la portada: solo el logo,
+   centrado. `.motm-segmented__label` ya es un inline-flex centrado por el
+   `justify-content: center` del botón, así que basta dimensionar el SVG. */
 .motm-seg-comp__logo {
-  width: 15px;
-  height: 15px;
+  display: block;
+  height: 20px;
+  width: auto;
+  max-width: 84px;
   object-fit: contain;
-  flex: none;
+}
+/* El SVG de la Champions es blanco puro: en el tema claro (fondo de pastilla
+   claro) se pintaría invisible, así que se invierte a tinta. En oscuro se
+   deja tal cual. */
+.motm-seg-comp__logo--invert {
+  filter: brightness(0);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .motm-seg-comp__logo--invert {
+    filter: none;
+  }
+}
+:root[data-theme='dark'] .motm-seg-comp__logo--invert {
+  filter: none;
 }
 
 /* ===== Noticias (portada + detalle) =====

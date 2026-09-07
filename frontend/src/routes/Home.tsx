@@ -4,9 +4,12 @@ import AppHeader from '../components/AppHeader'
 import NewsCard from '../components/NewsCard'
 import ScoreboardCard from '../components/ScoreboardCard'
 import { Segmented, SegmentedButton } from '../components/Segmented'
+import TeamCrest from '../components/TeamCrest'
 import { useGoalChips, useLiveMatch, useNews, useStandings } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
+import { crestForUclTeam } from '../lib/crestsUcl'
 import laligaLogo from '../assets/crests/laliga.svg'
+import championsLogo from '../assets/crests/champions.svg'
 import type { StandingRow } from '../types/view'
 
 const STANDINGS_LIMIT = 20
@@ -24,25 +27,39 @@ function StandingsTable({
   rows,
   isLoading,
   emptyNote,
+  competition,
 }: {
   rows: StandingRow[] | undefined
   isLoading: boolean
   emptyNote: string
+  competition: 'laliga' | 'ucl'
 }) {
   if (isLoading) return <div className="motm-skel" style={{ height: 220 }} aria-hidden="true" />
   if (!rows || rows.length === 0) return <p className="motm-note">{emptyNote}</p>
   return (
     <table className="motm-standings">
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.teamId ?? row.teamName}>
-            <td className="motm-standings__pos">{row.position}</td>
-            <td className="motm-standings__crest">{row.tla ?? '—'}</td>
-            <td className="motm-standings__name">{row.teamName}</td>
-            <td className="motm-standings__played">{row.played ?? '—'}</td>
-            <td className="motm-standings__pts">{row.points ?? '—'}</td>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          // En Champions las filas no traen slug (solo los clubes españoles),
+          // así que el escudo se busca por nombre.
+          const tla = row.tla ?? row.teamName.slice(0, 3).toUpperCase()
+          return (
+            <tr key={row.teamId ?? row.teamName}>
+              <td className="motm-standings__pos">{row.position}</td>
+              <td className="motm-standings__crest">
+                <TeamCrest
+                  teamId={row.teamId ?? undefined}
+                  tla={tla}
+                  size={20}
+                  src={competition === 'ucl' ? crestForUclTeam(row.teamName) : undefined}
+                />
+              </td>
+              <td className="motm-standings__name">{row.teamName}</td>
+              <td className="motm-standings__played">{row.played ?? '—'}</td>
+              <td className="motm-standings__pts">{row.points ?? '—'}</td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -87,16 +104,14 @@ export default function Home() {
             Noticias
           </SegmentedButton>
           <SegmentedButton active={active === 'laliga'} onClick={() => setTab('laliga')}>
-            <span className="motm-seg-comp">
-              <img src={laligaLogo} alt="" className="motm-seg-comp__logo" />
-              LaLiga
-            </span>
+            <img src={laligaLogo} alt="LaLiga" className="motm-seg-comp__logo" />
           </SegmentedButton>
           <SegmentedButton active={active === 'champions'} onClick={() => setTab('champions')}>
-            {/* Falta el SVG de la Champions: en cuanto exista
-                assets/crests/champions.svg se importa y se pinta igual que el
-                de LaLiga. Mientras tanto, solo texto. */}
-            <span className="motm-seg-comp">Champions</span>
+            <img
+              src={championsLogo}
+              alt="Champions"
+              className="motm-seg-comp__logo motm-seg-comp__logo--invert"
+            />
           </SegmentedButton>
         </Segmented>
 
@@ -126,6 +141,7 @@ export default function Home() {
             </div>
             <StandingsTable
               rows={ligaQuery.data}
+              competition="laliga"
               isLoading={ligaQuery.isLoading}
               emptyNote="Todavía no hay clasificación disponible."
             />
@@ -139,6 +155,7 @@ export default function Home() {
             </div>
             <StandingsTable
               rows={uclQuery.data}
+              competition="ucl"
               isLoading={uclQuery.isLoading}
               emptyNote="La fase de liga de la Champions aún no ha empezado."
             />

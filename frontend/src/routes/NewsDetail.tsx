@@ -1,5 +1,4 @@
 import { useParams } from 'react-router-dom'
-import { ArrowSquareOut } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
@@ -43,16 +42,6 @@ export default function NewsDetail() {
             {team && <span className="motm-news__eyebrow">{team.name.toUpperCase()}</span>}
             <h1 className="motm-newsdetail__title">{item.title}</h1>
             {item.body && <p className="motm-newsdetail__body">{item.body}</p>}
-
-            {/* La pieza es nuestra, pero el dato de partida no: la fuente se
-                cita y se enlaza siempre que exista. */}
-            {item.originalUrl && (
-              <a className="motm-btn motm-newsdetail__source" href={item.originalUrl} target="_blank" rel="noreferrer">
-                <ArrowSquareOut size={16} />
-                Leer en {item.originalSource ?? 'la fuente'}
-                {item.originalAuthor ? ` · ${item.originalAuthor}` : ''}
-              </a>
-            )}
           </article>
         )}
       </div>

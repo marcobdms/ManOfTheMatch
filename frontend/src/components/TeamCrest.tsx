@@ -6,13 +6,16 @@ type Props = {
   color?: string | null
   size?: number
   className?: string
+  /** Escudo ya resuelto por fuera (p.ej. clubes de Champions, que se buscan
+   *  por nombre y no por slug). Si viene, manda sobre `crestFor(teamId)`. */
+  src?: string | null
 }
 
 /** Escudo real (SVG) si lo tenemos; si no (hoy: Alavés), el círculo con TLA
  *  de siempre. El círculo lleva el mismo sesgo itálico que el wordmark
  *  (`--motm-tilt`) para que ambos compartan personalidad de marca. */
-export default function TeamCrest({ teamId, tla, color, size = 32, className = '' }: Props) {
-  const src = crestFor(teamId)
+export default function TeamCrest({ teamId, tla, color, size = 32, className = '', src: srcOverride }: Props) {
+  const src = srcOverride ?? crestFor(teamId)
 
   if (src) {
     return (

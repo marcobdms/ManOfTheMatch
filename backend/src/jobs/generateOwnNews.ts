@@ -23,13 +23,37 @@ type Fx = {
   id: string;
   home_team_id: string | null;
   away_team_id: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  competition_id: string | null;
   kickoff_at: string;
   status: string;
   home_score: number | null;
   away_score: number | null;
 };
 
-const name = (id: string | null) => (id ? TEAM_NAME[id as TeamId] ?? id : 'rival');
+const FX_COLS =
+  'id, home_team_id, away_team_id, home_team_name, away_team_name, competition_id, ' +
+  'kickoff_at, status, home_score, away_score';
+
+/**
+ * Nombre del equipo: primero el catálogo de LaLiga, luego el nombre inline que
+ * la fuente guarda para los rivales de Champions (`fixtures.home_team_name`).
+ * Devuelve null si no lo sabemos — en ese caso no se genera la noticia, para
+ * no acabar con titulares tipo "El rival recibe al rival".
+ */
+function teamLabel(id: string | null, inlineName: string | null): string | null {
+  if (id && TEAM_NAME[id as TeamId]) return TEAM_NAME[id as TeamId];
+  const n = inlineName?.trim();
+  return n || null;
+}
+
+/** Solo se guarda `team_id` si es un slug real de LaLiga (FK a teams). */
+function slugOrNull(id: string | null): string | null {
+  return id && TEAM_NAME[id as TeamId] ? id : null;
+}
+
+const compLabel = (c: string | null) => (c === 'ucl' ? 'la Champions' : 'LaLiga');
 
 /**
  * Inserta la noticia si es nueva. Si ya existía y SIGUE en draft, le refresca
@@ -76,24 +100,27 @@ export function generateOwnNews() {
     // --- PREVIA: partidos de las próximas 36h ---
     const { data: upcoming } = await db
       .from('fixtures')
-      .select('id, home_team_id, away_team_id, kickoff_at, status, home_score, away_score')
+      .select(FX_COLS)
       .eq('status', 'SCHEDULED')
       .gte('kickoff_at', new Date(now).toISOString())
       .lte('kickoff_at', new Date(now + PREVIEW_WINDOW_H * 3600_000).toISOString())
       .order('kickoff_at', { ascending: true })
       .limit(10);
 
-    for (const f of (upcoming ?? []) as unknown as Fx[]) {
-      const home = name(f.home_team_id);
-      const away = name(f.away_team_id);
+    const upcomingRows = (upcoming ?? []) as unknown as Fx[];
+
+    for (const f of upcomingRows) {
+      const home = teamLabel(f.home_team_id, f.home_team_name);
+      const away = teamLabel(f.away_team_id, f.away_team_name);
+      if (!home || !away) continue;
       const ok = await insertDraft({
         title: `Previa: ${home} - ${away}`,
-        original_title: `${home} recibe al ${away} en LaLiga`,
+        original_title: `El ${home} recibe al ${away} en ${compLabel(f.competition_id)}`,
         url: `motm://previa/${f.id}`,
         original_url: null,
         original_source: 'ManOfTheMatch',
         published_at: new Date().toISOString(),
-        team_id: f.home_team_id,
+        team_id: slugOrNull(f.home_team_id),
         fixture_id: f.id,
         topic: 'PREVIA',
         subject: null,
@@ -104,7 +131,7 @@ export function generateOwnNews() {
     }
 
     // --- ONCE: alineación confirmada de un partido próximo ---
-    const fixtureIds = ((upcoming ?? []) as unknown as Fx[]).map((f) => f.id);
+    const fixtureIds = upcomingRows.map((f) => f.id);
     if (fixtureIds.length) {
       const { data: lineups } = await db
         .from('lineups')
@@ -123,10 +150,11 @@ export function generateOwnNews() {
       for (const [fixtureId, info] of byFixture) {
         // Solo cuando están los DOS onces: con uno solo la noticia va coja.
         if (info.teams.size < 2) continue;
-        const f = (upcoming as unknown as Fx[]).find((x) => x.id === fixtureId);
+        const f = upcomingRows.find((x) => x.id === fixtureId);
         if (!f) continue;
-        const home = name(f.home_team_id);
-        const away = name(f.away_team_id);
+        const home = teamLabel(f.home_team_id, f.home_team_name);
+        const away = teamLabel(f.away_team_id, f.away_team_name);
+        if (!home || !away) continue;
         const ok = await insertDraft({
           title: `Ya hay onces para el ${home} - ${away}`,
           original_title:
@@ -136,7 +164,7 @@ export function generateOwnNews() {
           original_url: null,
           original_source: 'ManOfTheMatch',
           published_at: new Date().toISOString(),
-          team_id: f.home_team_id,
+          team_id: slugOrNull(f.home_team_id),
           fixture_id: fixtureId,
           topic: 'ONCE',
           subject: null,
@@ -150,7 +178,7 @@ export function generateOwnNews() {
     // --- CRONICA: partidos terminados en las últimas 12h ---
     const { data: finished } = await db
       .from('fixtures')
-      .select('id, home_team_id, away_team_id, kickoff_at, status, home_score, away_score')
+      .select(FX_COLS)
       .eq('status', 'FINISHED')
       .gte('kickoff_at', new Date(now - RECAP_WINDOW_H * 3600_000).toISOString())
       .order('kickoff_at', { ascending: false })
@@ -158,8 +186,10 @@ export function generateOwnNews() {
 
     for (const f of (finished ?? []) as unknown as Fx[]) {
       if (f.home_score == null || f.away_score == null) continue;
-      const home = name(f.home_team_id);
-      const away = name(f.away_team_id);
+      const home = teamLabel(f.home_team_id, f.home_team_name);
+      const away = teamLabel(f.away_team_id, f.away_team_name);
+      if (!home || !away) continue;
+
       const homeWon = f.home_score > f.away_score;
       const draw = f.home_score === f.away_score;
 
@@ -184,7 +214,8 @@ export function generateOwnNews() {
       const homeGoals = goalsFor(f.home_team_id);
       const awayGoals = goalsFor(f.away_team_id);
 
-      const winnerId = draw ? f.home_team_id : homeWon ? f.home_team_id : f.away_team_id;
+      const winnerName = homeWon ? home : away;
+      const loserName = homeWon ? away : home;
       const ws = Math.max(f.home_score, f.away_score);
       const ls = Math.min(f.home_score, f.away_score);
 
@@ -195,9 +226,15 @@ export function generateOwnNews() {
         ? `El ${home} y el ${away} empatan ${f.home_score}-${f.away_score} (el ${home} jugaba en casa).` +
           goalLine(home, homeGoals) +
           goalLine(away, awayGoals)
-        : `El ${name(winnerId)} gana ${ws}-${ls} ${homeWon ? 'en casa al' : 'a domicilio al'} ${homeWon ? away : home}.` +
+        : `El ${winnerName} gana ${ws}-${ls} ${homeWon ? 'en casa al' : 'a domicilio al'} ${loserName}.` +
           goalLine(home, homeGoals) +
           goalLine(away, awayGoals);
+
+      const winnerId = draw
+        ? f.home_team_id
+        : homeWon
+          ? f.home_team_id
+          : f.away_team_id;
 
       const ok = await insertDraft({
         title: `${home} ${f.home_score}-${f.away_score} ${away}`,
@@ -206,7 +243,7 @@ export function generateOwnNews() {
         original_url: null,
         original_source: 'ManOfTheMatch',
         published_at: new Date().toISOString(),
-        team_id: winnerId,
+        team_id: slugOrNull(winnerId),
         fixture_id: f.id,
         topic: 'CRONICA',
         subject: (winnerId === f.home_team_id ? homeGoals : awayGoals)[0] ?? null,
