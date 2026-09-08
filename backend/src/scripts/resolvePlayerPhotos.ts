@@ -21,8 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { db } from '../db.js';
-import { TEAMS } from '../lib/shared.js';
-import type { TeamId } from '../lib/shared.js';
+import { TEAMS, UCL_TEAMS } from '../lib/shared.js';
 import { lastKey, nameKey } from '../lib/playerPhotos.js';
 import { refreshTeamCache, apiFootballIdForTeam, tsdbIdForTeam } from '../lib/ids.js';
 
@@ -176,7 +175,7 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
 type TsdbPlayer = { strPlayer?: string; strCutout?: string };
 type AfPlayer = { name?: string; photo?: string };
 
-async function resolveTeam(teamId: TeamId): Promise<Resolved[]> {
+async function resolveTeam(teamId: string): Promise<Resolved[]> {
   const out = new Map<string, Resolved>();
 
   // 1) TheSportsDB: recortes nativos, sin retoque.
@@ -233,8 +232,8 @@ async function main(): Promise<void> {
   await ensureBucket();
 
   const only = process.argv[2];
-  const teams = (Object.values(TEAMS) as Array<{ id: string }>)
-    .map((t) => t.id as TeamId)
+  const teams = [...Object.values(TEAMS), ...Object.values(UCL_TEAMS)]
+    .map((t) => t.id as string)
     .filter((id) => !only || id === only);
 
   let total = 0;

@@ -1013,6 +1013,7 @@ type RawLineupRow = {
   season_rating: number | null
   coach: string | null
   lineup_type: string | null
+  photo_url: string | null
 }
 
 /**
@@ -1026,7 +1027,7 @@ async function fetchMatchLineups(fixtureId: string): Promise<Record<string, Team
     .from('lineups')
     .select(
       'team_id, formation, is_starting, player_name, shirt_number, position_label, ' +
-        'pos_x, pos_y, age, country, country_code, rating, season_rating, coach, lineup_type',
+        'pos_x, pos_y, age, country, country_code, rating, season_rating, coach, lineup_type, photo_url',
     )
     .eq('fixture_id', fixtureId)
     .returns<RawLineupRow[]>()
@@ -1054,7 +1055,7 @@ async function fetchMatchLineups(fixtureId: string): Promise<Record<string, Team
       rating: r.rating,
       seasonRating: r.season_rating,
       isStarter: r.is_starting,
-      photoUrl: null,
+      photoUrl: r.photo_url,
     }))
     out[teamId] = {
       teamId,

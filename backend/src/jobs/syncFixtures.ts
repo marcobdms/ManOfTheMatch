@@ -1,4 +1,4 @@
-import { COMPETITIONS, CURRENT_SEASON, TEAMS } from '../lib/shared.js';
+import { COMPETITIONS, CURRENT_SEASON, TEAMS, UCL_TEAMS } from '../lib/shared.js';
 import type { CompetitionId } from '../lib/shared.js';
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
@@ -128,17 +128,23 @@ async function upsertFixture(
 }
 
 /**
- * For each tracked team, read TheSportsDB `eventsnext` and stamp the matching
+ * For each team with a TheSportsDB id, read `eventsnext` and stamp the matching
  * `fixtures` row with `source_ids.theSportsDb` (+ `.apiFootball` when present).
- * Matches on kickoff date + the tracked team being on the expected side.
+ * Matches on kickoff date + the team being on the expected side.
+ *
+ * Incluye los clubes de Champions (0019 + resolveUclTeamIds): son la ÚNICA vía
+ * para el id de API-Football de un UCL de extranjero-contra-extranjero (Free
+ * de API-Football no lista fixtures de la temporada 2026), y sin ese id no hay
+ * previsiones ni cuotas.
  */
 async function crossReferenceIds(): Promise<number> {
   let patched = 0;
 
-  for (const team of Object.values(TEAMS)) {
+  const clubs = [...Object.values(TEAMS), ...Object.values(UCL_TEAMS)];
+  for (const team of clubs) {
     const slug = team.id as string;
     const tsdbId = tsdbIdForTeam(slug);
-    if (!tsdbId) continue; // not yet resolved (scripts/resolveTeamIds.ts hasn't run for this club)
+    if (!tsdbId) continue; // sin resolver (resolveTeamIds.ts / resolveUclTeamIds.ts)
 
     let events;
     try {

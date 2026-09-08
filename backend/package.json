@@ -8,6 +8,7 @@
     "start": "tsx --env-file-if-exists=.env src/index.ts",
     "typecheck": "tsc --noEmit",
     "resolve-ids": "tsx --env-file-if-exists=.env src/scripts/resolveTeamIds.ts",
+    "resolve-ucl-ids": "tsx --env-file-if-exists=.env src/scripts/resolveUclTeamIds.ts",
     "resolve-photos": "tsx --env-file-if-exists=.env src/scripts/resolvePlayerPhotos.ts",
     "sync-lineups-once": "tsx --env-file-if-exists=.env src/scripts/runSyncLineups.ts"
   },

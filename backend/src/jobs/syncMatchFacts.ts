@@ -10,6 +10,7 @@
 
 import { db } from '../db.js';
 import { fotmobPositionLabel } from '../lib/map.js';
+import { photoFor, refreshPhotoCache } from '../lib/playerPhotos.js';
 import { withRun } from '../lib/run.js';
 import { getMatchDetails } from '../sources/fotmob.js';
 import { findYoutubeHighlight } from '../sources/youtubeHighlights.js';
@@ -78,6 +79,7 @@ function needsHighlightRetry(f: FixtureRow, now: number): boolean {
 
 export function syncMatchFacts() {
   return withRun('syncMatchFacts', 'fotmob', async () => {
+    await refreshPhotoCache();
     const { data } = await db
       .from('fixtures')
       .select(
@@ -321,7 +323,7 @@ async function writeFixtureLineups(f: FixtureRow, details: FotmobMatchDetails): 
         rating: p.performance?.rating ?? null,
         season_rating: p.performance?.seasonRating ?? null,
         market_value: p.marketValue ?? null,
-        photo_url: null,
+        photo_url: photoFor(teamId, p.name),
         lineup_type: confirmed ? 'confirmed' : 'predicted',
         captured_at: now,
       };
