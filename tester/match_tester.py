@@ -384,7 +384,7 @@ async def run_static_checks(client, fid) -> list[Check]:
     # parecen bugs de codigo. Mismo patron que match_facts — si no existe se
     # marca SKIP con el numero de migracion, no FAIL.
     for table, migration in [("match_subscriptions", "0016"), ("profiles", "0006"),
-                             ("match_shots", "0008"), ("match_highlights", "0014")]:
+                             ("match_shots", "0008")]:
         try:
             rows, lat = await sb_get(client, table, {"select": "*", "limit": "1"})
             checks.append(Check(f"Tabla {table}", True, f"existe (migracion {migration})", lat))
@@ -397,6 +397,22 @@ async def run_static_checks(client, fid) -> list[Check]:
                 f"NO existe - falta migracion {migration}" if missing_table else msg,
                 skipped=missing_table,
             ))
+
+    # 0014 no crea tabla: anade columnas de resumen a `fixtures`. Antes se
+    # sondeaba una tabla `match_highlights` que nunca existio -> SKIP eterno.
+    try:
+        rows, lat = await sb_get(client, "fixtures",
+                                 {"select": "highlight_url,highlight_checked_at", "limit": "1"})
+        checks.append(Check("Columnas de resumen (0014)", True, "existen", lat))
+    except Exception as e:
+        msg = str(e)
+        missing_col = "does not exist" in msg or "PGRST204" in msg or "42703" in msg
+        checks.append(Check(
+            "Columnas de resumen (0014)",
+            True if missing_col else False,
+            "NO existen - falta migracion 0014" if missing_col else msg,
+            skipped=missing_col,
+        ))
 
     # Escudos: un equipo sin `source_ids` resueltos no cruza con las fuentes y
     # se queda sin alineaciones ni eventos (ver resolveTeamIds.ts).

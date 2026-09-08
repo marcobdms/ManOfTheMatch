@@ -38,10 +38,17 @@ export default function TeamProfile() {
   const { teamId } = useParams<{ teamId: string }>()
   const teamQuery = useTeam(teamId)
   const ligaQuery = useStandings('laliga', 30)
+  // Un club de Champions no sale en la tabla de LaLiga: se cae a la de la fase
+  // de liga. Ahí las filas de los equipos extranjeros no traen slug, así que
+  // el cruce alternativo es por nombre.
+  const uclQuery = useStandings('ucl', 40)
   const statsQuery = useTeamSeasonStats(teamId)
 
   const team = teamQuery.data
-  const row = ligaQuery.data?.find((r) => r.teamId === teamId) ?? null
+  const row =
+    ligaQuery.data?.find((r) => r.teamId === teamId) ??
+    uclQuery.data?.find((r) => r.teamId === teamId || (!!team && r.teamName === team.name)) ??
+    null
   const stats = statsQuery.data
   const facts = factsFor(teamId)
 
@@ -94,6 +101,12 @@ export default function TeamProfile() {
                   />
                 )}
               </div>
+            )}
+
+            {stats && stats.matches === 0 && (
+              <p className="motm-note">
+                Todavía no hay medias de juego: no tenemos partidos suyos ya jugados.
+              </p>
             )}
 
             {stats && stats.matches > 0 && (

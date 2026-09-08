@@ -46,6 +46,10 @@ const KNOWN: Record<string, string> = {
   'inter-milan': '133681',
   lask: '137261',
   'viking-fk': '134570',
+  // La búsqueda por nombre devolvía clubes equivocados (PSG -> Torcy) o nada
+  // (Lille): fijados a mano para que un re-run no vuelva a romperlos.
+  'paris-saint-germain-psg': '133714',
+  'losc-lille': '133711',
 };
 
 /** Nombres "de la calle" para buscar los que no están en KNOWN. */

@@ -88,21 +88,22 @@ export default function Home() {
     <>
       <AppHeader />
       <div className="motm-home">
-        {/* Mientras carga y cuando no hay partido se pinta la MISMA caja
-            (mismo tamaño), así al resolver la consulta no salta el contenido
-            de abajo ni se desliza la pastilla del switcher. */}
-        {match ? (
-          <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
-        ) : (
-          <div
-            className={'motm-empty' + (liveQuery.isLoading ? ' motm-empty--loading' : '')}
-            role="status"
-          >
-            <b>Sin partido destacado</b>
-            {/* mismo texto en carga y sin-partido: misma altura, cero salto */}
-            No hay partidos de LaLiga en juego ahora mismo.
-          </div>
-        )}
+        {/* Hueco de alto reservado: la tarjeta y la caja de "sin partido"
+            ocupan lo mismo, así al resolverse la consulta no se desplaza nada
+            de lo de abajo (ni el switcher). */}
+        <div className="motm-home__feature">
+          {match ? (
+            <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+          ) : (
+            <div
+              className={'motm-empty' + (liveQuery.isLoading ? ' motm-empty--loading' : '')}
+              role="status"
+            >
+              <b>Sin partido destacado</b>
+              No hay partidos de LaLiga en juego ahora mismo.
+            </div>
+          )}
+        </div>
 
         <Segmented id="home" ariaLabel="Secciones de la portada">
           <SegmentedButton active={active === 'noticias'} onClick={() => setTab('noticias')}>

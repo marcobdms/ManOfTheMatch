@@ -10,15 +10,12 @@
 import { db } from '../db.js';
 import { photoFor, refreshPhotoCache } from '../lib/playerPhotos.js';
 import { withRun } from '../lib/run.js';
-import { TEAMS, TRACKED_TEAM_IDS } from '../lib/shared.js';
+import { TRACKED_TEAM_IDS } from '../lib/shared.js';
 import type { TeamId } from '../lib/shared.js';
 import { fotmobPositionLabel } from '../lib/map.js';
-import {
-  getMatchesByDate,
-  getMatchDetails,
-  LALIGA_LEAGUE_ID,
-} from '../sources/fotmob.js';
+import { getMatchDetails } from '../sources/fotmob.js';
 import type { FotmobLineupTeam, FotmobPlayer } from '../sources/fotmob.js';
+import { resolveFotmobMatchId } from '../lib/fotmobResolve.js';
 
 type LineupType = 'confirmed' | 'predicted' | 'last_played';
 
@@ -49,6 +46,7 @@ type FixtureRow = {
   away_team_crest: string | null;
   kickoff_at: string;
   status: string;
+  competition_id: string | null;
   source_ids: Record<string, unknown> | null;
 };
 
@@ -71,8 +69,17 @@ export function syncLineups() {
       }
     }
 
-    console.log(`[syncLineups] ${written}/${TRACKED_TEAM_IDS.length} equipos actualizados`);
-    return written;
+    let ucl = 0;
+    try {
+      ucl = await syncUclFixtures();
+    } catch (err) {
+      console.error('[syncLineups] barrido de Champions falló', err);
+    }
+
+    console.log(
+      `[syncLineups] ${written}/${TRACKED_TEAM_IDS.length} equipos actualizados, ${ucl} lados de Champions`,
+    );
+    return written + ucl;
   });
 }
 
@@ -128,17 +135,28 @@ async function tryFromFotmob(
       : 'predicted'
     : 'last_played';
 
-  const players = mapPlayers(side.starters ?? [], true, teamId).concat(mapPlayers(side.subs ?? [], false, teamId));
-  if (!players.length) return false;
+  return writeSide(teamId, fixture, side, isHome, lineupType);
+}
 
-  const opponentName = isHome ? fixture.away_team_name : fixture.home_team_name;
-  const opponentCrest = isHome ? fixture.away_team_crest : fixture.home_team_crest;
+/** Snapshot del equipo + historial crudo en `lineups` (0001), para que
+ *  syncMatchDetail (API-Football) pueda pisarlo luego con el XI confirmado. */
+async function writeSide(
+  teamId: string,
+  fixture: FixtureRow,
+  side: FotmobLineupTeam,
+  isHome: boolean,
+  lineupType: LineupType,
+): Promise<boolean> {
+  const players = mapPlayers(side.starters ?? [], true, teamId).concat(
+    mapPlayers(side.subs ?? [], false, teamId),
+  );
+  if (!players.length) return false;
 
   await db.from('team_lineup_snapshots').upsert({
     team_id: teamId,
     fixture_id: fixture.id,
-    opponent_name: opponentName,
-    opponent_crest: opponentCrest,
+    opponent_name: isHome ? fixture.away_team_name : fixture.home_team_name,
+    opponent_crest: isHome ? fixture.away_team_crest : fixture.home_team_crest,
     is_home: isHome,
     kickoff_at: fixture.kickoff_at,
     formation: side.formation ?? null,
@@ -149,14 +167,60 @@ async function tryFromFotmob(
     updated_at: new Date().toISOString(),
   });
 
-  // Historial crudo en `lineups` (0001), para que syncMatchDetail (API-Football)
-  // pueda pisarlo después con datos confirmados cuando el partido esté en vivo.
   await upsertRawLineupRows(fixture.id, teamId, side, lineupType);
-
   return true;
 }
 
-function mapPlayers(list: FotmobPlayer[], isStarter: boolean, teamId: TeamId): LineupPlayer[] {
+/**
+ * Barrido de Champions. El bucle de arriba recorre TRACKED_TEAM_IDS (los 20
+ * de LaLiga) y de cada partido guarda SOLO su lado: un UCL entre extranjeros
+ * se quedaba sin alineación y uno con equipo español solo tenía la mitad.
+ * Aquí se recorren los fixtures de Champions de la ventana próxima y se
+ * escriben LOS DOS lados con una única llamada a Fotmob por partido.
+ */
+async function syncUclFixtures(): Promise<number> {
+  const now = Date.now();
+  const { data } = await db
+    .from('fixtures')
+    .select(
+      'id, home_team_id, away_team_id, home_team_name, away_team_name, home_team_crest, away_team_crest, kickoff_at, status, competition_id, source_ids',
+    )
+    .eq('competition_id', 'ucl')
+    .in('status', ['SCHEDULED', 'LIVE', 'PAUSED'])
+    .gte('kickoff_at', new Date(now - 4 * 3_600_000).toISOString())
+    .lte('kickoff_at', new Date(now + 72 * 3_600_000).toISOString())
+    .order('kickoff_at', { ascending: true })
+    .returns<FixtureRow[]>();
+
+  let written = 0;
+  for (const f of data ?? []) {
+    try {
+      const matchId = await resolveFotmobMatchId(f);
+      if (matchId == null) continue;
+
+      const isLive = f.status === 'LIVE' || f.status === 'PAUSED';
+      const details = await getMatchDetails(matchId, { live: isLive });
+      const lineup = details?.content?.lineup;
+      if (!lineup) continue;
+
+      const lineupType: LineupType = lineup.lineupType === 'standard' ? 'confirmed' : 'predicted';
+      const sides = [
+        [lineup.homeTeam, f.home_team_id, true],
+        [lineup.awayTeam, f.away_team_id, false],
+      ] as const;
+
+      for (const [side, teamId, isHome] of sides) {
+        if (!side || !teamId) continue;
+        if (await writeSide(teamId, f, side, isHome, lineupType)) written++;
+      }
+    } catch (err) {
+      console.error(`[syncLineups] UCL ${f.id} falló, se conserva lo anterior`, err);
+    }
+  }
+  return written;
+}
+
+function mapPlayers(list: FotmobPlayer[], isStarter: boolean, teamId: string): LineupPlayer[] {
   return list.map((p) => {
     const x = p.horizontalLayout?.x ?? null;
     const y = p.horizontalLayout?.y ?? null;
@@ -180,7 +244,7 @@ function mapPlayers(list: FotmobPlayer[], isStarter: boolean, teamId: TeamId): L
 
 async function upsertRawLineupRows(
   fixtureId: string,
-  teamId: TeamId,
+  teamId: string,
   side: FotmobLineupTeam,
   lineupType: LineupType,
 ): Promise<void> {
@@ -195,7 +259,7 @@ async function upsertRawLineupRows(
 
 function rawRow(
   fixtureId: string,
-  teamId: TeamId,
+  teamId: string,
   side: FotmobLineupTeam,
   p: FotmobPlayer,
   isStarting: boolean,
@@ -240,7 +304,7 @@ async function findFixture(
   const { data } = await db
     .from('fixtures')
     .select(
-      'id, home_team_id, away_team_id, home_team_name, away_team_name, home_team_crest, away_team_crest, kickoff_at, status, source_ids',
+      'id, home_team_id, away_team_id, home_team_name, away_team_name, home_team_crest, away_team_crest, kickoff_at, status, competition_id, source_ids',
     )
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .eq('status', status)
@@ -248,100 +312,4 @@ async function findFixture(
     .limit(1)
     .returns<FixtureRow[]>();
   return data?.[0] ?? null;
-}
-
-/** Resuelve y cachea el `matchId` de Fotmob para un fixture, cruzando fecha +
- *  nombres de equipo. Se guarda en `fixtures.source_ids.fotmob` para no
- *  repetir la búsqueda en la siguiente pasada. */
-async function resolveFotmobMatchId(fixture: FixtureRow): Promise<number | null> {
-  const cached = fixture.source_ids?.fotmob;
-  if (cached != null) {
-    const n = Number(cached);
-    if (Number.isFinite(n)) return n;
-  }
-
-  const day = fixture.kickoff_at.slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  const calendar = await getMatchesByDate(day);
-  if (!calendar) return null; // fallo de red/circuit breaker
-
-  const laliga = calendar.leagues?.find((l) => l.id === LALIGA_LEAGUE_ID);
-  const matches = laliga?.matches ?? [];
-  if (!matches.length) return null;
-
-  const homeSlug = teamSlugFromFotmobName(fixture.home_team_name);
-  const awaySlug = teamSlugFromFotmobName(fixture.away_team_name);
-
-  const match = matches.find((m) => {
-    const mHome = teamSlugFromFotmobName(m.home?.name);
-    const mAway = teamSlugFromFotmobName(m.away?.name);
-    if (homeSlug && mHome !== homeSlug) return false;
-    if (awaySlug && mAway !== awaySlug) return false;
-    return Boolean(homeSlug || awaySlug);
-  });
-  if (!match) return null;
-
-  await db
-    .from('fixtures')
-    .update({
-      source_ids: { ...(fixture.source_ids ?? {}), fotmob: match.id },
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', fixture.id);
-
-  return match.id;
-}
-
-// --- cruce de nombres Fotmob <-> nuestros 20 slugs -------------------------
-
-let normalizedTeamNames: Map<TeamId, Set<string>> | null = null;
-
-const STOPWORDS = new Set(['cf', 'fc', 'cd', 'ud', 'sd', 'rc', 'ca', 'ac', 'sc', 'rcd', 'club', 'de', 'balompie', 'balompié']);
-
-/** Tokens en minúsculas, sin acentos ni sufijos societarios/stopwords. */
-function tokenize(name: string): string[] {
-  return name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // quita acentos
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((t) => t && !STOPWORDS.has(t));
-}
-
-function buildNameIndex(): Map<TeamId, Set<string>> {
-  const idx = new Map<TeamId, Set<string>>();
-  for (const t of Object.values(TEAMS)) {
-    const id = t.id as TeamId;
-    idx.set(id, new Set([...tokenize(t.name), ...tokenize(t.tla), ...tokenize(id.replace(/-/g, ' '))]));
-  }
-  return idx;
-}
-
-// football-data.org da "RCD Espanyol de Barcelona" — el sufijo de ciudad hace
-// que el cruce por tokens empate con "FC Barcelona". Es el único caso conocido
-// entre los 20 clubes; se recorta antes de tokenizar en vez de complicar el
-// desempate genérico.
-const KNOWN_NAME_FIXUPS: Array<[RegExp, string]> = [[/\bespanyol de barcelona\b/i, 'espanyol']];
-
-function applyKnownFixups(name: string): string {
-  let out = name;
-  for (const [pattern, replacement] of KNOWN_NAME_FIXUPS) out = out.replace(pattern, replacement);
-  return out;
-}
-
-/** Nombre inline (`fixtures.home_team_name`) o de Fotmob → nuestro slug, por
- *  solapamiento de tokens. Gana el equipo con más tokens en común; `null` si
- *  no hay ninguno — no se inventa. */
-function teamSlugFromFotmobName(name: string | null | undefined): TeamId | null {
-  if (!name) return null;
-  if (!normalizedTeamNames) normalizedTeamNames = buildNameIndex();
-  const tokens = new Set(tokenize(applyKnownFixups(name)));
-  if (!tokens.size) return null;
-
-  let best: { slug: TeamId; score: number } | null = null;
-  for (const [slug, aliasTokens] of normalizedTeamNames) {
-    let score = 0;
-    for (const t of aliasTokens) if (tokens.has(t)) score++;
-    if (score > 0 && (!best || score > best.score)) best = { slug, score };
-  }
-  return best?.slug ?? null;
 }

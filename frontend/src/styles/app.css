@@ -1522,10 +1522,13 @@
 /* ===== Home y Próximos (Agente C) ===== */
 /* segmented filter — Próximos "Todos / Solo mi equipo" */
 .motm-segmented {
+  --seg-gap: 6px;
+  --seg-pad: 4px;
+  position: relative;
   display: flex;
-  gap: 6px;
+  gap: var(--seg-gap);
   margin-top: 14px;
-  padding: 4px;
+  padding: var(--seg-pad);
   background: var(--muted);
   border-radius: var(--r-btn);
 }
@@ -1537,6 +1540,7 @@
 }
 .motm-segmented__btn {
   position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   align-items: center;
@@ -1558,13 +1562,18 @@
 .motm-segmented__btn[aria-pressed='true'] {
   color: var(--ink);
 }
-/* El resaltado del activo es un elemento propio (components/Segmented.tsx)
-   con `layoutId`, así se desliza hasta la opción elegida en vez de aparecer
-   de golpe en su sitio. */
+/* El resaltado del activo es un elemento del carril (components/Segmented.tsx)
+   que se desliza con `transform` hasta la columna elegida. Va en el carril y no
+   dentro del botón a propósito: así un cambio de alto por encima del switcher
+   no puede arrastrarlo (era el salto de la pastilla en Home). */
 .motm-segmented__pill {
   position: absolute;
-  inset: 0;
+  top: var(--seg-pad);
+  bottom: var(--seg-pad);
+  left: var(--seg-pad);
   border-radius: var(--r-btn);
+  pointer-events: none;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   /* En oscuro `--card` y `--muted` (la pista) casi coinciden y el activo no
      se distinguía. `--seg-pill-bg` es un tono más claro que la pista + un
      borde y una sombra marcada para que el seleccionado se lea de un vistazo. */
@@ -2908,4 +2917,25 @@
   margin-left: auto;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motm-segmented__pill {
+    transition: none;
+  }
+}
+
+/* Portada: el hueco destacado mide lo mismo con tarjeta que sin ella, para que
+   la clasificación y el switcher no salten al resolverse la consulta. Dentro
+   se anula el fade-in con desplazamiento de `.motm-empty`: era el "sale un
+   poco abajo y luego sube" que se veía en cada carga. */
+.motm-home__feature {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.motm-home__feature > .motm-empty {
+  margin: 0 16px;
+  animation: none;
 }
