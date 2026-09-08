@@ -19,14 +19,28 @@ const UA = 'ManOfTheMatch/0.1 (+https://github.com/marcobdms/ManOfTheMatch)';
 const FEED_TTL_MS = 8 * 60_000;
 
 /**
- * Canales oficiales, por orden de preferencia. DAZN publica el resumen
- * completo con un título muy regular ("X vs Y (H-A) | Resumen … | Highlights
- * LALIGA EA SPORTS"); el de LALIGA a veces sale primero como Short vertical y
- * el vídeo largo llega después.
+ * Canales oficiales por competición. Se busca SOLO en los de la competición
+ * del partido: DAZN/LALIGA no suben Champions y los de Champions no suben
+ * LaLiga, así que mezclarlos solo añade ruido y peticiones.
+ *
+ * LaLiga: DAZN publica el resumen completo con un título muy regular ("X vs Y
+ * (H-A) | Resumen … | Highlights LALIGA EA SPORTS"); el de LALIGA a veces sale
+ * primero como Short vertical y el vídeo largo llega después.
+ *
+ * Champions: CBS Sports Golazo sube "TEAM vs. TEAM: Extended Highlights | UEFA
+ * Champions League" en inglés poco después del pitido; UEFA sube montajes
+ * cortos con menos regularidad, va de segundo.
  */
-const CHANNELS: Array<{ name: string; channelId: string }> = [
+type Channel = { name: string; channelId: string };
+
+const LALIGA_CHANNELS: Channel[] = [
   { name: 'DAZN Fútbol', channelId: 'UCz9FiMLz6SOgR_4VEFvjeIA' },
   { name: 'LALIGA EA SPORTS', channelId: 'UCTv-XvfzLX3i4IGWAm4sbmA' },
+];
+
+const UCL_CHANNELS: Channel[] = [
+  { name: 'CBS Sports Golazo', channelId: 'UCET00YnetHT7tOpu12v8jxg' },
+  { name: 'UEFA', channelId: 'UCyGa1YEx9ST66rYrJTGIKOw' },
 ];
 
 /** Tokens que identifican a cada club en un título de YouTube. Basta con que
@@ -53,12 +67,47 @@ const TEAM_TOKENS: Record<string, string[]> = {
   'racing-santander': ['racing de santander', 'racing santander'],
   deportivo: ['deportivo de la coruna', 'deportivo la coruna', 'dep de la coruna', 'depor'],
   malaga: ['malaga'],
+
+  // --- Clubes de Champions (títulos en inglés de CBS/UEFA). Tokens elegidos
+  //     para no colisionar por substring: nada de "villa" (Villarreal),
+  //     "city" ni "united" a secas. ---
+  'aek-athens': ['aek athens', 'aek'],
+  arsenal: ['arsenal'],
+  roma: ['as roma', 'roma'],
+  'aston-villa': ['aston villa'],
+  'bayern-munich': ['bayern munich', 'bayern munchen', 'bayern'],
+  'borussia-dortmund': ['borussia dortmund', 'dortmund'],
+  'club-brugge': ['club brugge', 'brugge', 'brujas'],
+  'como-1907': ['como 1907'],
+  'fc-porto': ['fc porto', 'porto'],
+  fenerbahce: ['fenerbahce', 'fener'],
+  feyenoord: ['feyenoord'],
+  'fk-bodo-glimt': ['bodo/glimt', 'bodo glimt', 'bodo'],
+  galatasaray: ['galatasaray'],
+  'inter-milan': ['inter milan', 'internazionale', 'inter'],
+  lask: ['lask linz', 'lask'],
+  'losc-lille': ['lille', 'losc'],
+  'liverpool-fc': ['liverpool'],
+  'manchester-city': ['manchester city', 'man city'],
+  'manchester-united': ['manchester united', 'man united', 'man utd'],
+  'paris-saint-germain-psg': ['paris saint-germain', 'paris saint germain', 'paris sg', 'psg'],
+  'psv-eindhoven': ['psv eindhoven', 'eindhoven', 'psv'],
+  'rb-leipzig': ['rb leipzig', 'leipzig'],
+  'rc-lens': ['rc lens', 'lens'],
+  'sabah-fk': ['sabah'],
+  'shakhtar-donetsk': ['shakhtar donetsk', 'shakhtar', 'donetsk'],
+  'slavia-praha': ['slavia praha', 'slavia prague', 'slavia'],
+  'slovan-bratislava': ['slovan bratislava', 'slovan'],
+  'sporting-cp': ['sporting cp', 'sporting lisbon', 'sporting clube', 'sporting'],
+  napoli: ['napoli'],
+  'vfb-stuttgart': ['vfb stuttgart', 'stuttgart'],
+  'viking-fk': ['viking fk', 'viking'],
 };
 
 /** Un vídeo que NO es de LaLiga: DAZN sube resúmenes de Hypermotion, Liga F,
  *  Serie A, etc. con el mismo formato de título. */
 const OTHER_COMP_RE =
-  /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|libertadores|sudamericana|\bmls\b|brasileir|segunda|primera rfef|amistoso|friendly/i;
+  /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|europa league|conference league|libertadores|sudamericana|\bmls\b|brasileir|segunda|primera rfef|amistoso|friendly/i;
 
 const LALIGA_RE = /laliga ea sports|la ?liga ea sports|laliga santander|\bla ?liga\b/i;
 const UCL_RE = /champions league|uefa champions/i;
@@ -156,10 +205,12 @@ export async function findYoutubeHighlight(q: HighlightQuery): Promise<Highlight
   const awayTokens = q.awayTeamId ? TEAM_TOKENS[q.awayTeamId] ?? [] : [];
   if (!homeTokens.length || !awayTokens.length) return null;
 
-  const compOk = (t: string) => (q.competitionId === 'ucl' ? UCL_RE.test(t) : LALIGA_RE.test(t));
+  const isUcl = q.competitionId === 'ucl';
+  const compOk = (t: string) => (isUcl ? UCL_RE.test(t) : LALIGA_RE.test(t));
+  const channels = isUcl ? UCL_CHANNELS : LALIGA_CHANNELS;
 
   const candidates: Array<{ entry: FeedEntry; source: string }> = [];
-  for (const ch of CHANNELS) {
+  for (const ch of channels) {
     for (const entry of await getFeed(ch.channelId)) {
       const t = normalize(entry.title);
       if (!SUMMARY_RE.test(t)) continue;

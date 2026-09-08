@@ -332,28 +332,30 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
   const trackedFilter = `home_team_id.in.(${idList}),away_team_id.in.(${idList})`
   const base = () => supabase.from('fixtures').select(FIXTURE_SELECT).or(trackedFilter)
 
-  // 1) a match in play involving the favorite / a tracked club
-  const inPlay = await base()
-    .in('status', ['LIVE', 'PAUSED'])
-    .order('kickoff_at', { ascending: false })
-    .limit(1)
-    .returns<FixtureRow[]>()
-  if (inPlay.error) throw inPlay.error
-  if (inPlay.data?.length) return toLiveMatch(inPlay.data[0])
-
-  // 1b) …if none, ANY match in play (e.g. a Champions tie between two foreign
-  //     clubs). En directo siempre gana a una previa: sin esto la portada
-  //     enseñaba "PREVIA Lille-Betis 21:00" con dos partidos de Champions ya
-  //     rodando.
-  const anyInPlay = await supabase
+  // 1) cualquier partido en juego, UNA sola consulta (antes eran dos: los
+  //    "seguidos" y luego "cualquiera"). Se ordena en cliente: el del equipo
+  //    favorito primero, luego uno de LaLiga, luego el más avanzado. En
+  //    directo SIEMPRE gana a una previa — sin esto la portada enseñaba
+  //    "PREVIA Lille-Betis" con dos partidos de Champions ya rodando.
+  const live = await supabase
     .from('fixtures')
     .select(FIXTURE_SELECT)
     .in('status', ['LIVE', 'PAUSED'])
-    .order('kickoff_at', { ascending: false })
-    .limit(1)
     .returns<FixtureRow[]>()
-  if (anyInPlay.error) throw anyInPlay.error
-  if (anyInPlay.data?.length) return toLiveMatch(anyInPlay.data[0])
+  if (live.error) throw live.error
+  if (live.data?.length) {
+    const tracked = TRACKED_TEAM_IDS as readonly string[]
+    const rank = (r: FixtureRow) => {
+      const sides = [asOne(r.home)?.id ?? null, asOne(r.away)?.id ?? null]
+      if (favoriteTeamId && sides.includes(favoriteTeamId)) return 0
+      if (sides.some((s) => s && tracked.includes(s))) return 1
+      return 2
+    }
+    const best = [...live.data].sort(
+      (a, b) => rank(a) - rank(b) || b.kickoff_at.localeCompare(a.kickoff_at),
+    )[0]
+    return toLiveMatch(best)
+  }
 
   // 2) the next scheduled one (3h grace so a just-kicked-off match still shows)
   const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
@@ -737,6 +739,8 @@ export function useTeamMatchHistory(teamId: string | undefined, limit = 20) {
       return (data ?? []).map(toLiveMatch)
     },
     enabled: hasSupabaseEnv && !!teamId,
+    // El histórico de un equipo cambia como mucho cada varios días.
+    staleTime: 10 * 60 * 1000,
   })
 }
 
@@ -1359,6 +1363,8 @@ export function useMatchOdds(fixtureId: string | undefined) {
     queryFn: () => fetchMatchOdds(fixtureId as string),
     enabled: hasSupabaseEnv && !!fixtureId,
     retry: false,
+    // Las cuotas se refrescan en el worker cada 30 min como mucho.
+    staleTime: 10 * 60 * 1000,
   })
 }
 
@@ -1408,6 +1414,7 @@ export function useMatchPrediction(fixtureId: string | undefined) {
     queryFn: () => fetchMatchPrediction(fixtureId as string),
     enabled: hasSupabaseEnv && !!fixtureId,
     retry: false,
+    staleTime: 10 * 60 * 1000,
   })
 }
 
