@@ -41,6 +41,56 @@ export const TEAMS = {
 
 export type TeamId = keyof typeof TEAMS;
 
+/**
+ * Los 31 clubes de la fase liga de Champions que NO son de LaLiga (los 5
+ * españoles reutilizan su entrada de TEAMS). `id` = fila en `teams` (0019) y
+ * basename del SVG en assets/crests/ucl/. No entran en TRACKED_TEAM_IDS: no
+ * son "equipos seguidos" a efectos de favorito / filtro de En vivo.
+ */
+export const UCL_TEAMS = {
+  'aek-athens': { id: 'aek-athens', tla: 'AEK', name: 'PAE AEK' },
+  arsenal: { id: 'arsenal', tla: 'ARS', name: 'Arsenal FC' },
+  roma: { id: 'roma', tla: 'ROM', name: 'AS Roma' },
+  'aston-villa': { id: 'aston-villa', tla: 'AVL', name: 'Aston Villa FC' },
+  'bayern-munich': { id: 'bayern-munich', tla: 'BAY', name: 'FC Bayern München' },
+  'borussia-dortmund': { id: 'borussia-dortmund', tla: 'BVB', name: 'Borussia Dortmund' },
+  'club-brugge': { id: 'club-brugge', tla: 'BRU', name: 'Club Brugge KV' },
+  'como-1907': { id: 'como-1907', tla: 'COM', name: 'Como 1907' },
+  'fc-porto': { id: 'fc-porto', tla: 'POR', name: 'FC Porto' },
+  fenerbahce: { id: 'fenerbahce', tla: 'FEN', name: 'Fenerbahçe SK' },
+  feyenoord: { id: 'feyenoord', tla: 'FEY', name: 'Feyenoord Rotterdam' },
+  'fk-bodo-glimt': { id: 'fk-bodo-glimt', tla: 'BOD', name: 'FK Bodø/Glimt' },
+  galatasaray: { id: 'galatasaray', tla: 'GAL', name: 'Galatasaray SK' },
+  'inter-milan': { id: 'inter-milan', tla: 'INT', name: 'FC Internazionale Milano' },
+  lask: { id: 'lask', tla: 'LAS', name: 'LASK Linz' },
+  'losc-lille': { id: 'losc-lille', tla: 'LIL', name: 'Lille OSC' },
+  'liverpool-fc': { id: 'liverpool-fc', tla: 'LIV', name: 'Liverpool FC' },
+  'manchester-city': { id: 'manchester-city', tla: 'MCI', name: 'Manchester City FC' },
+  'manchester-united': { id: 'manchester-united', tla: 'MUN', name: 'Manchester United FC' },
+  'paris-saint-germain-psg': { id: 'paris-saint-germain-psg', tla: 'PSG', name: 'Paris Saint-Germain FC' },
+  'psv-eindhoven': { id: 'psv-eindhoven', tla: 'PSV', name: 'PSV' },
+  'rb-leipzig': { id: 'rb-leipzig', tla: 'RBL', name: 'RB Leipzig' },
+  'rc-lens': { id: 'rc-lens', tla: 'LEN', name: 'Racing Club de Lens' },
+  'sabah-fk': { id: 'sabah-fk', tla: 'SAB', name: 'Sabah FK' },
+  'shakhtar-donetsk': { id: 'shakhtar-donetsk', tla: 'SHK', name: 'FK Shakhtar Donetsk' },
+  'slavia-praha': { id: 'slavia-praha', tla: 'SLA', name: 'SK Slavia Praha' },
+  'slovan-bratislava': { id: 'slovan-bratislava', tla: 'SLB', name: 'ŠK Slovan Bratislava' },
+  'sporting-cp': { id: 'sporting-cp', tla: 'SPO', name: 'Sporting Clube de Portugal' },
+  napoli: { id: 'napoli', tla: 'NAP', name: 'SSC Napoli' },
+  'vfb-stuttgart': { id: 'vfb-stuttgart', tla: 'STU', name: 'VfB Stuttgart' },
+  'viking-fk': { id: 'viking-fk', tla: 'VIK', name: 'Viking FK' },
+} as const;
+
+export type UclOnlyTeamId = keyof typeof UCL_TEAMS;
+/** Cualquier club conocido: 20 de LaLiga + 31 de Champions. */
+export type AnyTeamId = TeamId | UclOnlyTeamId;
+
+/** id -> {tla,name} de los 51 clubes (LaLiga + Champions). */
+export const ALL_TEAMS: Record<string, { id: string; tla: string; name: string }> = {
+  ...TEAMS,
+  ...UCL_TEAMS,
+};
+
 /** All 20 — every LaLiga club is synced now, not just Madrid/Barça. */
 export const TRACKED_TEAM_IDS: TeamId[] = Object.keys(TEAMS) as TeamId[];
 

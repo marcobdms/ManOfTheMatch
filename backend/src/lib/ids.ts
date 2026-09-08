@@ -5,7 +5,7 @@
 // docs/handoff-schema-notify.md §2. `refreshTeamCache()` loads them into an
 // in-memory index; callers stay synchronous.
 
-import { COMPETITIONS, TEAMS } from './shared.js';
+import { ALL_TEAMS, COMPETITIONS, TEAMS } from './shared.js';
 import type { CompetitionId, TeamId } from './shared.js';
 import { db } from '../db.js';
 
@@ -24,12 +24,12 @@ type TeamSourceIds = {
   espn?: string;
 };
 
-let byFootballData = new Map<number, TeamId>();
-let byApiFootball = new Map<number, TeamId>();
-let byTsdb = new Map<string, TeamId>();
-let tsdbByTeam = new Map<TeamId, string>();
-let apiFootballByTeam = new Map<TeamId, number>();
-let byEspn = new Map<string, TeamId>();
+let byFootballData = new Map<number, string>();
+let byApiFootball = new Map<number, string>();
+let byTsdb = new Map<string, string>();
+let tsdbByTeam = new Map<string, string>();
+let apiFootballByTeam = new Map<string, number>();
+let byEspn = new Map<string, string>();
 
 /** (Re)loads `teams.source_ids` for all 20 known slugs. Call at boot, and
  *  again on every `syncFixtures` run so a freshly resolved id (e.g. after
@@ -41,16 +41,16 @@ export async function refreshTeamCache(): Promise<void> {
     return;
   }
 
-  const nf = new Map<number, TeamId>();
-  const na = new Map<number, TeamId>();
-  const nt = new Map<string, TeamId>();
-  const tt = new Map<TeamId, string>();
-  const at = new Map<TeamId, number>();
-  const ne = new Map<string, TeamId>();
+  const nf = new Map<number, string>();
+  const na = new Map<number, string>();
+  const nt = new Map<string, string>();
+  const tt = new Map<string, string>();
+  const at = new Map<string, number>();
+  const ne = new Map<string, string>();
 
   for (const row of (data ?? []) as { id: string; source_ids: TeamSourceIds | null }[]) {
-    if (!(row.id in TEAMS)) continue; // defensive: ignore rows outside the known 20 slugs
-    const slug = row.id as TeamId;
+    if (!(row.id in ALL_TEAMS)) continue; // 20 de LaLiga + 31 de Champions (0019)
+    const slug = row.id;
     const sids = row.source_ids ?? {};
     if (sids.footballData != null) nf.set(Number(sids.footballData), slug);
     if (sids.apiFootball != null) {
@@ -78,31 +78,31 @@ const toNum = (v: number | string | null | undefined): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function teamSlugByFootballDataId(id: number | string | null | undefined): TeamId | null {
+export function teamSlugByFootballDataId(id: number | string | null | undefined): string | null {
   const n = toNum(id);
   return n == null ? null : (byFootballData.get(n) ?? null);
 }
 
-export function teamSlugByApiFootballId(id: number | string | null | undefined): TeamId | null {
+export function teamSlugByApiFootballId(id: number | string | null | undefined): string | null {
   const n = toNum(id);
   return n == null ? null : (byApiFootball.get(n) ?? null);
 }
 
-export function teamSlugByTsdbId(id: string | null | undefined): TeamId | null {
+export function teamSlugByTsdbId(id: string | null | undefined): string | null {
   return id ? (byTsdb.get(id) ?? null) : null;
 }
 
 /** TheSportsDB team id for a slug, once resolved — null until then. */
-export function tsdbIdForTeam(slug: TeamId): string | null {
+export function tsdbIdForTeam(slug: string): string | null {
   return tsdbByTeam.get(slug) ?? null;
 }
 
 /** API-Football team id para un slug, ya resuelto — null hasta entonces. */
-export function apiFootballIdForTeam(slug: TeamId): number | null {
+export function apiFootballIdForTeam(slug: string): number | null {
   return apiFootballByTeam.get(slug) ?? null;
 }
 
-export function teamSlugByEspnId(id: string | null | undefined): TeamId | null {
+export function teamSlugByEspnId(id: string | null | undefined): string | null {
   return id ? (byEspn.get(id) ?? null) : null;
 }
 

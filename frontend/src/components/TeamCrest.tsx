@@ -1,5 +1,5 @@
 import { crestFor } from '../lib/crests'
-import { crestForUclTeam } from '../lib/crestsUcl'
+import { crestForUclSlug, crestForUclTeam } from '../lib/crestsUcl'
 
 type Props = {
   teamId: string | null | undefined
@@ -26,7 +26,7 @@ export default function TeamCrest({
   src: srcOverride,
   name,
 }: Props) {
-  const src = srcOverride ?? crestFor(teamId) ?? crestForUclTeam(name)
+  const src = srcOverride ?? crestFor(teamId) ?? crestForUclSlug(teamId) ?? crestForUclTeam(name)
 
   if (src) {
     return (

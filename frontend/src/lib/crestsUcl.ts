@@ -85,3 +85,10 @@ export function crestForUclTeam(teamName: string | null | undefined): string | n
   if (!teamName) return null
   return resolve(NAME_TO_CREST[teamName]) ?? resolve(NORM_INDEX[norm(teamName)])
 }
+
+/** Escudo por el slug del club (fila en `teams`, = basename del SVG). Ya con
+ *  `team_id` puesto en standings/fixtures esto es lo que se usa. */
+export function crestForUclSlug(slug: string | null | undefined): string | null {
+  if (!slug) return null
+  return UCL[slug] ?? null
+}

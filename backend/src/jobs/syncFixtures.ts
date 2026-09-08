@@ -1,5 +1,5 @@
 import { COMPETITIONS, CURRENT_SEASON, TEAMS } from '../lib/shared.js';
-import type { CompetitionId, TeamId } from '../lib/shared.js';
+import type { CompetitionId } from '../lib/shared.js';
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { getCompetitionMatches } from '../sources/footballData.js';
@@ -63,8 +63,8 @@ export function syncFixtures() {
 
 async function upsertFixture(
   compId: CompetitionId,
-  home: TeamId | null,
-  away: TeamId | null,
+  home: string | null,
+  away: string | null,
   m: FootballDataMatch,
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -136,7 +136,7 @@ async function crossReferenceIds(): Promise<number> {
   let patched = 0;
 
   for (const team of Object.values(TEAMS)) {
-    const slug = team.id as TeamId;
+    const slug = team.id as string;
     const tsdbId = tsdbIdForTeam(slug);
     if (!tsdbId) continue; // not yet resolved (scripts/resolveTeamIds.ts hasn't run for this club)
 
