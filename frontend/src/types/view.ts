@@ -80,6 +80,13 @@ export type NewsItem = {
   originalSource: string | null
   originalAuthor: string | null
   publishedAt: string | null
+  /** Noticia de partido (previa): los dos equipos, para pintar ambos escudos. */
+  match: {
+    homeId: string | null
+    awayId: string | null
+    homeName: string | null
+    awayName: string | null
+  } | null
 }
 
 export type GoalChip = {

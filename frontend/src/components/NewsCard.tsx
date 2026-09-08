@@ -13,8 +13,26 @@ const TOPIC_LABEL: Record<NewsTopic, string> = {
   FICHAJES: 'Fichajes',
 }
 
-/** Etiqueta roja de arriba: el club si lo sabemos, si no el tema. */
-function eyebrow(item: NewsItem): string {
+/** Nombre de equipo compacto para el antetítulo de una previa: sin la coletilla
+ *  societaria ("FC Barcelona" -> "Barcelona", "Real Betis Balompié" -> "Real
+ *  Betis", "Lille OSC" -> "Lille"). */
+function shortTeam(name: string | null): string {
+  if (!name) return ''
+  return name
+    .replace(/^(FC|RC|CA|AC|AS|SSC|VfB|RCD|SC|CD|UD|SD)\s+/i, '')
+    .replace(/\s+(FC|CF|CD|UD|SD|SC|KV|SK|OSC|AC|BK|FK)$/i, '')
+    .replace(/\s+(Balompié|Rotterdam|Linz|Milano|Bratislava|Athens|Atenas)$/i, '')
+    .trim()
+}
+
+/** Etiqueta roja de arriba: en una previa, los dos equipos; si no, el club, y
+ *  si tampoco, el tema. */
+export function newsEyebrow(item: NewsItem): string {
+  if (item.match) {
+    const h = shortTeam(item.match.homeName)
+    const a = shortTeam(item.match.awayName)
+    if (h && a) return `${h} – ${a}`.toUpperCase()
+  }
   const team = item.teamId ? TEAMS[item.teamId as TeamId] : null
   if (team) return team.name.toUpperCase()
   return item.topic ? TOPIC_LABEL[item.topic].toUpperCase() : 'LALIGA'
@@ -46,7 +64,31 @@ function CrestArt({ item, tall }: { item: NewsItem; tall: boolean }) {
   )
 }
 
-function Art({ item, tall }: { item: NewsItem; tall: boolean }) {
+/** Previa de partido: los dos escudos, cada mitad tintada con el color del
+ *  club. Manda sobre cualquier foto — es el diseño propio de la previa. */
+function DuoCrestArt({ item, tall }: { item: NewsItem; tall: boolean }) {
+  const m = item.match!
+  const half = (id: string | null, name: string | null, side: 'l' | 'r') => (
+    <div
+      className={`motm-news__duo-half motm-news__duo-half--${side}`}
+      style={{ '--news-tint': teamColor(id) } as React.CSSProperties}
+    >
+      <TeamCrest teamId={id ?? undefined} name={name} tla={shortTeam(name).slice(0, 3) || '—'} size={tall ? 76 : 34} />
+    </div>
+  )
+  return (
+    <div
+      className={`motm-news__art motm-news__art--duo${tall ? ' motm-news__art--tall' : ''}`}
+      aria-hidden="true"
+    >
+      {half(m.homeId, m.homeName, 'l')}
+      {half(m.awayId, m.awayName, 'r')}
+    </div>
+  )
+}
+
+export function NewsArt({ item, tall }: { item: NewsItem; tall: boolean }) {
+  if (item.match) return <DuoCrestArt item={item} tall={tall} />
   if (!item.imageUrl) return <CrestArt item={item} tall={tall} />
   return (
     <div className={`motm-news__art${tall ? ' motm-news__art--tall' : ''}`}>
@@ -85,14 +127,14 @@ export function ImageCredit({ item }: { item: NewsItem }) {
 export default function NewsCard({ item, hero = false }: { item: NewsItem; hero?: boolean }) {
   return (
     <Link to={`/noticias/${item.id}`} className={`motm-news${hero ? ' motm-news--hero' : ''}`}>
-      {hero && <Art item={item} tall />}
+      {hero && <NewsArt item={item} tall />}
       <div className="motm-news__text">
-        <span className="motm-news__eyebrow">{eyebrow(item)}</span>
+        <span className="motm-news__eyebrow">{newsEyebrow(item)}</span>
         <h3 className="motm-news__title">{item.title}</h3>
         {hero && item.summary && <p className="motm-news__summary">{item.summary}</p>}
         <span className="motm-news__meta">{relative(item.publishedAt)}</span>
       </div>
-      {!hero && <Art item={item} tall={false} />}
+      {!hero && <NewsArt item={item} tall={false} />}
     </Link>
   )
 }

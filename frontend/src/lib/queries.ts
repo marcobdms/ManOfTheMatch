@@ -332,7 +332,7 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
   const trackedFilter = `home_team_id.in.(${idList}),away_team_id.in.(${idList})`
   const base = () => supabase.from('fixtures').select(FIXTURE_SELECT).or(trackedFilter)
 
-  // 1) a match in play
+  // 1) a match in play involving the favorite / a tracked club
   const inPlay = await base()
     .in('status', ['LIVE', 'PAUSED'])
     .order('kickoff_at', { ascending: false })
@@ -340,6 +340,20 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
     .returns<FixtureRow[]>()
   if (inPlay.error) throw inPlay.error
   if (inPlay.data?.length) return toLiveMatch(inPlay.data[0])
+
+  // 1b) …if none, ANY match in play (e.g. a Champions tie between two foreign
+  //     clubs). En directo siempre gana a una previa: sin esto la portada
+  //     enseñaba "PREVIA Lille-Betis 21:00" con dos partidos de Champions ya
+  //     rodando.
+  const anyInPlay = await supabase
+    .from('fixtures')
+    .select(FIXTURE_SELECT)
+    .in('status', ['LIVE', 'PAUSED'])
+    .order('kickoff_at', { ascending: false })
+    .limit(1)
+    .returns<FixtureRow[]>()
+  if (anyInPlay.error) throw anyInPlay.error
+  if (anyInPlay.data?.length) return toLiveMatch(anyInPlay.data[0])
 
   // 2) the next scheduled one (3h grace so a just-kicked-off match still shows)
   const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
@@ -495,6 +509,10 @@ async function fetchStandings(competitionId: string, limit: number): Promise<Sta
   }))
 }
 
+type NewsFixtureEmbed = {
+  home_team_id: string | null; away_team_id: string | null
+  home_team_name: string | null; away_team_name: string | null
+}
 type NewsRow = {
   id: string; title: string; summary: string | null; body: string | null
   topic: string | null; team_id: string | null; subject: string | null
@@ -503,10 +521,12 @@ type NewsRow = {
   image_license_url: string | null; image_source_url: string | null
   original_url: string | null; original_source: string | null
   original_author: string | null; published_at: string | null
+  fixture_id: string | null
+  fixture: NewsFixtureEmbed | NewsFixtureEmbed[] | null
 }
 
 const NEWS_COLS =
-  'id, title, summary, body, topic, team_id, subject, url, image_url, image_author, image_license, image_license_url, image_source_url, original_url, original_source, original_author, published_at'
+  'id, title, summary, body, topic, team_id, subject, url, image_url, image_author, image_license, image_license_url, image_source_url, original_url, original_source, original_author, published_at, fixture_id, fixture:fixtures!fixture_id ( home_team_id, away_team_id, home_team_name, away_team_name )'
 
 function mapNewsRow(row: NewsRow): NewsItem {
   return {
@@ -527,6 +547,19 @@ function mapNewsRow(row: NewsRow): NewsItem {
     originalSource: row.original_source,
     originalAuthor: row.original_author,
     publishedAt: row.published_at,
+    match: newsMatch(asOne(row.fixture)),
+  }
+}
+
+/** Enfrentamiento de una noticia de partido (previa) — los dos escudos en la
+ *  imagen. `null` si la pieza no está ligada a un fixture. */
+function newsMatch(fx: NewsFixtureEmbed | null): NewsItem['match'] {
+  if (!fx || (!fx.home_team_id && !fx.home_team_name)) return null
+  return {
+    homeId: fx.home_team_id,
+    awayId: fx.away_team_id,
+    homeName: fx.home_team_name,
+    awayName: fx.away_team_name,
   }
 }
 

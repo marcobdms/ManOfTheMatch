@@ -7,7 +7,12 @@
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { fetchAllNews } from '../sources/marcaRss.js';
-import { classifyFeedItem, subjectFromCategories, teamFromItem } from '../lib/newsTaxonomy.js';
+import {
+  classifyFeedItem,
+  subjectFromCategories,
+  teamFromItem,
+  teamsMentioned,
+} from '../lib/newsTaxonomy.js';
 
 /** Los feeds de equipo guardan ~45 items, que pueden ser de hace semanas.
  *  Una noticia vieja ya no interesa y gastaría una llamada a Groq igual. */
@@ -20,6 +25,27 @@ export function syncNews() {
     const items = await fetchAllNews();
     if (!items.length) return 0;
 
+    // Partidos programados de los próximos 12 días: si un titular nombra a los
+    // DOS equipos de uno de ellos, la noticia es de ESE enfrentamiento y en el
+    // front se pinta con los dos escudos (previa de partido).
+    const { data: fxRows } = await db
+      .from('fixtures')
+      .select('id, home_team_id, away_team_id')
+      .eq('status', 'SCHEDULED')
+      .gte('kickoff_at', new Date().toISOString())
+      .lte('kickoff_at', new Date(Date.now() + 12 * 24 * 3600_000).toISOString());
+    const upcoming = (fxRows ?? []) as Array<{
+      id: string;
+      home_team_id: string | null;
+      away_team_id: string | null;
+    }>;
+    const fixtureForPair = (a: string, b: string): string | null =>
+      upcoming.find(
+        (f) =>
+          (f.home_team_id === a && f.away_team_id === b) ||
+          (f.home_team_id === b && f.away_team_id === a),
+      )?.id ?? null;
+
     const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 3600_000;
     const candidates = [];
 
@@ -28,6 +54,9 @@ export function syncNews() {
       if (!topic) continue;
       const published = it.publishedAt ? Date.parse(it.publishedAt) : NaN;
       if (!Number.isFinite(published) || published < cutoff) continue;
+
+      const [teamA, teamB] = teamsMentioned(it.title);
+      const fixtureId = teamA && teamB ? fixtureForPair(teamA, teamB) : null;
 
       candidates.push({
         topic,
@@ -45,6 +74,7 @@ export function syncNews() {
           published_at: it.publishedAt,
           team_id: teamFromItem(it.categories, it.feedTeamId),
           subject: subjectFromCategories(it.categories, it.title),
+          fixture_id: fixtureId,
           topic,
           status: 'draft',
           image_state: 'pending',

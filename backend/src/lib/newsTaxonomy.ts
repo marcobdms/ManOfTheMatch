@@ -62,6 +62,24 @@ export function teamFromCategory(category: string): TeamId | null {
   return TEAM_ALIASES[norm(category)] ?? null;
 }
 
+/** Clubes de LaLiga nombrados dentro de un texto libre (un titular), por sus
+ *  alias. Se usa para detectar noticias de PARTIDO ("El Betis visita a…"):
+ *  dos equipos distintos → la pieza es de ese enfrentamiento, no de uno solo.
+ *  Alias más largo primero para que "Real Madrid" gane a "Madrid" suelto. */
+export function teamsMentioned(text: string): TeamId[] {
+  const t = norm(text);
+  const found = new Set<TeamId>();
+  const aliases = Object.keys(TEAM_ALIASES).sort((a, b) => b.length - a.length);
+  for (const a of aliases) {
+    if (a.length < 4) continue; // "rayo" sí, pero nada de 3 letras sueltas
+    const slug = TEAM_ALIASES[a];
+    if (!slug) continue;
+    const re = new RegExp(`(^|[^a-z0-9])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`);
+    if (re.test(t)) found.add(slug);
+  }
+  return [...found];
+}
+
 /** Categorías que no son ni equipo ni ruido → candidatas a protagonista. */
 const CATEGORY_NOISE = new Set(
   [

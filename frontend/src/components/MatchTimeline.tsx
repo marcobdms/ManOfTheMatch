@@ -63,14 +63,11 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
                 {e.minuteLabel}
               </span>
               <span className="motm-ev__txt">
-                {e.narration ? (
-                  // Frase de Groq (backend/lib/narrate.ts) — itálica, mismo
-                  // guiño visual que "Previsión IA": marca que esa línea la
-                  // puso la IA, no el dato plano de siempre.
-                  <span className="motm-ev__narration">{e.narration}</span>
-                ) : (
-                  e.text
-                )}
+                {e.text}
+                {/* Frase de Groq (backend/lib/narrate.ts) — debajo del dato
+                    plano, en itálica: mismo guiño visual que "Previsión IA".
+                    Solo la traen goles / expulsiones / goles anulados. */}
+                {e.narration && <span className="motm-ev__narration">{e.narration}</span>}
               </span>
             </div>
           )
