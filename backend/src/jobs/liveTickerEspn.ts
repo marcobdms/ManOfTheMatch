@@ -29,11 +29,13 @@ type FixtureRow = {
   away_score: number | null;
   half_started_at: string | null;
   half_number: number | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
 };
 
 const SELECT =
   'id, source_ids, status, kickoff_at, home_team_id, away_team_id, home_score, away_score, ' +
-  'half_started_at, half_number';
+  'half_started_at, half_number, home_team_name, away_team_name';
 
 let running = false;
 
@@ -237,9 +239,13 @@ async function narrateNewEvents(
 ): Promise<void> {
   for (const g of events) {
     const isHome = g.team_id === f.home_team_id;
-    const team = teamName(g.team_id);
-    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
-    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+    // Champions: sin slug seguido, se cae al nombre inline del fixture.
+    const team = teamName(g.team_id) ?? (isHome ? f.home_team_name : f.away_team_name)?.trim() ?? null;
+    const opponent =
+      teamName(isHome ? f.away_team_id : f.home_team_id) ??
+      (isHome ? f.away_team_name : f.home_team_name)?.trim() ??
+      null;
+    if (!team || !opponent) continue;
 
     const narration = await narrateEvent({
       kind: NARRATED_KIND[g.type] ?? 'goal',

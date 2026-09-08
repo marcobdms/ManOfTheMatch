@@ -53,16 +53,20 @@ async function narrateDisallowed(
 ): Promise<void> {
   const { data: fx } = await db
     .from('fixtures')
-    .select('home_team_id, away_team_id, home_score, away_score')
+    .select('home_team_id, away_team_id, home_score, away_score, home_team_name, away_team_name')
     .eq('id', fixtureId)
     .maybeSingle();
   if (!fx) return;
 
   for (const r of rows) {
     const isHome = r.team_id === fx.home_team_id;
-    const team = teamName(r.team_id);
-    const opponent = teamName(isHome ? fx.away_team_id : fx.home_team_id);
-    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+    // Champions: sin slug seguido, se cae al nombre inline del fixture.
+    const team = teamName(r.team_id) ?? (isHome ? fx.home_team_name : fx.away_team_name)?.trim() ?? null;
+    const opponent =
+      teamName(isHome ? fx.away_team_id : fx.home_team_id) ??
+      (isHome ? fx.away_team_name : fx.home_team_name)?.trim() ??
+      null;
+    if (!team || !opponent) continue;
 
     const narration = await narrateEvent({
       kind: 'disallowed_goal',

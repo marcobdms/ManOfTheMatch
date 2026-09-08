@@ -173,16 +173,21 @@ async function narrateNewGoals(
 ): Promise<void> {
   const { data: fx } = await db
     .from('fixtures')
-    .select('home_score, away_score')
+    .select('home_score, away_score, home_team_name, away_team_name')
     .eq('id', f.id)
     .maybeSingle();
   if (!fx) return;
 
   for (const g of goals) {
     const isHome = g.team_id === f.home_team_id;
-    const team = teamName(g.team_id);
-    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
-    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+    // Champions: los clubes extranjeros no tienen slug seguido, se cae al
+    // nombre inline del fixture (siempre poblado por football-data).
+    const team = teamName(g.team_id) ?? (isHome ? fx.home_team_name : fx.away_team_name)?.trim() ?? null;
+    const opponent =
+      teamName(isHome ? f.away_team_id : f.home_team_id) ??
+      (isHome ? fx.away_team_name : fx.home_team_name)?.trim() ??
+      null;
+    if (!team || !opponent) continue;
 
     const narration = await narrateEvent({
       kind: GOAL_KIND[g.type] ?? 'goal',
@@ -310,16 +315,19 @@ async function narrateBigChances(
 ): Promise<void> {
   const { data: fx } = await db
     .from('fixtures')
-    .select('home_score, away_score')
+    .select('home_score, away_score, home_team_name, away_team_name')
     .eq('id', f.id)
     .maybeSingle();
   if (!fx) return;
 
   for (const c of chances) {
     const isHome = c.team_id === f.home_team_id;
-    const team = teamName(c.team_id);
-    const opponent = teamName(isHome ? f.away_team_id : f.home_team_id);
-    if (!team || !opponent) continue; // rival no seguido (Champions) — sin nombre fiable, no se narra
+    const team = teamName(c.team_id) ?? (isHome ? fx.home_team_name : fx.away_team_name)?.trim() ?? null;
+    const opponent =
+      teamName(isHome ? f.away_team_id : f.home_team_id) ??
+      (isHome ? fx.away_team_name : fx.home_team_name)?.trim() ??
+      null;
+    if (!team || !opponent) continue;
     const playerName = c.player_name ?? null;
 
     const narration = await narrateEvent({

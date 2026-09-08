@@ -250,15 +250,14 @@
 }
 
 /* goal chips */
+/* Los goles se ENVUELVEN a varias líneas en vez de scrollar en horizontal:
+   con la barra oculta, en escritorio (rueda del ratón) no había forma de ver
+   los que quedaban fuera del borde — el 4º gol de un 1-3 quedaba cortado. */
 .motm-goals {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 18px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.motm-goals::-webkit-scrollbar {
-  display: none;
 }
 .motm-goal-chip {
   display: flex;

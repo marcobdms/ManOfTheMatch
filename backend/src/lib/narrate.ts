@@ -89,6 +89,15 @@ function sane(text: string): boolean {
   return true;
 }
 
+/** gpt-oss cuela espacios finos y guiones no-separables (U+202F, U+2011) que
+ *  se ven raros en la app — a espacio y guión normales. */
+function tidy(text: string): string {
+  return text
+    .replace(/[  ]/g, ' ')
+    .replace(/‑/g, '-')
+    .trim();
+}
+
 export async function narrateEvent(ev: NarrationEvent): Promise<string | null> {
   if (!GROQ_API_KEY) return null;
 
@@ -142,7 +151,11 @@ REGLAS ESTRICTAS:
           { role: 'user', content: JSON.stringify(context) },
         ],
         temperature: 0.6,
-        max_tokens: 60,
+        // gpt-oss es de razonamiento: sin `reasoning_effort` gasta TODO el
+        // presupuesto "pensando" y devuelve content vacío (finish_reason
+        // 'length'). Por eso las narraciones de gol nunca aparecían.
+        reasoning_effort: 'low',
+        max_tokens: 256,
       }),
     }).finally(() => clearTimeout(timeout));
 
@@ -151,7 +164,7 @@ REGLAS ESTRICTAS:
       return null;
     }
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? '';
+    const text = tidy(json.choices?.[0]?.message?.content ?? '');
     return sane(text) ? text : null;
   } catch (err) {
     console.warn('[narrate] falló', err);
@@ -192,7 +205,8 @@ REGLAS ESTRICTAS:
           { role: 'user', content: JSON.stringify({ frase_base: base, datos: context }) },
         ],
         temperature: 0.8,
-        max_tokens: 60,
+        reasoning_effort: 'low',
+        max_tokens: 256,
       }),
     }).finally(() => clearTimeout(timeout));
 
@@ -201,7 +215,7 @@ REGLAS ESTRICTAS:
       return null;
     }
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content?.trim() ?? '';
+    const text = tidy(json.choices?.[0]?.message?.content ?? '');
     return sane(text) ? text : null;
   } catch (err) {
     console.warn('[narrate] flavorInsight falló', err);
