@@ -68,10 +68,15 @@ export default function Live() {
 
   const query = useLiveMatches({ enabled: !USE_MOCK, favoriteTeamId })
   const matches: LiveMatch[] = USE_MOCK ? [MOCK_MATCH] : query.data ?? []
-  const liveOnes = matches.filter((m) => isLiveStatus(m.status))
+  const liveCount = matches.filter((m) => isLiveStatus(m.status)).length
 
   const loading = !USE_MOCK && query.isLoading
   const showEmpty = !USE_MOCK && !loading && matches.length === 0
+
+  const headLabel =
+    liveCount > 0
+      ? `${liveCount} ${liveCount === 1 ? 'partido en directo' : 'partidos en directo'}`
+      : `${matches.length} ${matches.length === 1 ? 'partido hoy' : 'partidos hoy'}`
 
   return (
     <>
@@ -88,18 +93,19 @@ export default function Live() {
 
       {USE_MOCK && <LiveMatchViewMock />}
 
-      {/* Varios en directo: lista de tarjetas, cada una lleva a su directo. */}
-      {!USE_MOCK && liveOnes.length > 1 && (
+      {/* Varios partidos (hoy o en directo): lista de tarjetas del tamaño de
+          la del directo; cada una lleva a su propio directo con timeline. */}
+      {!USE_MOCK && matches.length > 1 && (
         <div className="motm-live-list">
-          <p className="motm-live-list__head">{liveOnes.length} partidos en directo</p>
-          {liveOnes.map((m) => (
+          <p className="motm-live-list__head">{headLabel}</p>
+          {matches.map((m) => (
             <LiveMatchCard key={m.id} match={m} />
           ))}
         </div>
       )}
 
-      {/* Uno solo (en directo, o el próximo/último como respaldo). */}
-      {!USE_MOCK && liveOnes.length <= 1 && matches[0] && <LiveMatchView match={matches[0]} />}
+      {/* Uno solo: la vista clásica con marcador + acciones + timeline. */}
+      {!USE_MOCK && matches.length === 1 && <LiveMatchView match={matches[0]} />}
     </>
   )
 }

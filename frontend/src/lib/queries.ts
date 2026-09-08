@@ -369,29 +369,44 @@ async function fetchLiveMatch(favoriteTeamId?: string | null): Promise<LiveMatch
  * la vista "En vivo" cuando hay varios a la vez. Si no hay ninguno, cae al
  * único partido de `fetchLiveMatch` (próximo / último), envuelto en lista.
  */
+function sortLive(matches: LiveMatch[], favoriteTeamId?: string | null): LiveMatch[] {
+  const rank = (m: LiveMatch) => (isLiveStatus(m.status) ? 0 : m.status === 'FINISHED' ? 2 : 1)
+  return matches.sort((a, b) => {
+    // En juego primero, luego lo que está por empezar, luego lo terminado.
+    if (rank(a) !== rank(b)) return rank(a) - rank(b)
+    // El del equipo favorito antes; luego LaLiga antes que Champions; luego hora.
+    const favA = a.home.id === favoriteTeamId || a.away.id === favoriteTeamId
+    const favB = b.home.id === favoriteTeamId || b.away.id === favoriteTeamId
+    if (favA !== favB) return favA ? -1 : 1
+    const ligaA = a.competitionShort === 'LaLiga'
+    const ligaB = b.competitionShort === 'LaLiga'
+    if (ligaA !== ligaB) return ligaA ? -1 : 1
+    return a.kickoffAt.localeCompare(b.kickoffAt)
+  })
+}
+
+/**
+ * Todo lo que enseña la pestaña "En vivo": los partidos en juego AHORA + los
+ * de HOY que aún no han empezado (para que los 6 de Champions tengan su
+ * tarjeta antes del pitido). Si el día está vacío, cae al próximo/último
+ * partido de `fetchLiveMatch`.
+ */
 async function fetchLiveMatches(favoriteTeamId?: string | null): Promise<LiveMatch[]> {
-  const inPlay = await supabase
+  const now = Date.now()
+  const dayStart = new Date(now - 4 * 3600_000).toISOString() // 4h de gracia hacia atrás
+  const dayEnd = new Date(now + 20 * 3600_000).toISOString()
+
+  const { data, error } = await supabase
     .from('fixtures')
     .select(FIXTURE_SELECT)
-    .in('status', ['LIVE', 'PAUSED'])
+    .or(
+      `status.in.(LIVE,PAUSED),and(status.eq.SCHEDULED,kickoff_at.gte.${dayStart},kickoff_at.lte.${dayEnd})`,
+    )
     .order('kickoff_at', { ascending: true })
     .returns<FixtureRow[]>()
-  if (inPlay.error) throw inPlay.error
+  if (error) throw error
 
-  if (inPlay.data?.length) {
-    const matches = inPlay.data.map(toLiveMatch)
-    return matches.sort((a, b) => {
-      // El del equipo favorito primero; luego LaLiga antes que Champions;
-      // luego por hora de inicio.
-      const favA = a.home.id === favoriteTeamId || a.away.id === favoriteTeamId
-      const favB = b.home.id === favoriteTeamId || b.away.id === favoriteTeamId
-      if (favA !== favB) return favA ? -1 : 1
-      const ligaA = a.competitionShort === 'LaLiga'
-      const ligaB = b.competitionShort === 'LaLiga'
-      if (ligaA !== ligaB) return ligaA ? -1 : 1
-      return a.kickoffAt.localeCompare(b.kickoffAt)
-    })
-  }
+  if (data?.length) return sortLive(data.map(toLiveMatch), favoriteTeamId)
 
   const single = await fetchLiveMatch(favoriteTeamId)
   return single ? [single] : []
