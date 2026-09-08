@@ -181,6 +181,8 @@ export const LALIGA_LEAGUE_ID = 87;
 export type FotmobMatchesByDate = {
   leagues?: Array<{
     id: number;
+    name?: string;
+    ccode?: string;
     matches?: Array<{
       id: number;
       home: { id: number; name: string };

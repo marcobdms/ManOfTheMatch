@@ -9,11 +9,14 @@
 // borra filas existentes si Fotmob falla — solo upsert de datos buenos.
 
 import { db } from '../db.js';
+import { fotmobPositionLabel } from '../lib/map.js';
 import { withRun } from '../lib/run.js';
 import { getMatchDetails } from '../sources/fotmob.js';
 import { findYoutubeHighlight } from '../sources/youtubeHighlights.js';
+import { resolveFotmobMatchId } from '../lib/fotmobResolve.js';
 import type { CompetitionId } from '../lib/shared.js';
 import type {
+  FotmobLineupTeam,
   FotmobMatchDetails,
   FotmobPlayerStatsEntry,
   FotmobShot,
@@ -27,6 +30,8 @@ type FixtureRow = {
   detail_facts_synced_at: string | null;
   home_team_id: string | null;
   away_team_id: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
   competition_id: string | null;
   home_score: number | null;
   away_score: number | null;
@@ -77,7 +82,8 @@ export function syncMatchFacts() {
       .from('fixtures')
       .select(
         'id, status, source_ids, detail_facts_synced_at, home_team_id, away_team_id, ' +
-          'competition_id, home_score, away_score, kickoff_at, highlight_url, highlight_checked_at',
+          'home_team_name, away_team_name, competition_id, home_score, away_score, ' +
+          'kickoff_at, highlight_url, highlight_checked_at',
       )
       .in('status', ['LIVE', 'PAUSED', 'FINISHED']);
 
@@ -144,8 +150,12 @@ export function syncMatchFacts() {
     let written = 0;
     for (const f of due) {
       try {
-        const matchId = f.source_ids?.fotmob;
-        if (matchId == null) continue; // aún no resuelto por syncLineups — se reintenta en 60s
+        let matchId = f.source_ids?.fotmob as number | undefined;
+        if (matchId == null) {
+          // Champions no lo trae por defecto (syncLineups solo resuelve LaLiga).
+          matchId = (await resolveFotmobMatchId(f)) ?? undefined;
+        }
+        if (matchId == null) continue;
         const isLive = f.status === 'LIVE' || f.status === 'PAUSED';
         const details = await getMatchDetails(matchId as number, { live: isLive });
         if (!details) continue; // fallo de red / circuit breaker → se conserva lo anterior
@@ -260,11 +270,73 @@ async function writeAll(f: FixtureRow, details: FotmobMatchDetails): Promise<voi
     writeShots(f.id, details, slugFor),
     writeMatchFacts(f.id, details),
     writeHighlight(f, details),
+    writeFixtureLineups(f, details),
   ]);
 
   if (f.status === 'FINISHED') {
     await db.from('fixtures').update({ detail_facts_synced_at: new Date().toISOString() }).eq('id', f.id);
   }
+}
+
+/**
+ * Alineación de AMBOS equipos en la tabla `lineups` (por fixture, columnas
+ * ricas de 0005/0011). syncLineups solo lo hace por equipo seguido; esto lo
+ * hace para cualquier partido con detalle de Fotmob — clave para Champions,
+ * donde un lado casi nunca es un club de LaLiga. La vista de alineaciones lee
+ * de aquí cuando existe.
+ */
+async function writeFixtureLineups(f: FixtureRow, details: FotmobMatchDetails): Promise<void> {
+  const lineup = details.content?.lineup;
+  if (!lineup) return;
+  const confirmed = lineup.lineupType === 'standard';
+  const now = new Date().toISOString();
+
+  const rowsFor = (side: FotmobLineupTeam | null | undefined, teamId: string | null) => {
+    if (!side || !teamId) return [];
+    const all = [
+      ...(side.starters ?? []).map((p) => [p, true] as const),
+      ...(side.subs ?? []).map((p) => [p, false] as const),
+    ];
+    return all.map(([p, isStarting]) => {
+      const x = p.horizontalLayout?.x ?? null;
+      const y = p.horizontalLayout?.y ?? null;
+      return {
+        fixture_id: f.id,
+        team_id: teamId,
+        formation: side.formation ?? null,
+        is_starting: isStarting,
+        player_id: p.id != null ? String(p.id) : null,
+        player_name: p.name,
+        shirt_number: p.shirtNumber ?? null,
+        position: fotmobPositionLabel(x, y),
+        grid: null,
+        source: 'fotmob',
+        coach: side.coach?.name ?? null,
+        pos_x: x,
+        pos_y: y,
+        position_label: fotmobPositionLabel(x, y),
+        age: p.age ?? null,
+        country: p.countryName ?? null,
+        country_code: p.countryCode ?? null,
+        rating: p.performance?.rating ?? null,
+        season_rating: p.performance?.seasonRating ?? null,
+        market_value: p.marketValue ?? null,
+        photo_url: null,
+        lineup_type: confirmed ? 'confirmed' : 'predicted',
+        captured_at: now,
+      };
+    });
+  };
+
+  const rows = [
+    ...rowsFor(lineup.homeTeam, f.home_team_id),
+    ...rowsFor(lineup.awayTeam, f.away_team_id),
+  ];
+  if (!rows.length) return;
+  const { error } = await db
+    .from('lineups')
+    .upsert(rows, { onConflict: 'fixture_id,team_id,player_name,is_starting' });
+  if (error) console.warn(`[syncMatchFacts] lineups de ${f.id} no se guardaron`, error);
 }
 
 async function writeMomentum(fixtureId: string, details: FotmobMatchDetails): Promise<void> {

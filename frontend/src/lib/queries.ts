@@ -982,6 +982,91 @@ export function useTeamLineup(teamId: string | undefined) {
   })
 }
 
+type RawLineupRow = {
+  team_id: string
+  formation: string | null
+  is_starting: boolean
+  player_name: string
+  shirt_number: number | null
+  position_label: string | null
+  pos_x: number | null
+  pos_y: number | null
+  age: number | null
+  country: string | null
+  country_code: string | null
+  rating: number | null
+  season_rating: number | null
+  coach: string | null
+  lineup_type: string | null
+}
+
+/**
+ * Alineación de AMBOS equipos de un partido concreto, desde la tabla `lineups`
+ * (la escribe syncMatchFacts por fixture — clave para Champions, donde un lado
+ * casi nunca es un club de LaLiga y no tiene `team_lineup_snapshots`).
+ * Devuelve `{ [teamId]: TeamLineupSnapshot }` o `{}` si aún no hay filas.
+ */
+async function fetchMatchLineups(fixtureId: string): Promise<Record<string, TeamLineupSnapshot>> {
+  const { data, error } = await supabase
+    .from('lineups')
+    .select(
+      'team_id, formation, is_starting, player_name, shirt_number, position_label, ' +
+        'pos_x, pos_y, age, country, country_code, rating, season_rating, coach, lineup_type',
+    )
+    .eq('fixture_id', fixtureId)
+    .returns<RawLineupRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return {}
+    throw error
+  }
+  if (!data?.length) return {}
+
+  const byTeam: Record<string, RawLineupRow[]> = {}
+  for (const r of data) (byTeam[r.team_id] ??= []).push(r)
+
+  const out: Record<string, TeamLineupSnapshot> = {}
+  for (const [teamId, rows] of Object.entries(byTeam)) {
+    const players: LineupPlayer[] = rows.map((r) => ({
+      name: r.player_name,
+      shortName: r.player_name.split(' ').slice(-1)[0] || r.player_name,
+      number: r.shirt_number,
+      position: r.position_label,
+      x: r.pos_x ?? 0.5,
+      y: r.pos_y ?? 0.5,
+      age: r.age,
+      country: r.country,
+      countryCode: r.country_code,
+      rating: r.rating,
+      seasonRating: r.season_rating,
+      isStarter: r.is_starting,
+      photoUrl: null,
+    }))
+    out[teamId] = {
+      teamId,
+      opponentName: null,
+      opponentCrest: null,
+      isHome: null,
+      kickoffAt: null,
+      formation: rows.find((r) => r.formation)?.formation ?? null,
+      coach: rows.find((r) => r.coach)?.coach ?? null,
+      lineupType: normalizeFreshness(rows.find((r) => r.lineup_type)?.lineup_type ?? 'last_played'),
+      players,
+      updatedAt: new Date().toISOString(),
+    }
+  }
+  return out
+}
+
+export function useMatchLineups(fixtureId: string | undefined, opts: { live?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['matchLineups', fixtureId],
+    queryFn: () => fetchMatchLineups(fixtureId as string),
+    enabled: hasSupabaseEnv && !!fixtureId,
+    refetchInterval: opts.live ? LIVE_MS : false,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 /**
  * Realtime bridge: while a fixture is on screen, subscribe to row changes on
  * `fixtures` + `match_events` and invalidate the matching queries so goals show
