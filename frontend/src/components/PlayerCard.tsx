@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { UserCircle } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT } from '../lib/motion'
+import { flagFor } from '../lib/fotmobFlag'
 import type { LineupPlayer } from '../types/view'
 
 type Props = {
@@ -50,6 +51,7 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
   }
 
   const seasonRating = player.seasonRating
+  const flag = flagFor(player.countryCode)
 
   return (
     <button
@@ -108,7 +110,19 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
             </span>
             <span className="motm-pcard-back__row">
               <span className="motm-pcard-back__label">País</span>
-              <span>{player.country ?? '—'}</span>
+              {/* Bandera en vez del nombre: "Dominican Republic" / "North
+                  Macedonia" no caben y partían la fila. El nombre queda en el
+                  tooltip; sin bandera para ese código se enseña el texto. */}
+              {flag ? (
+                <img
+                  className="motm-pcard-back__flag"
+                  src={flag}
+                  alt={player.country ?? 'País'}
+                  title={player.country ?? undefined}
+                />
+              ) : (
+                <span>{player.country ?? '—'}</span>
+              )}
             </span>
             <span className="motm-pcard-back__row">
               <span className="motm-pcard-back__label">Posición</span>

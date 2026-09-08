@@ -1279,6 +1279,17 @@
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+/* Bandera circular (assets/flags/) en la fila "País": el alto lo fija la
+   línea de texto para que la fila no crezca. `align-self: center` porque la
+   fila alinea por baseline y una imagen no tiene. */
+.motm-pcard-back__flag {
+  width: 1.35em;
+  height: 1.35em;
+  align-self: center;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 
 /* --- Suplente: fila plana del banquillo, sin flip (tamaño propio) --- */
 .motm-pcard--sub {
