@@ -53,6 +53,26 @@ export default function MatchPredictions() {
       ].filter((r) => r.home > 0 || r.away > 0)
     : []
 
+  // Argumentos ya traducidos: si el fact de media de goles de API-Football
+  // (af_goals) está, se quitan los "goal streak" de Fotmob que dicen casi lo
+  // mismo. Máximo 4, sin repetir texto.
+  const factLines: string[] = (() => {
+    if (!match || !pred) return []
+    const hasAfGoals = pred.facts.some((f) => f.templateId === 'af_goals')
+    const REDUNDANT = new Set(['goals_team', 'goalstreak_team_home', 'goalstreak_team', 'goals_total_last_3_both'])
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const f of pred.facts) {
+      if (hasAfGoals && REDUNDANT.has(f.templateId)) continue
+      const text = translateFact(f, match.home.shortName, match.away.shortName)
+      if (!text || seen.has(text)) continue
+      seen.add(text)
+      out.push(text)
+      if (out.length === 4) break
+    }
+    return out
+  })()
+
   return (
     <>
       <AppHeader />
@@ -95,14 +115,13 @@ export default function MatchPredictions() {
           </div>
         )}
 
-        {!loading && (pred?.facts.length ?? 0) > 0 && match && (
+        {!loading && factLines.length > 0 && (
           <div className="motm-stat-team">
             <h2 className="motm-label motm-subs__title">Argumentos</h2>
             <ul className="motm-predict-facts">
-              {pred!.facts.map((fact, i) => {
-                const text = translateFact(fact, match.home.shortName, match.away.shortName)
-                return text ? <li key={i}>{text}</li> : null
-              })}
+              {factLines.map((text, i) => (
+                <li key={i}>{text}</li>
+              ))}
             </ul>
           </div>
         )}

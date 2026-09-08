@@ -260,6 +260,21 @@ export type AfOdds = {
   bookmakers: AfOddsBookmaker[];
 };
 
+export type AfPredTeam = {
+  id: number | null;
+  last_5: {
+    goals: {
+      for: { total: number | null; average: string | null };
+      against: { total: number | null; average: string | null };
+    };
+  } | null;
+  league: {
+    form: string | null;
+    clean_sheet: { total: number | null } | null;
+    failed_to_score: { total: number | null } | null;
+  } | null;
+};
+
 export type AfPrediction = {
   predictions: {
     winner: { id: number | null; name: string | null; comment: string | null } | null;
@@ -270,4 +285,9 @@ export type AfPrediction = {
     att: { home: string; away: string };
     def: { home: string; away: string };
   };
+  teams?: { home: AfPredTeam; away: AfPredTeam };
+  h2h?: Array<{
+    teams: { home: { id: number | null } | null; away: { id: number | null } | null } | null;
+    goals: { home: number | null; away: number | null } | null;
+  }>;
 };

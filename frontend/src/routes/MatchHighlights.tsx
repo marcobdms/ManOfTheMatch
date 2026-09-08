@@ -78,16 +78,17 @@ export default function MatchHighlights() {
           <div className="motm-empty">
             <b>Aún no se ha subido el resumen</b>
             Suele publicarse unas horas después del partido. Esta pantalla se
-            actualiza sola; también puedes comprobarlo ahora.
+            actualiza sola.
+            {/* Sin botón: solo el icono girando. Sigue siendo pulsable para
+                forzar una comprobación, pero sin texto ni caja. */}
             <button
               type="button"
-              className="motm-btn motm-highlights__retry"
+              className="motm-highlights__spin"
               onClick={() => void matchQuery.refetch()}
               disabled={checking}
-              aria-busy={checking}
+              aria-label="Comprobar de nuevo"
             >
-              <ArrowClockwise size={16} className={checking ? 'motm-spin' : undefined} />
-              {checking ? 'Comprobando…' : 'Comprobar de nuevo'}
+              <ArrowClockwise size={22} className={checking ? 'motm-spin' : undefined} />
             </button>
           </div>
         )}

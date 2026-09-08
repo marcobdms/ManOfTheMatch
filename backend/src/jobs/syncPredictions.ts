@@ -100,6 +100,10 @@ async function syncOne(f: FixtureRow, afId: number): Promise<number> {
   const pred = predictions[0];
   const toNum = (s: string | undefined | null) => (s ? Number(s.replace('%', '')) : null);
   let fotmobFacts: Array<{ templateId: string; values: string[] }> | null = null;
+  // Argumentos derivados de la respuesta de API-Football que YA pagamos
+  // (nunca los mirábamos): cara a cara histórico, forma de liga y media de
+  // goles. Añaden variedad a los 2-3 "goal streak" repetitivos de Fotmob.
+  const afFacts = buildAfFacts(pred);
   const fmId = f.source_ids?.fotmob;
   if (fmId != null) {
     const details = await getMatchDetails(fmId as number, { live: false });
@@ -116,7 +120,11 @@ async function syncOne(f: FixtureRow, afId: number): Promise<number> {
     }
   }
 
-  if (pred || fotmobFacts) {
+  // AF primero (más variado), luego los de Fotmob. La columna se llama
+  // `fotmob_facts` por historia; ahora guarda argumentos de ambas fuentes.
+  const allFacts = [...afFacts, ...(fotmobFacts ?? [])];
+
+  if (pred || allFacts.length) {
     await db.from('match_predictions').upsert(
       {
         fixture_id: f.id,
@@ -129,7 +137,7 @@ async function syncOne(f: FixtureRow, afId: number): Promise<number> {
         att_away: toNum(pred?.comparison?.att?.away),
         def_home: toNum(pred?.comparison?.def?.home),
         def_away: toNum(pred?.comparison?.def?.away),
-        fotmob_facts: fotmobFacts,
+        fotmob_facts: allFacts.length ? allFacts : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'fixture_id' },
@@ -138,4 +146,60 @@ async function syncOne(f: FixtureRow, afId: number): Promise<number> {
 
   await db.from('fixtures').update({ predictions_synced_at: new Date().toISOString() }).eq('id', f.id);
   return calls;
+}
+
+type Fact = { templateId: string; values: string[] };
+
+/**
+ * Argumentos de previa derivados de la respuesta de API-Football `/predictions`
+ * (ya la pedimos para el %; solo mirábamos `percent` y `comparison`).
+ *   - af_h2h      cara a cara histórico (sirve también en Champions J1: el
+ *                 array `h2h` es de TODAS las competiciones)
+ *   - af_form     forma en la liga (WDL -> el front lo pinta V/E/D); vacío en
+ *                 J1 de Champions, no se emite
+ *   - af_goals    media de goles a favor/en contra de los últimos 5
+ */
+function buildAfFacts(pred: import('../sources/apiFootball.js').AfPrediction | undefined): Fact[] {
+  if (!pred) return [];
+  const out: Fact[] = [];
+  const homeId = pred.teams?.home?.id ?? null;
+
+  const h2h = pred.h2h ?? [];
+  if (h2h.length >= 2 && homeId != null) {
+    let hw = 0, aw = 0, dr = 0;
+    for (const m of h2h) {
+      const gh = m.goals?.home;
+      const ga = m.goals?.away;
+      if (gh == null || ga == null) continue;
+      const homeIsOurs = m.teams?.home?.id === homeId;
+      const ours = homeIsOurs ? gh : ga;
+      const theirs = homeIsOurs ? ga : gh;
+      if (ours > theirs) hw++;
+      else if (ours < theirs) aw++;
+      else dr++;
+    }
+    const n = hw + aw + dr;
+    if (n >= 2) out.push({ templateId: 'af_h2h', values: ['home_team', 'away_team', String(n), String(hw), String(aw), String(dr)] });
+  }
+
+  const trim5 = (s: string | null | undefined) => (s ?? '').replace(/[^WDL]/gi, '').slice(-5).toUpperCase();
+  const hf = trim5(pred.teams?.home?.league?.form);
+  const af = trim5(pred.teams?.away?.league?.form);
+  if (hf.length >= 3 && af.length >= 3) {
+    out.push({ templateId: 'af_form', values: ['home_team', hf, 'away_team', af] });
+  }
+
+  const pos = (s: string | null | undefined) => {
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n.toFixed(1) : null;
+  };
+  const hFor = pos(pred.teams?.home?.last_5?.goals?.for?.average);
+  const hAg = pos(pred.teams?.home?.last_5?.goals?.against?.average);
+  const aFor = pos(pred.teams?.away?.last_5?.goals?.for?.average);
+  const aAg = pos(pred.teams?.away?.last_5?.goals?.against?.average);
+  if (hFor && aFor && hAg && aAg) {
+    out.push({ templateId: 'af_goals', values: ['home_team', hFor, hAg, 'away_team', aFor, aAg] });
+  }
+
+  return out;
 }

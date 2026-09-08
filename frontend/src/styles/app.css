@@ -116,6 +116,7 @@
 
 /* scoreboard card */
 .motm-score {
+  position: relative;
   margin: 16px;
   /* Spotlight oscuro fijo en claro; en oscuro pasa a --card (gris, no negro
      puro) para no desentonar con el resto — ver --score-bg en tokens.css. */
@@ -188,18 +189,25 @@
 /* Logo de la competición: centrado, justo encima del marcador. La carta es
    oscura, así que el SVG blanco de la Champions y el rojo de LaLiga van tal
    cual. */
+/* El logo de competición FLOTA: absoluto y centrado en la franja superior, no
+   ocupa alto en el flujo (la card volvió a su altura de antes de añadirlo).
+   El hueco central de .motm-score__top está libre — estado a la izquierda,
+   hora/minuto a la derecha. */
 .motm-score__badge {
-  display: block;
-  height: 20px;
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 18px;
   width: auto;
-  max-width: 120px;
-  margin: 4px auto 8px;
+  max-width: 110px;
   object-fit: contain;
-  opacity: 0.92;
+  opacity: 0.9;
+  pointer-events: none;
 }
 .motm-score__badge--champions {
-  height: 24px;
-  opacity: 0.85;
+  height: 22px;
+  opacity: 0.8;
 }
 .motm-score__grid {
   display: grid;
@@ -712,10 +720,20 @@
     transform: rotate(360deg);
   }
 }
-.motm-highlights__retry {
+/* Solo el icono, sin caja de botón: forzar comprobación del resumen. */
+.motm-highlights__spin {
   display: flex;
   width: fit-content;
-  margin: 14px auto 0;
+  margin: 16px auto 0;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.motm-highlights__spin:disabled {
+  cursor: default;
 }
 @keyframes motm-shimmer {
   0%,
