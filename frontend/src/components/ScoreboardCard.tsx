@@ -1,9 +1,17 @@
 import { SoccerBall } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import laligaLogo from '../assets/crests/laliga.svg'
+import championsLogo from '../assets/crests/champions.svg'
 import TeamCrest from './TeamCrest'
 import { useLiveMinute } from '../lib/useLiveMinute'
 import type { GoalChip, LiveMatch, TeamLite } from '../types/view'
+
+/** Logo de la competición del partido, o null si no lo reconocemos. */
+function compLogo(short: string): string | null {
+  if (short === 'LaLiga') return laligaLogo
+  if (short === 'Champions') return championsLogo
+  return null
+}
 
 type Props = {
   match: LiveMatch
@@ -56,6 +64,7 @@ export default function ScoreboardCard({ match, goals, linkTeams = true }: Props
   // congela en el descanso), cae al minuteLabel que ya trae el backend.
   const liveMinute = useLiveMinute(match.halfStartedAt, match.halfNumber)
   const minuteLabel = liveMinute ?? match.minuteLabel
+  const logo = compLogo(match.competitionShort)
 
   return (
     // Sin animación de entrada propia: la transición de página (App.tsx) ya
@@ -64,10 +73,9 @@ export default function ScoreboardCard({ match, goals, linkTeams = true }: Props
     <section className="motm-score">
       <div className="motm-score__top">
         <span className="motm-label motm-score__comp" style={{ color: 'rgba(255,255,255,.5)' }}>
-          {match.competitionShort === 'LaLiga' && (
-            <img src={laligaLogo} alt="" className="motm-score__comp-logo" aria-hidden="true" />
-          )}
-          {match.competitionShort} · {statusLabel}
+          {/* La competición ahora es el logo centrado de abajo; aquí solo el
+              estado. Si no reconocemos el logo, se deja el nombre como antes. */}
+          {logo ? statusLabel : `${match.competitionShort} · ${statusLabel}`}
         </span>
         {isScheduled && <span className="motm-score__kickoff">{kickoffLabel(match.kickoffAt)}</span>}
         {isLive && (
@@ -82,6 +90,18 @@ export default function ScoreboardCard({ match, goals, linkTeams = true }: Props
           </span>
         )}
       </div>
+
+      {/* Logo de la competición, centrado justo encima del marcador. */}
+      {logo && (
+        <img
+          src={logo}
+          alt={match.competitionShort}
+          className={
+            'motm-score__badge' +
+            (match.competitionShort === 'Champions' ? ' motm-score__badge--champions' : '')
+          }
+        />
+      )}
 
       <div className="motm-score__grid">
         <TeamBlock team={match.home} linked={linkTeams} />
