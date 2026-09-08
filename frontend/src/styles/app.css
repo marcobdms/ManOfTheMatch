@@ -195,7 +195,9 @@
    hora/minuto a la derecha. */
 .motm-score__badge {
   position: absolute;
-  top: 18px;
+  /* En el hueco entre la franja de estado y el marcador — no en la línea de
+     "PREVIA · hora", que en una previa lleva texto largo a la derecha. */
+  top: 42px;
   left: 50%;
   transform: translateX(-50%);
   height: 18px;
