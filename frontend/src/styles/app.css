@@ -262,18 +262,20 @@
 /* goal chips */
 /* Los goles van en UNA sola línea con scroll horizontal — no ocupan alto
    vertical aunque haya 5-6. La barra se oculta (app móvil, se arrastra con el
-   dedo) y un degradado en el borde derecho avisa de que hay más. */
+   dedo); el último chip recortado ya indica que hay más.
+   SIN `mask-image` a propósito: sobre un contenedor con overflow rompe el
+   scroll táctil en iOS/WKWebView (por eso "no funcionaba"). */
 .motm-goals {
   display: flex;
   flex-wrap: nowrap;
   gap: 8px;
   margin-top: 18px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
-  /* el degradado solo aparece cuando el contenido rebasa (mask sobre el eje X) */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 }
 .motm-goals::-webkit-scrollbar {
   display: none;

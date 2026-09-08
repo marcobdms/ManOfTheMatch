@@ -265,7 +265,9 @@ async function writeAll(f: FixtureRow, details: FotmobMatchDetails): Promise<voi
     return null;
   };
 
-  await Promise.all([
+  // allSettled: que un escritor que falle (p.ej. una fila rara de Fotmob) no
+  // se lleve por delante a los otros seis. Cada uno ya loguea su propio fallo.
+  const results = await Promise.allSettled([
     writeMomentum(f.id, details),
     writeTeamStats(f.id, details),
     writePlayerStats(f.id, details, slugFor),
@@ -274,6 +276,9 @@ async function writeAll(f: FixtureRow, details: FotmobMatchDetails): Promise<voi
     writeHighlight(f, details),
     writeFixtureLineups(f, details),
   ]);
+  for (const r of results) {
+    if (r.status === 'rejected') console.warn(`[syncMatchFacts] writer de ${f.id} falló`, r.reason);
+  }
 
   if (f.status === 'FINISHED') {
     await db.from('fixtures').update({ detail_facts_synced_at: new Date().toISOString() }).eq('id', f.id);
@@ -344,8 +349,20 @@ async function writeFixtureLineups(f: FixtureRow, details: FotmobMatchDetails): 
 async function writeMomentum(fixtureId: string, details: FotmobMatchDetails): Promise<void> {
   const points = details.content?.momentum?.main?.data ?? [];
   if (!points.length) return;
-  const rows = points.map((p) => ({ fixture_id: fixtureId, minute: p.minute, value: p.value }));
-  await db.from('match_momentum').upsert(rows, { onConflict: 'fixture_id,minute' });
+  // En un partido EN VIVO, Fotmob pre-rellena todos los minutos hasta el 90 con
+  // `value: null` para los que aún no se han jugado. Las columnas son NOT NULL,
+  // así que una sola de esas filas tumbaba el upsert entero (error 23502) y el
+  // partido se quedaba sin momentum hasta el pitido final. Se descartan.
+  const seen = new Set<number>();
+  const rows = [];
+  for (const p of points) {
+    if (p.minute == null || p.value == null || seen.has(p.minute)) continue;
+    seen.add(p.minute);
+    rows.push({ fixture_id: fixtureId, minute: p.minute, value: p.value });
+  }
+  if (!rows.length) return;
+  const { error } = await db.from('match_momentum').upsert(rows, { onConflict: 'fixture_id,minute' });
+  if (error) console.warn(`[syncMatchFacts] momentum de ${fixtureId} no se guardó`, error);
 }
 
 const PERIOD_KEYS = ['All', 'FirstHalf', 'SecondHalf'] as const;

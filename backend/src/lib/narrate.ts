@@ -30,6 +30,11 @@ export type NarrationEvent = {
   player: string | null;
   homeScore: number;
   awayScore: number;
+  /** Para goles: qué supone en el marcador ("inaugura el marcador", "empata
+   *  el partido", "le da la vuelta", "rompe el empate y se adelanta", "amplía
+   *  la ventaja", "recorta y sigue por detrás"). Calculado desde los eventos,
+   *  no de la mente del modelo — sin esto decía "abre 1-0" en el 2-0. */
+  situation?: string | null;
   /** Solo para 'big_chance' — xG real del disparo, para que el modelo pueda
    *  transmitir "clarísima" sin que se lo tenga que inventar. */
   xg?: number | null;
@@ -108,7 +113,8 @@ export async function narrateEvent(ev: NarrationEvent): Promise<string | null> {
     equipo: ev.team,
     rival: ev.opponent,
     jugador: ev.player,
-    marcador_actual: `${ev.homeScore}-${ev.awayScore}`,
+    marcador_tras_el_evento: `${ev.homeScore}-${ev.awayScore}`,
+    ...(ev.situation ? { que_supone_en_el_marcador: ev.situation } : {}),
     ...(ev.kind === 'big_chance'
       ? {
           xg_del_disparo: ev.xg ?? null,
@@ -132,6 +138,7 @@ REGLAS ESTRICTAS:
 - Si "jugador" es null, no inventes un nombre: refiérete solo al equipo.
 - Para "gol anulado por el VAR", la frase debe transmitir que NO sube al marcador.
 - Para "ocasión clara de gol desperdiciada", la frase debe transmitir que el disparo NO acabó en gol (usa "xg_del_disparo" solo como referencia de qué tan clara era, no lo menciones como número).
+- "que_supone_en_el_marcador" es la IDEA CENTRAL y es la VERDAD del partido: constrúyela alrededor de eso, sin adornos que la contradigan. Si NO es exactamente "inaugura el marcador", está PROHIBIDO que la frase contenga "abre", "abre el marcador", "abre la cuenta", "inaugura" o "estrena el marcador" — ni siquiera de pasada. Con "amplía la ventaja": amplía / aumenta / hace el segundo / sentencia. Con "empata el partido": que quede claro que iguala. Con "le da la vuelta" o "rompe el empate y se adelanta": dilo así. Con "recorta y sigue por detrás": que se note que su equipo AÚN pierde.
 - Cuando existan, APROVECHA "como_acabo", "origen_de_la_jugada", "rematado_pero" y "direccion" para que la frase cuente qué pasó de verdad ("¡Paradón!", "se le va desviada tras el córner", "la bloquea un defensa") en vez de una frase genérica.
 - NUNCA digas que el balón dio en el palo, en el travesaño o en la madera: ese dato NO existe en lo que recibes. Si no está en el JSON, no ha pasado.
 - Para "penalti fallado", "tarjeta roja directa" y "segunda amarilla", céntrate en la acción y en lo que supone para el equipo, sin inventar la falta ni el motivo.
@@ -165,7 +172,17 @@ REGLAS ESTRICTAS:
     }
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = tidy(json.choices?.[0]?.message?.content ?? '');
-    return sane(text) ? text : null;
+    if (!sane(text)) return null;
+    // Si NO es el primer gol y aun así dice "abre/inaugura el marcador", es
+    // un error de bulto (el 2-0 no "abre" nada): mejor el texto plano.
+    if (
+      ev.situation &&
+      ev.situation !== 'inaugura el marcador' &&
+      /\b(abre el marcador|abre la cuenta|inaugura el marcador|estrena el marcador)\b/i.test(text)
+    ) {
+      return null;
+    }
+    return text;
   } catch (err) {
     console.warn('[narrate] falló', err);
     return null;

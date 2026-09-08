@@ -173,10 +173,28 @@ async function narrateNewGoals(
 ): Promise<void> {
   const { data: fx } = await db
     .from('fixtures')
-    .select('home_score, away_score, home_team_name, away_team_name')
+    .select('home_team_name, away_team_name')
     .eq('id', f.id)
     .maybeSingle();
   if (!fx) return;
+
+  // Marcador EN el momento de cada gol, contado desde los propios eventos: el
+  // agregado `fixtures.home_score` lo escribe otro cron y va con retraso, así
+  // que narrar con él daba "empata 1-1" en un gol que ponía el 2-1.
+  const { data: rawGoals } = await db
+    .from('match_events')
+    .select('minute, minute_extra, sort_key, team_id, type')
+    .eq('fixture_id', f.id)
+    .eq('source', 'fotmob')
+    .in('type', ['GOAL', 'PENALTY_GOAL', 'OWN_GOAL']);
+  const timeline = [...(rawGoals ?? [])].sort(
+    (a, b) =>
+      (a.minute ?? 0) - (b.minute ?? 0) ||
+      (a.minute_extra ?? 0) - (b.minute_extra ?? 0) ||
+      (a.sort_key ?? 0) - (b.sort_key ?? 0),
+  );
+  const forHome = (t: { team_id: string | null; type: string }) =>
+    t.type === 'OWN_GOAL' ? t.team_id !== f.home_team_id : t.team_id === f.home_team_id;
 
   for (const g of goals) {
     const isHome = g.team_id === f.home_team_id;
@@ -189,14 +207,37 @@ async function narrateNewGoals(
       null;
     if (!team || !opponent) continue;
 
+    const gi = timeline.findIndex(
+      (t) => t.minute === g.minute && t.team_id === g.team_id && t.type === g.type,
+    );
+    const upTo = gi >= 0 ? timeline.slice(0, gi + 1) : timeline;
+    let h = 0;
+    let a = 0;
+    for (const t of upTo) forHome(t) ? h++ : a++;
+    const mine = isHome ? h : a;
+    const theirs = isHome ? a : h;
+    const situation =
+      mine === 1 && theirs === 0
+        ? 'inaugura el marcador'
+        : mine === theirs
+          ? 'empata el partido'
+          : mine - 1 < theirs && mine > theirs
+            ? 'le da la vuelta al marcador'
+            : mine - 1 === theirs && mine > theirs
+              ? 'rompe el empate y se adelanta'
+              : mine > theirs
+                ? 'amplía la ventaja'
+                : 'recorta y sigue por detrás';
+
     const narration = await narrateEvent({
       kind: GOAL_KIND[g.type] ?? 'goal',
       minute: g.minute,
       team,
       opponent,
       player: g.player_name,
-      homeScore: fx.home_score ?? 0,
-      awayScore: fx.away_score ?? 0,
+      homeScore: h,
+      awayScore: a,
+      situation,
     });
     if (narration) {
       await db
