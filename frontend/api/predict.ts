@@ -114,15 +114,18 @@ export default async function handler(req: Request): Promise<Response> {
   if (cachedRows[0]) return json(toApi(cachedRows[0] as AiRow), 200)
 
   // partido + nombres de equipo.
-  const fxSelect = 'id,status,home:teams!home_team_id(short_name),away:teams!away_team_id(short_name)'
+  const fxSelect =
+    'id,status,competition_id,matchday,home_team_name,away_team_name,' +
+    'home:teams!home_team_id(short_name),away:teams!away_team_id(short_name)'
   const fxRes = await sbFetch(`fixtures?id=eq.${fixtureId}&select=${fxSelect}`)
   const fixtures = fxRes.ok ? await fxRes.json() : []
   const fixture = fixtures[0]
   if (!fixture) return json({ error: 'Partido no encontrado' }, 404)
   if (fixture.status !== 'SCHEDULED') return json({ error: 'Solo disponible antes de que empiece el partido' }, 422)
 
-  const homeName = asOne(fixture.home)?.short_name ?? 'el local'
-  const awayName = asOne(fixture.away)?.short_name ?? 'el visitante'
+  const homeName = asOne(fixture.home)?.short_name ?? fixture.home_team_name ?? 'el local'
+  const awayName = asOne(fixture.away)?.short_name ?? fixture.away_team_name ?? 'el visitante'
+  const isUcl = fixture.competition_id === 'ucl'
 
   // cuotas + comparativa/argumentos ya sincronizados.
   const oddsRes = await sbFetch(
@@ -148,16 +151,34 @@ export default async function handler(req: Request): Promise<Response> {
     .map((f: { templateId: string; values: string[] }) => translateFact(f, homeName, awayName))
     .filter((s: string | null): s is string => !!s)
 
+  // La comparativa de API-Football se calcula DENTRO de la competición del
+  // partido: en las primeras jornadas de Champions sale toda a 0 porque nadie
+  // ha jugado aún en ella. No es "faltan datos", es que no hay historial en la
+  // competición todavía — se le dice al modelo para que no se disculpe y
+  // razone desde el mercado.
+  const comparativaVacia =
+    !pred ||
+    [pred.form_home, pred.form_away, pred.att_home, pred.att_away, pred.def_home, pred.def_away]
+      .every((v: number | null) => v == null || Number(v) === 0)
+
   const context = {
     partido: `${homeName} vs ${awayName}`,
+    competicion: isUcl ? 'Champions League (fase liga)' : 'LaLiga',
+    jornada: fixture.matchday ?? null,
     probabilidad_implicita_de_las_cuotas: implied,
     cuotas_por_casa: odds,
-    comparativa: pred
-      ? {
-          forma_ultimos_5: { [homeName]: pred.form_home, [awayName]: pred.form_away },
-          ataque: { [homeName]: pred.att_home, [awayName]: pred.att_away },
-          defensa: { [homeName]: pred.def_home, [awayName]: pred.def_away },
-        }
+    comparativa:
+      pred && !comparativaVacia
+        ? {
+            forma_ultimos_5: { [homeName]: pred.form_home, [awayName]: pred.form_away },
+            ataque: { [homeName]: pred.att_home, [awayName]: pred.att_away },
+            defensa: { [homeName]: pred.def_home, [awayName]: pred.def_away },
+          }
+        : null,
+    nota_comparativa: comparativaVacia
+      ? isUcl
+        ? 'Aún no hay historial en la Champions de esta temporada (jornada temprana); no existe comparativa de forma/ataque/defensa. Basa el análisis en las cuotas y el consenso del mercado.'
+        : 'No hay comparativa de forma/ataque/defensa disponible para este partido.'
       : null,
     argumentos_estadisticos: facts,
   }
