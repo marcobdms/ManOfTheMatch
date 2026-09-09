@@ -13,12 +13,15 @@ const GOAL_TYPES = new Set(['GOAL', 'OWN_GOAL', 'PENALTY_GOAL']);
  *   - si era gol, se RE-TIPIFICA a 'VAR' con detail 'Gol anulado' (y se narra
  *     una vez, igual que un gol normal) — se conserva el momento en vez de
  *     borrarlo sin dejar rastro.
+ *   - si ya era 'VAR' (gol anulado que reconciliamos en un poll anterior), se
+ *     DEJA — es un hecho histórico, Fotmob nunca lo vuelve a listar y borrarlo
+ *     tiraba la narración "el VAR lo anula" que ya se había guardado.
  *   - si no era gol (sustitución, tarjeta...), se borra sin más.
  */
 export async function reconcileRetracted(fixtureId: string, source: string, validIds: string[]): Promise<void> {
   const { data: existing, error: selError } = await db
     .from('match_events')
-    .select('id, type, source_event_id, team_id, player_name, minute')
+    .select('id, type, source_event_id, team_id, player_name, minute, narration')
     .eq('fixture_id', fixtureId)
     .eq('source', source);
   if (selError) {
@@ -26,12 +29,21 @@ export async function reconcileRetracted(fixtureId: string, source: string, vali
     return;
   }
 
+  // Goles anulados que se quedaron sin frase (Groq falló en su tick): se
+  // reintenta aquí, es barato y el "el VAR lo anula" es el detalle que se
+  // quiere que nunca falte.
+  const unnarratedVar = (existing ?? []).filter((r) => r.type === 'VAR' && !r.narration);
+  if (unnarratedVar.length) await narrateDisallowed(fixtureId, unnarratedVar);
+
   const validSet = new Set(validIds);
   const gone = (existing ?? []).filter((r) => !validSet.has(r.source_event_id));
   if (!gone.length) return;
 
   const toVar = gone.filter((r) => GOAL_TYPES.has(r.type));
-  const toDelete = gone.filter((r) => !GOAL_TYPES.has(r.type)).map((r) => r.id);
+  // 'VAR' fuera del borrado: ya se reconció una vez y es permanente.
+  const toDelete = gone
+    .filter((r) => !GOAL_TYPES.has(r.type) && r.type !== 'VAR')
+    .map((r) => r.id);
 
   if (toVar.length) {
     const { error } = await db

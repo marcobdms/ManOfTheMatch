@@ -1763,6 +1763,12 @@
 .motm-home {
   padding-bottom: 8px;
 }
+/* La pastilla Noticias/LaLiga/Champions iba a sangre y se salía un pelín del
+   viewport; se le deja el mismo margen lateral que a las tarjetas. */
+.motm-home > .motm-segmented {
+  margin-left: 16px;
+  margin-right: 16px;
+}
 /* Caja "sin partido / buscando": misma en ambos estados para que resolver la
    consulta no mueva nada por debajo. En carga, latido suave. */
 .motm-empty--loading {
@@ -3056,6 +3062,11 @@
 }
 .motm-folders__grid--lg {
   grid-template-columns: repeat(auto-fit, 128px);
+}
+/* El escudo puede rebosar un poco el ancho de la burbuja sin agrandar el
+   cuadrado: la burbuja no recorta. */
+.motm-folder__crests {
+  overflow: visible;
 }
 .motm-folders__grid--sm {
   grid-template-columns: repeat(3, 1fr);
