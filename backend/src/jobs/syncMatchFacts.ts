@@ -217,6 +217,7 @@ async function retryHighlightViaYoutube(f: FixtureRow): Promise<boolean> {
   if (yt) {
     patch.highlight_url = yt.url;
     patch.highlight_thumbnail = yt.thumbnail;
+    patch.highlight_kind = yt.kind;
     console.log(`[syncMatchFacts] resumen de ${f.id} vía ${yt.source}`);
   }
   const { error } = await db.from('fixtures').update(patch).eq('id', f.id);
@@ -238,6 +239,7 @@ async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promi
 
   let url: string | null = null;
   let thumbnail: string | null = null;
+  let kind: string | null = null;
 
   const h = details.content?.matchFacts?.highlights ?? null;
   if (h?.url?.trim()) {
@@ -255,6 +257,7 @@ async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promi
     if (yt) {
       url = yt.url;
       thumbnail = yt.thumbnail;
+      kind = yt.kind;
       console.log(`[syncMatchFacts] resumen de ${f.id} vía ${yt.source}`);
     }
   }
@@ -263,6 +266,7 @@ async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promi
   if (url) {
     patch.highlight_url = url;
     patch.highlight_thumbnail = thumbnail;
+    patch.highlight_kind = kind;
   }
   const { error } = await db.from('fixtures').update(patch).eq('id', f.id);
   if (error) console.warn(`[syncMatchFacts] highlight de ${f.id} no se guardó`, error);

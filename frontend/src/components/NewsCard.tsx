@@ -1,3 +1,4 @@
+import { PlayCircle } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import TeamCrest from './TeamCrest'
 import laligaLogo from '../assets/crests/laliga.svg'
@@ -15,6 +16,7 @@ const TOPIC_LABEL: Record<NewsTopic, string> = {
   LESION: 'Lesiones',
   TECNICO: 'El técnico',
   FICHAJES: 'Fichajes',
+  VIDEO: 'Vídeo',
 }
 
 /** Nombre de equipo compacto para el antetítulo de una previa: sin la coletilla
@@ -105,6 +107,17 @@ function DuoCrestArt({ item, tall }: { item: NewsItem; tall: boolean }) {
 }
 
 export function NewsArt({ item, tall }: { item: NewsItem; tall: boolean }) {
+  // Un vídeo se enseña con su miniatura y el play encima — se abre fuera.
+  if (item.videoUrl && item.imageUrl) {
+    return (
+      <div className={`motm-news__art motm-news__art--video${tall ? ' motm-news__art--tall' : ''}`}>
+        <img src={item.imageUrl} alt="" loading="lazy" />
+        <span className="motm-news__play" aria-hidden="true">
+          <PlayCircle size={tall ? 46 : 26} weight="fill" />
+        </span>
+      </div>
+    )
+  }
   if (item.match) return <DuoCrestArt item={item} tall={tall} />
   if (!item.imageUrl) return <CrestArt item={item} tall={tall} />
   return (

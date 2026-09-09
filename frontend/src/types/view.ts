@@ -26,6 +26,8 @@ export type LiveMatch = {
   /** Resumen en vídeo de YouTube (Fotmob, solo partidos ya jugados y no
    *  siempre) — se embebe con el reproductor oficial. null = sin vídeo. */
   highlightUrl: string | null
+  /** 'roundup' = recopilatorio de la jornada, no el resumen de este partido. */
+  highlightKind: 'match' | 'roundup' | null
   highlightThumbnail: string | null
 }
 
@@ -58,7 +60,7 @@ export type StandingRow = {
 }
 
 /** One `news` row — tabla vacía hoy; Home la omite por completo si no hay filas. */
-export type NewsTopic = 'ONCE' | 'PREVIA' | 'CRONICA' | 'LESION' | 'TECNICO' | 'FICHAJES'
+export type NewsTopic = 'ONCE' | 'PREVIA' | 'CRONICA' | 'LESION' | 'TECNICO' | 'FICHAJES' | 'VIDEO'
 
 /** Pieza propia (escrita por nosotros sobre datos propios), nunca el artículo
  *  ajeno: `originalUrl`/`originalSource` son solo la atribución de la pista. */
@@ -80,6 +82,8 @@ export type NewsItem = {
   originalSource: string | null
   originalAuthor: string | null
   publishedAt: string | null
+  /** Enlace al vídeo (YouTube). Nunca se rehospeda: se abre fuera. */
+  videoUrl: string | null
   /** Noticia de partido (previa): los dos equipos, para pintar ambos escudos. */
   match: {
     homeId: string | null

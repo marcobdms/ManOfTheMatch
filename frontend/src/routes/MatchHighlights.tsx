@@ -53,9 +53,9 @@ export default function MatchHighlights() {
 
   // `isFetching` cubre tanto el refetch manual del botón como el automático.
   const checking = matchQuery.isFetching && !matchQuery.isLoading
-  // UEFA no permite resúmenes por partido en YouTube: en Champions lo que se
-  // enlaza es el recopilatorio de goles de la jornada (incluye este partido).
-  const isRoundup = match?.competitionShort === 'Champions'
+  // Cuando nadie publica el resumen de ESE partido (pasa en Champions) se
+  // enlaza el recopilatorio de goles de la jornada, y se dice.
+  const isRoundup = match?.highlightKind === 'roundup'
 
   return (
     <>

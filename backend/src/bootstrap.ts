@@ -12,6 +12,7 @@ import { syncLineups } from './jobs/syncLineups.js';
 import { syncPredictions } from './jobs/syncPredictions.js';
 import { syncInsights } from './jobs/syncInsights.js';
 import { syncNews } from './jobs/syncNews.js';
+import { syncVideoNews } from './jobs/syncVideoNews.js';
 import { generateOwnNews } from './jobs/generateOwnNews.js';
 import { rewriteNews, pruneStaleDrafts } from './jobs/rewriteNews.js';
 import { resolveNewsImages } from './jobs/resolveNewsImage.js';
@@ -71,6 +72,8 @@ new Cron('*/10 * * * *', { protect: true }, guard(syncInsights));
 // los 6.000 tokens/minuto. Las imágenes, más lentas todavía: Wikimedia pide
 // cortesía y la foto puede esperar a la siguiente vuelta.
 new Cron('*/30 * * * *', { protect: true }, guard(syncNews));
+// Vídeos (ruedas de prensa, goles, resúmenes) desde los canales oficiales.
+new Cron('*/20 * * * *', { protect: true }, guard(syncVideoNews));
 new Cron('*/15 * * * *', { protect: true }, guard(generateOwnNews));
 new Cron('*/5 * * * *', { protect: true }, guard(rewriteNews));
 new Cron('*/7 * * * *', { protect: true }, guard(resolveNewsImages));

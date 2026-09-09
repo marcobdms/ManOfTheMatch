@@ -22,6 +22,7 @@ const MOCK_MATCH: LiveMatch = {
   homeScore: 2,
   awayScore: 1,
   highlightUrl: null,
+  highlightKind: null,
   highlightThumbnail: null,
 }
 

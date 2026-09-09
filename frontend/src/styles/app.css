@@ -3016,3 +3016,93 @@
   filter: brightness(0) invert(1) drop-shadow(0 3px 10px rgb(0 0 0 / 0.4));
   opacity: 0.95;
 }
+
+/* ===== Carpetas de partidos simultáneos (Home) ============================
+   Mismo hueco que la tarjeta de un partido: no crece. Cuadrado redondeado
+   por partido, con los dos escudos y el marcador — pinta de carpeta de iOS. */
+.motm-folders {
+  display: block;
+  margin: 16px;
+  padding: 16px;
+  background: var(--score-bg);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-dark);
+  color: #fff;
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+.motm-folders:active {
+  transform: scale(0.985);
+}
+.motm-folders__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.motm-folders__label {
+  color: rgba(255, 255, 255, 0.55);
+}
+.motm-folders__grid {
+  display: grid;
+  gap: 10px;
+  justify-content: center;
+}
+.motm-folders__grid--lg {
+  grid-template-columns: repeat(auto-fit, 104px);
+}
+.motm-folders__grid--sm {
+  grid-template-columns: repeat(3, 1fr);
+}
+.motm-folder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  aspect-ratio: 1;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.motm-folders__grid--sm .motm-folder {
+  border-radius: 18px;
+}
+.motm-folder__crests {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.motm-folder__score {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.motm-folders__grid--sm .motm-folder__score {
+  font-size: 13px;
+}
+.motm-folder--more {
+  background: rgba(255, 255, 255, 0.04);
+}
+.motm-folder__more {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Miniatura de vídeo en el feed de noticias, con el play encima. */
+.motm-news__art--video {
+  position: relative;
+}
+.motm-news__play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.55));
+  pointer-events: none;
+}

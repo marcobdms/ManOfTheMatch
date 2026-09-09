@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import NewsCard from '../components/NewsCard'
 import ScoreboardCard from '../components/ScoreboardCard'
+import LiveFolders from '../components/LiveFolders'
 import { Segmented, SegmentedButton } from '../components/Segmented'
 import TeamCrest from '../components/TeamCrest'
-import { useGoalChips, useLiveMatch, useNews, useStandings } from '../lib/queries'
+import { isLiveStatus, useGoalChips, useLiveMatch, useLiveMatches, useNews, useStandings } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
 import { crestForUclTeam } from '../lib/crestsUcl'
 import laligaLogo from '../assets/crests/laliga.svg'
@@ -71,6 +72,11 @@ export default function Home() {
   const liveQuery = useLiveMatch({ favoriteTeamId })
   const match = liveQuery.data
   const goalsQuery = useGoalChips(match?.id, { enabled: !!match })
+  // Con VARIOS partidos en juego a la vez el hueco destacado pasa a rejilla de
+  // carpetas; con uno o ninguno se queda la tarjeta de siempre.
+  const allLiveQuery = useLiveMatches({ favoriteTeamId })
+  const simultaneous = (allLiveQuery.data ?? []).filter((m) => isLiveStatus(m.status))
+  const showFolders = simultaneous.length >= 2
 
   const newsQuery = useNews(NEWS_LIMIT)
   const ligaQuery = useStandings('laliga', STANDINGS_LIMIT)
@@ -92,7 +98,9 @@ export default function Home() {
             ocupan lo mismo, así al resolverse la consulta no se desplaza nada
             de lo de abajo (ni el switcher). */}
         <div className="motm-home__feature">
-          {match ? (
+          {showFolders ? (
+            <LiveFolders matches={simultaneous} />
+          ) : match ? (
             <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
           ) : (
             <div

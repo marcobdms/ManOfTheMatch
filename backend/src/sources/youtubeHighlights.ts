@@ -27,9 +27,10 @@ const FEED_TTL_MS = 8 * 60_000;
  * (H-A) | Resumen … | Highlights LALIGA EA SPORTS"); el de LALIGA a veces sale
  * primero como Short vertical y el vídeo largo llega después.
  *
- * Champions: CBS Sports Golazo sube "TEAM vs. TEAM: Extended Highlights | UEFA
- * Champions League" en inglés poco después del pitido; UEFA sube montajes
- * cortos con menos regularidad, va de segundo.
+ * Champions: DAZN Fútbol SÍ sube el resumen por partido en español ("Real
+ * Madrid vs Inter (2-1) | Resumen y goles | Highlights UEFA Champions
+ * League") — va primero. CBS y UEFA quedan detrás como red de seguridad; si
+ * ninguno tiene el partido, se cae al recopilatorio de la jornada.
  */
 type Channel = { name: string; channelId: string };
 
@@ -39,6 +40,7 @@ const LALIGA_CHANNELS: Channel[] = [
 ];
 
 const UCL_CHANNELS: Channel[] = [
+  { name: 'DAZN Fútbol', channelId: 'UCz9FiMLz6SOgR_4VEFvjeIA' },
   { name: 'CBS Sports Golazo', channelId: 'UCET00YnetHT7tOpu12v8jxg' },
   { name: 'UEFA', channelId: 'UCyGa1YEx9ST66rYrJTGIKOw' },
 ];
@@ -122,7 +124,7 @@ function normalize(s: string): string {
     .trim();
 }
 
-type FeedEntry = {
+export type FeedEntry = {
   videoId: string;
   title: string;
   published: number;
@@ -154,7 +156,7 @@ function parseFeed(xml: string): FeedEntry[] {
   return out;
 }
 
-async function getFeed(channelId: string): Promise<FeedEntry[]> {
+export async function getFeed(channelId: string): Promise<FeedEntry[]> {
   const cached = feedCache.get(channelId);
   if (cached && Date.now() - cached.at < FEED_TTL_MS) return cached.entries;
   try {
@@ -182,7 +184,14 @@ function scoreInTitle(title: string): [number, number] | null {
   return [Number(m[1]), Number(m[2])];
 }
 
-export type HighlightHit = { url: string; thumbnail: string | null; source: string };
+export type HighlightHit = {
+  url: string;
+  thumbnail: string | null;
+  source: string;
+  /** 'match' = resumen de ESTE partido. 'roundup' = recopilatorio de la
+   *  jornada (Champions, cuando nadie publica el partido suelto). */
+  kind: 'match' | 'roundup';
+};
 
 export type HighlightQuery = {
   homeTeamId: string | null;
@@ -242,6 +251,7 @@ export async function findYoutubeHighlight(q: HighlightQuery): Promise<Highlight
     url: `https://www.youtube.com/watch?v=${best.entry.videoId}`,
     thumbnail: best.entry.thumbnail,
     source: best.source,
+    kind: 'match',
   };
 }
 
@@ -275,5 +285,6 @@ async function findUclRoundup(q: HighlightQuery): Promise<HighlightHit | null> {
     url: `https://www.youtube.com/watch?v=${best.entry.videoId}`,
     thumbnail: best.entry.thumbnail,
     source: best.source,
+    kind: 'roundup',
   };
 }

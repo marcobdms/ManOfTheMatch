@@ -107,6 +107,7 @@ type FixtureRow = {
   away_score: number | null
   highlight_url: string | null
   highlight_thumbnail: string | null
+  highlight_kind: string | null
   // inline identity for the non-tracked side (0002 columns — no `teams` row exists for it)
   home_team_name: string | null
   away_team_name: string | null
@@ -176,7 +177,7 @@ function preferBestSource(rows: EventRow[]): EventRow[] {
 
 const FIXTURE_SELECT =
   'id, status, minute, half_started_at, half_number, kickoff_at, matchday, home_score, away_score, ' +
-  'highlight_url, highlight_thumbnail, ' +
+  'highlight_url, highlight_thumbnail, highlight_kind, ' +
   'home_team_name, away_team_name, ' +
   'home:teams!home_team_id ( id, tla, name, short_name ), ' +
   'away:teams!away_team_id ( id, tla, name, short_name ), ' +
@@ -252,6 +253,7 @@ function toLiveMatch(row: FixtureRow): LiveMatch {
     homeScore: row.home_score ?? 0,
     awayScore: row.away_score ?? 0,
     highlightUrl: row.highlight_url ?? null,
+    highlightKind: (row.highlight_kind as 'match' | 'roundup' | null) ?? null,
     highlightThumbnail: row.highlight_thumbnail ?? null,
   }
 }
@@ -523,12 +525,13 @@ type NewsRow = {
   image_license_url: string | null; image_source_url: string | null
   original_url: string | null; original_source: string | null
   original_author: string | null; published_at: string | null
+  video_url: string | null
   fixture_id: string | null
   fixture: NewsFixtureEmbed | NewsFixtureEmbed[] | null
 }
 
 const NEWS_COLS =
-  'id, title, summary, body, topic, team_id, subject, url, image_url, image_author, image_license, image_license_url, image_source_url, original_url, original_source, original_author, published_at, fixture_id, fixture:fixtures!fixture_id ( home_team_id, away_team_id, home_team_name, away_team_name )'
+  'id, title, summary, body, topic, team_id, subject, url, image_url, image_author, image_license, image_license_url, image_source_url, original_url, original_source, original_author, published_at, video_url, fixture_id, fixture:fixtures!fixture_id ( home_team_id, away_team_id, home_team_name, away_team_name )'
 
 function mapNewsRow(row: NewsRow): NewsItem {
   return {
@@ -549,6 +552,7 @@ function mapNewsRow(row: NewsRow): NewsItem {
     originalSource: row.original_source,
     originalAuthor: row.original_author,
     publishedAt: row.published_at,
+    videoUrl: row.video_url,
     match: newsMatch(asOne(row.fixture)),
   }
 }
