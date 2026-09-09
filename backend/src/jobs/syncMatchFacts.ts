@@ -68,9 +68,16 @@ function isBackfill(f: FixtureRow): boolean {
 }
 
 function needsHighlightRetry(f: FixtureRow, now: number): boolean {
-  if (f.status !== 'FINISHED' || f.highlight_url || !f.highlight_checked_at) return false;
+  if (f.status !== 'FINISHED' || f.highlight_url) return false;
   const sinceKickoffH = (now - new Date(f.kickoff_at).getTime()) / 3_600_000;
   if (sinceKickoffH > HIGHLIGHT_WINDOW_H) return false;
+  // Sin sellar todavía = toca ya. Antes esto exigía `highlight_checked_at`, y
+  // ese campo SOLO lo sella el camino de Fotmob: un partido cuyo id de Fotmob
+  // no se resolvía (habitual en Champions, donde no viene pre-resuelto) nunca
+  // llegaba a sellarse, así que nunca entraba aquí y su resumen de YouTube —
+  // que sí existía— no se buscaba jamás. La búsqueda en YouTube es barata
+  // (feed cacheado 8 min) y no debe depender de que Fotmob funcione.
+  if (!f.highlight_checked_at) return true;
   const gapH = (now - new Date(f.highlight_checked_at).getTime()) / 3_600_000;
   const retryEvery =
     sinceKickoffH <= HIGHLIGHT_FAST_WINDOW_H ? HIGHLIGHT_RETRY_FAST_H : HIGHLIGHT_RETRY_SLOW_H;
@@ -157,10 +164,20 @@ export function syncMatchFacts() {
           // Champions no lo trae por defecto (syncLineups solo resuelve LaLiga).
           matchId = (await resolveFotmobMatchId(f)) ?? undefined;
         }
-        if (matchId == null) continue;
+        // Fotmob no siempre resuelve (Champions no trae el id pre-resuelto, y
+        // el circuit breaker puede estar abierto). Que falle NO debe llevarse
+        // por delante el resumen: se intenta por YouTube, que no depende de
+        // Fotmob para nada, y así además queda sellado `highlight_checked_at`.
+        if (matchId == null) {
+          if (f.status === 'FINISHED' && !f.highlight_url) await retryHighlightViaYoutube(f);
+          continue;
+        }
         const isLive = f.status === 'LIVE' || f.status === 'PAUSED';
         const details = await getMatchDetails(matchId as number, { live: isLive });
-        if (!details) continue; // fallo de red / circuit breaker → se conserva lo anterior
+        if (!details) {
+          if (f.status === 'FINISHED' && !f.highlight_url) await retryHighlightViaYoutube(f);
+          continue; // fallo de red / circuit breaker → se conserva lo anterior
+        }
         await writeAll(f, details);
         written++;
       } catch (err) {
