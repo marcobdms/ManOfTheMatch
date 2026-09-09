@@ -38,6 +38,7 @@ type FixtureRow = {
   away_score: number | null;
   kickoff_at: string;
   highlight_url: string | null;
+  highlight_kind: string | null;
   highlight_checked_at: string | null;
 };
 
@@ -63,12 +64,18 @@ const HIGHLIGHT_FAST_WINDOW_H = 8;
 // peticiones, así que sin tope una pasada duraría más que el propio job.
 const BACKFILL_PER_RUN = 6;
 
+/** Un recopilatorio de la jornada vale como respaldo, pero si más tarde
+ *  aparece el resumen del partido concreto queremos ese. */
+function wantsBetterHighlight(f: FixtureRow): boolean {
+  return !f.highlight_url || f.highlight_kind === 'roundup';
+}
+
 function isBackfill(f: FixtureRow): boolean {
-  return f.status === 'FINISHED' && !f.highlight_url && !f.highlight_checked_at;
+  return f.status === 'FINISHED' && wantsBetterHighlight(f) && !f.highlight_checked_at;
 }
 
 function needsHighlightRetry(f: FixtureRow, now: number): boolean {
-  if (f.status !== 'FINISHED' || f.highlight_url) return false;
+  if (f.status !== 'FINISHED' || !wantsBetterHighlight(f)) return false;
   const sinceKickoffH = (now - new Date(f.kickoff_at).getTime()) / 3_600_000;
   if (sinceKickoffH > HIGHLIGHT_WINDOW_H) return false;
   // Sin sellar todavía = toca ya. Antes esto exigía `highlight_checked_at`, y
@@ -92,7 +99,7 @@ export function syncMatchFacts() {
       .select(
         'id, status, source_ids, detail_facts_synced_at, home_team_id, away_team_id, ' +
           'home_team_name, away_team_name, competition_id, home_score, away_score, ' +
-          'kickoff_at, highlight_url, highlight_checked_at',
+          'kickoff_at, highlight_url, highlight_kind, highlight_checked_at',
       )
       .in('status', ['LIVE', 'PAUSED', 'FINISHED']);
 
@@ -169,13 +176,13 @@ export function syncMatchFacts() {
         // por delante el resumen: se intenta por YouTube, que no depende de
         // Fotmob para nada, y así además queda sellado `highlight_checked_at`.
         if (matchId == null) {
-          if (f.status === 'FINISHED' && !f.highlight_url) await retryHighlightViaYoutube(f);
+          if (f.status === 'FINISHED' && wantsBetterHighlight(f)) await retryHighlightViaYoutube(f);
           continue;
         }
         const isLive = f.status === 'LIVE' || f.status === 'PAUSED';
         const details = await getMatchDetails(matchId as number, { live: isLive });
         if (!details) {
-          if (f.status === 'FINISHED' && !f.highlight_url) await retryHighlightViaYoutube(f);
+          if (f.status === 'FINISHED' && wantsBetterHighlight(f)) await retryHighlightViaYoutube(f);
           continue; // fallo de red / circuit breaker → se conserva lo anterior
         }
         await writeAll(f, details);
@@ -235,7 +242,7 @@ async function retryHighlightViaYoutube(f: FixtureRow): Promise<boolean> {
  * no— para espaciar los reintentos.
  */
 async function writeHighlight(f: FixtureRow, details: FotmobMatchDetails): Promise<void> {
-  if (f.status !== 'FINISHED' || f.highlight_url) return;
+  if (f.status !== 'FINISHED' || !wantsBetterHighlight(f)) return;
 
   let url: string | null = null;
   let thumbnail: string | null = null;

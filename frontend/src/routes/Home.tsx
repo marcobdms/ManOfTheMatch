@@ -75,8 +75,10 @@ export default function Home() {
   // Con VARIOS partidos en juego a la vez el hueco destacado pasa a rejilla de
   // carpetas; con uno o ninguno se queda la tarjeta de siempre.
   const allLiveQuery = useLiveMatches({ favoriteTeamId })
-  const simultaneous = (allLiveQuery.data ?? []).filter((m) => isLiveStatus(m.status))
-  const showFolders = simultaneous.length >= 2
+  const todayMatches = allLiveQuery.data ?? []
+  // Se activan cuando hay 2+ en juego a la vez, pero se pintan TODOS los del
+  // día: los que juegan con el punto rojo, el resto con uno gris.
+  const showFolders = todayMatches.filter((m) => isLiveStatus(m.status)).length >= 2
 
   const newsQuery = useNews(NEWS_LIMIT)
   const ligaQuery = useStandings('laliga', STANDINGS_LIMIT)
@@ -99,7 +101,7 @@ export default function Home() {
             de lo de abajo (ni el switcher). */}
         <div className="motm-home__feature">
           {showFolders ? (
-            <LiveFolders matches={simultaneous} />
+            <LiveFolders matches={todayMatches} />
           ) : match ? (
             <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
           ) : (

@@ -170,6 +170,11 @@
   background: #fff;
   animation: motm-pulse 1.4s ease-in-out infinite;
 }
+/* Mismo punto y misma animación, en rojo — para fondos que no son la píldora
+   roja del directo (cabecera y cuadrados de las carpetas). */
+.motm-live__dot--red {
+  background: var(--brand);
+}
 @keyframes motm-pulse {
   0%,
   100% {
@@ -3010,8 +3015,10 @@
 }
 
 /* Logo de LaLiga en la carta de una noticia de competición (sin club). */
-.motm-news__league {
+.motm-news__art .motm-news__league {
   width: auto;
+  max-width: 70%;
+  height: auto;
   object-fit: contain;
   filter: brightness(0) invert(1) drop-shadow(0 3px 10px rgb(0 0 0 / 0.4));
   opacity: 0.95;
@@ -3067,6 +3074,12 @@
 }
 .motm-folders__grid--sm .motm-folder {
   border-radius: 18px;
+}
+.motm-folder__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
 }
 .motm-folder__crests {
   display: flex;
