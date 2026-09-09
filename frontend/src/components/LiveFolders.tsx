@@ -11,6 +11,10 @@ const MAX_TILES = 9
  * redondeado por partido con los dos escudos y el marcador. Ocupa el mismo
  * hueco que la tarjeta de un solo partido — no crece.
  *
+ * Los escudos son "burbujas": flotan ancladas al centro con un balanceo
+ * mínimo (como los iconos de likes de un reel). El del equipo que va ganando
+ * se pinta un poco más grande.
+ *
  * El que está EN JUEGO lleva el punto rojo latiendo (el mismo de la tarjeta de
  * directo); los que aún no han empezado o ya acabaron, un punto gris fijo.
  *
@@ -27,6 +31,7 @@ export default function LiveFolders({ matches }: { matches: LiveMatch[] }) {
   const liveCount = matches.filter((m) => isLiveStatus(m.status)).length
   // Pocos partidos -> cuadrados grandes centrados; muchos -> rejilla de tres.
   const size = shown.length <= 3 ? 'lg' : 'sm'
+  const crest = size === 'lg' ? 44 : 30
 
   return (
     <Link to="/" className="motm-folders" aria-label={`${matches.length} partidos, ver en vivo`}>
@@ -38,8 +43,11 @@ export default function LiveFolders({ matches }: { matches: LiveMatch[] }) {
       </div>
 
       <div className={`motm-folders__grid motm-folders__grid--${size}`}>
-        {shown.map((m) => {
+        {shown.map((m, i) => {
           const live = isLiveStatus(m.status)
+          const scored = live || m.status === 'FINISHED'
+          const homeLead = scored && (m.homeScore ?? 0) > (m.awayScore ?? 0)
+          const awayLead = scored && (m.awayScore ?? 0) > (m.homeScore ?? 0)
           return (
             <span className="motm-folder" key={m.id}>
               <span
@@ -47,13 +55,15 @@ export default function LiveFolders({ matches }: { matches: LiveMatch[] }) {
                 aria-hidden="true"
               />
               <span className="motm-folder__crests">
-                <TeamCrest teamId={m.home.id} name={m.home.name} tla={m.home.tla} size={size === 'lg' ? 34 : 26} />
-                <TeamCrest teamId={m.away.id} name={m.away.name} tla={m.away.tla} size={size === 'lg' ? 34 : 26} />
+                <Bubble lead={homeLead} delay={i * 0.7}>
+                  <TeamCrest teamId={m.home.id} name={m.home.name} tla={m.home.tla} size={crest} />
+                </Bubble>
+                <Bubble lead={awayLead} delay={i * 0.7 + 0.35}>
+                  <TeamCrest teamId={m.away.id} name={m.away.name} tla={m.away.tla} size={crest} />
+                </Bubble>
               </span>
               <span className="motm-folder__score">
-                {live || m.status === 'FINISHED'
-                  ? `${m.homeScore ?? 0}-${m.awayScore ?? 0}`
-                  : kickoffTime(m.kickoffAt)}
+                {scored ? `${m.homeScore ?? 0}-${m.awayScore ?? 0}` : kickoffTime(m.kickoffAt)}
               </span>
             </span>
           )
@@ -65,6 +75,26 @@ export default function LiveFolders({ matches }: { matches: LiveMatch[] }) {
         )}
       </div>
     </Link>
+  )
+}
+
+/** Escudo "burbuja": balanceo mínimo anclado al centro; `lead` lo agranda. */
+function Bubble({
+  children,
+  lead,
+  delay,
+}: {
+  children: React.ReactNode
+  lead: boolean
+  delay: number
+}) {
+  return (
+    <span
+      className={'motm-bubble' + (lead ? ' motm-bubble--lead' : '')}
+      style={{ animationDelay: `${delay}s` }}
+    >
+      {children}
+    </span>
   )
 }
 

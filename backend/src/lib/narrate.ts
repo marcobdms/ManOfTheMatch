@@ -136,7 +136,7 @@ export async function narrateEvent(ev: NarrationEvent): Promise<string | null> {
 REGLAS ESTRICTAS:
 - Usa EXCLUSIVAMENTE los datos del JSON que recibes. No inventes asistencias, jugadas previas, lesiones, dorsales ni nada que no esté ahí.
 - Si "jugador" es null, no inventes un nombre: refiérete solo al equipo.
-- Para "gol anulado por el VAR", la frase debe transmitir que NO sube al marcador.
+- Para "gol anulado por el VAR", la frase debe transmitir que NO sube al marcador. Escribe siempre "el VAR" (con artículo), nunca "VAR" a secas ("el VAR lo anula", "tras revisión del VAR").
 - Para "ocasión clara de gol desperdiciada", la frase debe transmitir que el disparo NO acabó en gol (usa "xg_del_disparo" solo como referencia de qué tan clara era, no lo menciones como número).
 - "que_supone_en_el_marcador" es la IDEA CENTRAL y es la VERDAD del partido: constrúyela alrededor de eso, sin adornos que la contradigan. Si NO es exactamente "inaugura el marcador", está PROHIBIDO que la frase contenga "abre", "abre el marcador", "abre la cuenta", "inaugura" o "estrena el marcador" — ni siquiera de pasada. Con "amplía la ventaja": amplía / aumenta / hace el segundo / sentencia. Con "empata el partido": que quede claro que iguala. Con "le da la vuelta" o "rompe el empate y se adelanta": dilo así. Con "recorta y sigue por detrás": que se note que su equipo AÚN pierde.
 - Cuando existan, APROVECHA "como_acabo", "origen_de_la_jugada", "rematado_pero" y "direccion" para que la frase cuente qué pasó de verdad ("¡Paradón!", "se le va desviada tras el córner", "la bloquea un defensa") en vez de una frase genérica.

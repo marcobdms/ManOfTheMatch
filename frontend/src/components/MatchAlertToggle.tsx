@@ -15,6 +15,16 @@ const EXPLAINER: Partial<Record<PushStatus, string>> = {
   'no-vapid': 'Las notificaciones aún no están configuradas en este entorno.',
 }
 
+/** iOS solo permite suscribirse a push si la app está INSTALADA y se abre
+ *  desde el icono de la pantalla de inicio — no desde Safari. */
+function looksStandalone(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  )
+}
+
 /**
  * Interruptor de avisos de UN partido concreto (`match_subscriptions`, 0016),
  * independiente del equipo favorito.
@@ -27,6 +37,10 @@ export default function MatchAlertToggle({ fixtureId }: { fixtureId: string | un
   const [on, setOn] = useState(false)
   const [busy, setBusy] = useState(false)
   const [blocked, setBlocked] = useState<PushStatus | null>(null)
+  // Motivo en crudo cuando el navegador tira un error sin un PushStatus claro
+  // (subscribe() rechazado, permiso revocado a media, etc.) — para no dejar el
+  // botón "muerto" sin explicación.
+  const [rawError, setRawError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!fixtureId) return
@@ -47,6 +61,7 @@ export default function MatchAlertToggle({ fixtureId }: { fixtureId: string | un
   async function enable() {
     if (!fixtureId || busy) return
     setBusy(true)
+    setRawError(null)
     try {
       const status = await subscribeToMatch(
         fixtureId,
@@ -56,8 +71,14 @@ export default function MatchAlertToggle({ fixtureId }: { fixtureId: string | un
       )
       setOn(status === 'enabled')
       setBlocked(status === 'enabled' ? null : status)
-    } catch {
+    } catch (err) {
       setOn(await isSubscribedToMatch(fixtureId).catch(() => false))
+      const msg = err instanceof Error ? err.message : String(err)
+      setRawError(
+        looksStandalone()
+          ? `No se pudo activar el aviso: ${msg}`
+          : 'Abre la app desde su icono en la pantalla de inicio (no desde el navegador) para poder activar los avisos.',
+      )
     } finally {
       setBusy(false)
     }
@@ -70,6 +91,7 @@ export default function MatchAlertToggle({ fixtureId }: { fixtureId: string | un
       await unsubscribeFromMatch(fixtureId)
       setOn(false)
       setBlocked(null)
+      setRawError(null)
     } finally {
       setBusy(false)
     }
@@ -98,6 +120,11 @@ export default function MatchAlertToggle({ fixtureId }: { fixtureId: string | un
       {blocked && EXPLAINER[blocked] && (
         <p className="motm-note" role="note">
           {EXPLAINER[blocked]}
+        </p>
+      )}
+      {!blocked && rawError && (
+        <p className="motm-note" role="note">
+          {rawError}
         </p>
       )}
     </>

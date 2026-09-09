@@ -52,6 +52,7 @@ export default function Profile() {
   const { session, profile, profileLoading, updateProfile } = useAuth()
   const teamsQuery = useTeams()
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
+  const [pushError, setPushError] = useState<string | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
   const [savingFavorite, setSavingFavorite] = useState(false)
 
@@ -93,14 +94,19 @@ export default function Profile() {
   async function toggleBell() {
     if (pushBusy) return
     setPushBusy(true)
+    setPushError(null)
     try {
       setPushStatus(
         pushEnabled
           ? await disablePush()
           : await enablePush(session!.user.id, favoriteTeamId, prefs ?? { matchday: true, kickoff: true, lineup: true, goals: true }),
       )
-    } catch {
+    } catch (err) {
       setPushStatus(await getPushStatus())
+      // enablePush() ya devuelve un PushStatus para los casos conocidos
+      // (needs-install, denied…). Si LANZA, es un fallo del navegador al
+      // suscribirse — se muestra en crudo para no dejar el botón mudo.
+      setPushError(err instanceof Error ? err.message : String(err))
     } finally {
       setPushBusy(false)
     }
@@ -165,6 +171,11 @@ export default function Profile() {
           {pushStatus && PUSH_EXPLAINER[pushStatus] && (
             <p className="motm-note" role="note">
               {PUSH_EXPLAINER[pushStatus]}
+            </p>
+          )}
+          {pushError && !PUSH_EXPLAINER[pushStatus as PushStatus] && (
+            <p className="motm-note" role="note">
+              No se pudo activar: {pushError}
             </p>
           )}
 

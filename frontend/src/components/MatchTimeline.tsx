@@ -63,11 +63,14 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
                 {e.minuteLabel}
               </span>
               <span className="motm-ev__txt">
-                {e.text}
-                {/* Frase de Groq (backend/lib/narrate.ts) — debajo del dato
-                    plano, en itálica: mismo guiño visual que "Previsión IA".
-                    Solo la traen goles / expulsiones / goles anulados. */}
-                {e.narration && <span className="motm-ev__narration">{e.narration}</span>}
+                {/* Cuando hay frase de Groq (goles, goles anulados, rojas) es
+                    LO ÚNICO que se enseña — ya cuenta quién y qué. El "GOL del
+                    X — Jugador" plano solo queda para eventos sin narrar. */}
+                {e.narration ? (
+                  <span className="motm-ev__narration">{e.narration}</span>
+                ) : (
+                  e.text
+                )}
               </span>
             </div>
           )

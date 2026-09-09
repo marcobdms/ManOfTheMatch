@@ -427,11 +427,10 @@
 }
 .motm-ev__narration {
   display: block;
-  margin-top: 3px;
   font-family: var(--f-display);
   font-style: italic;
   font-weight: 600;
-  color: var(--ink-soft);
+  color: var(--ink);
 }
 
 /* bottom nav */
@@ -3056,7 +3055,7 @@
   justify-content: center;
 }
 .motm-folders__grid--lg {
-  grid-template-columns: repeat(auto-fit, 104px);
+  grid-template-columns: repeat(auto-fit, 128px);
 }
 .motm-folders__grid--sm {
   grid-template-columns: repeat(3, 1fr);
@@ -3084,17 +3083,44 @@
 .motm-folder__crests {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .motm-folder__score {
   font-family: var(--f-display);
   font-weight: 800;
-  font-size: 15px;
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
 .motm-folders__grid--sm .motm-folder__score {
-  font-size: 13px;
+  font-size: 15px;
+}
+
+/* Escudo "burbuja": balanceo mínimo, anclado al centro (transform-origin
+   center), desfasado por burbuja con animation-delay desde el JSX. El del
+   equipo que va ganando, un pelín más grande. Se apaga con reduce-motion. */
+.motm-bubble {
+  display: inline-flex;
+  transform-origin: 50% 50%;
+  animation: motm-bubble-float 3.4s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes motm-bubble-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2.2deg) scale(var(--b-scale, 1));
+  }
+  50% {
+    transform: translateY(-3px) rotate(2.2deg) scale(var(--b-scale, 1));
+  }
+}
+.motm-bubble--lead {
+  --b-scale: 1.16;
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-bubble {
+    animation: none;
+  }
 }
 .motm-folder--more {
   background: rgba(255, 255, 255, 0.04);
