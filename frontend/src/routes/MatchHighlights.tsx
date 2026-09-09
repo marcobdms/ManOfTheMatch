@@ -53,6 +53,9 @@ export default function MatchHighlights() {
 
   // `isFetching` cubre tanto el refetch manual del botón como el automático.
   const checking = matchQuery.isFetching && !matchQuery.isLoading
+  // UEFA no permite resúmenes por partido en YouTube: en Champions lo que se
+  // enlaza es el recopilatorio de goles de la jornada (incluye este partido).
+  const isRoundup = match?.competitionShort === 'Champions'
 
   return (
     <>
@@ -116,10 +119,17 @@ export default function MatchHighlights() {
               </div>
             )}
 
+            {isRoundup && (
+              <p className="motm-note" style={{ marginTop: 10 }}>
+                UEFA no publica resúmenes por partido: este es el recopilatorio
+                de goles de la jornada de Champions, que incluye este encuentro.
+              </p>
+            )}
+
             <div className="motm-actions" style={{ marginTop: 14 }}>
               <a className="motm-btn" style={{ flex: 1 }} href={url} target="_blank" rel="noreferrer">
                 <PlayCircle size={18} weight="fill" />
-                Ver en YouTube
+                {isRoundup ? 'Ver goles de la jornada' : 'Ver en YouTube'}
               </a>
             </div>
           </>

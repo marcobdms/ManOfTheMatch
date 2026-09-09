@@ -115,7 +115,7 @@ export default async function handler(req: Request): Promise<Response> {
 
   // partido + nombres de equipo.
   const fxSelect =
-    'id,status,competition_id,matchday,home_team_name,away_team_name,' +
+    'id,status,competition_id,matchday,home_team_id,away_team_id,home_team_name,away_team_name,' +
     'home:teams!home_team_id(short_name),away:teams!away_team_id(short_name)'
   const fxRes = await sbFetch(`fixtures?id=eq.${fixtureId}&select=${fxSelect}`)
   const fixtures = fxRes.ok ? await fxRes.json() : []
@@ -161,8 +161,19 @@ export default async function handler(req: Request): Promise<Response> {
     [pred.form_home, pred.form_away, pred.att_home, pred.att_away, pred.def_home, pred.def_away]
       .every((v: number | null) => v == null || Number(v) === 0)
 
+  // Contexto propio de nuestra BD: forma reciente (TODAS las competiciones, así
+  // que también sirve en la J1 de Champions) y posición en la tabla. Sin esto
+  // el modelo solo tenía cuotas + 2 argumentos repetidos y se repetía.
+  const [formHome, formAway, tableRows] = await Promise.all([
+    recentForm(fixture.home_team_id, homeName),
+    recentForm(fixture.away_team_id, awayName),
+    standingsFor(fixture.competition_id, [fixture.home_team_id, fixture.away_team_id]),
+  ])
+
   const context = {
     partido: `${homeName} vs ${awayName}`,
+    forma_reciente: [formHome, formAway].filter(Boolean),
+    clasificacion: tableRows.length ? tableRows : null,
     competicion: isUcl ? 'Champions League (fase liga)' : 'LaLiga',
     jornada: fixture.matchday ?? null,
     probabilidad_implicita_de_las_cuotas: implied,
@@ -183,10 +194,12 @@ export default async function handler(req: Request): Promise<Response> {
     argumentos_estadisticos: facts,
   }
 
-  const system = `Eres un analista de fútbol de LaLiga. Se te da un JSON con datos reales de un partido (cuotas, forma, ataque/defensa, argumentos estadísticos) y debes argumentar una previsión.
+  const system = `Eres un analista de fútbol. Se te da un JSON con datos reales de un partido (cuotas, forma reciente con resultados concretos, clasificación, comparativa y argumentos estadísticos) y debes argumentar una previsión.
 REGLAS ESTRICTAS:
 - Usa EXCLUSIVAMENTE los datos del contexto que recibes. No inventes lesiones, bajas, resultados ni estadísticas que no estén ahí.
 - Si los datos son escasos, dilo en el párrafo en vez de rellenar con suposiciones.
+- Cada "pro" y cada "con" debe apoyarse en un dato DISTINTO del JSON. Está PROHIBIDO repetir la misma idea con otras palabras o citar dos veces el mismo número: si solo tienes un dato sólido, escribe un solo pro.
+- Aprovecha "forma_reciente" (trae los 5 últimos con marcador y rival) y "clasificacion": son lo más concreto que tienes. Cita resultados o rachas reales ("ganó 3-0 al Getafe", "lleva 4 partidos sin perder"), no generalidades.
 - Responde SOLO con JSON válido (nada de texto fuera del JSON), con esta forma exacta:
 {"paragraph": "2-4 frases en español argumentando tu pronóstico", "predictedResult": "home"|"draw"|"away", "pros": ["2-4 razones a favor de ese resultado"], "cons": ["1-3 riesgos o razones en contra"]}`
 
@@ -241,4 +254,63 @@ REGLAS ESTRICTAS:
   })
 
   return json(toApi(row), 200)
+}
+
+
+/** Últimos 5 partidos terminados de un equipo, en cualquier competición: V/E/D
+ *  y resultados concretos. Es el dato que a la IA le faltaba para no repetirse. */
+async function recentForm(teamId: string | null, name: string) {
+  if (!teamId) return null
+  const sel = 'kickoff_at,home_team_id,away_team_id,home_team_name,away_team_name,home_score,away_score,competition_id'
+  const res = await sbFetch(
+    `fixtures?status=eq.FINISHED&or=(home_team_id.eq.${teamId},away_team_id.eq.${teamId})` +
+      `&select=${sel}&order=kickoff_at.desc&limit=5`,
+  )
+  if (!res.ok) return null
+  const rows = (await res.json()) as any[]
+  if (!rows.length) return null
+
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0
+  const partidos = rows.map((r) => {
+    const isHome = r.home_team_id === teamId
+    const mine = (isHome ? r.home_score : r.away_score) ?? 0
+    const theirs = (isHome ? r.away_score : r.home_score) ?? 0
+    gf += mine
+    ga += theirs
+    if (mine > theirs) w++
+    else if (mine === theirs) d++
+    else l++
+    const rival = isHome ? r.away_team_name : r.home_team_name
+    return `${mine > theirs ? 'V' : mine === theirs ? 'E' : 'D'} ${mine}-${theirs} vs ${rival ?? '?'} (${r.competition_id})`
+  })
+  return { equipo: name, balance: `${w}V-${d}E-${l}D`, goles_a_favor: gf, goles_en_contra: ga, partidos }
+}
+
+/** Fila de clasificación (última foto) de los dos equipos, si la hay. */
+async function standingsFor(competitionId: string, teamIds: Array<string | null>) {
+  const ids = teamIds.filter((t): t is string => !!t)
+  if (!ids.length) return []
+  const res = await sbFetch(
+    `standings?competition_id=eq.${competitionId}&team_id=in.(${ids.join(',')})` +
+      `&select=team_id,team_name,position,played,points,won,draw,lost,goals_for,goals_against,form` +
+      `&order=captured_at.desc&limit=40`,
+  )
+  if (!res.ok) return []
+  const rows = (await res.json()) as any[]
+  const seen = new Set<string>()
+  const out = []
+  for (const r of rows) {
+    if (seen.has(r.team_id)) continue
+    seen.add(r.team_id)
+    if (!r.played) continue // tabla recién creada (Champions J1): no aporta
+    out.push({
+      equipo: r.team_name,
+      puesto: r.position,
+      puntos: r.points,
+      jugados: r.played,
+      balance: `${r.won ?? 0}V-${r.draw ?? 0}E-${r.lost ?? 0}D`,
+      goles: `${r.goals_for ?? 0}-${r.goals_against ?? 0}`,
+    })
+  }
+  return out
 }

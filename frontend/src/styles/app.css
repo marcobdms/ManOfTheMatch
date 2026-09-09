@@ -3008,3 +3008,11 @@
   margin: 0 16px;
   animation: none;
 }
+
+/* Logo de LaLiga en la carta de una noticia de competición (sin club). */
+.motm-news__league {
+  width: auto;
+  object-fit: contain;
+  filter: brightness(0) invert(1) drop-shadow(0 3px 10px rgb(0 0 0 / 0.4));
+  opacity: 0.95;
+}

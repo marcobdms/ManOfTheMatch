@@ -203,9 +203,8 @@ export type HighlightQuery = {
 export async function findYoutubeHighlight(q: HighlightQuery): Promise<HighlightHit | null> {
   const homeTokens = q.homeTeamId ? TEAM_TOKENS[q.homeTeamId] ?? [] : [];
   const awayTokens = q.awayTeamId ? TEAM_TOKENS[q.awayTeamId] ?? [] : [];
-  if (!homeTokens.length || !awayTokens.length) return null;
-
   const isUcl = q.competitionId === 'ucl';
+  if (!homeTokens.length || !awayTokens.length) return isUcl ? findUclRoundup(q) : null;
   const compOk = (t: string) => (isUcl ? UCL_RE.test(t) : LALIGA_RE.test(t));
   const channels = isUcl ? UCL_CHANNELS : LALIGA_CHANNELS;
 
@@ -228,7 +227,10 @@ export async function findYoutubeHighlight(q: HighlightQuery): Promise<Highlight
       candidates.push({ entry, source: `youtube:${ch.name}` });
     }
   }
-  if (!candidates.length) return null;
+  // UEFA no deja resúmenes por partido en YouTube (verificado: ni Fotmob ni
+  // CBS ni el canal de UEFA los publican). Lo que sí hay es el recopilatorio
+  // de goles de la jornada, que incluye este partido.
+  if (!candidates.length) return isUcl ? findUclRoundup(q) : null;
 
   candidates.sort((a, b) => {
     if (a.entry.isShort !== b.entry.isShort) return a.entry.isShort ? 1 : -1;
@@ -236,6 +238,39 @@ export async function findYoutubeHighlight(q: HighlightQuery): Promise<Highlight
   });
 
   const best = candidates[0]!;
+  return {
+    url: `https://www.youtube.com/watch?v=${best.entry.videoId}`,
+    thumbnail: best.entry.thumbnail,
+    source: best.source,
+  };
+}
+
+/** Recopilatorio de goles de la jornada de Champions ("ALL GOALS in MD1 of the
+ *  UEFA Champions League: September 8, 2026"). No es un resumen del partido
+ *  concreto —no existe -- pero sí contiene sus goles. Se acota a los vídeos
+ *  publicados dentro de las 36h siguientes al pitido inicial para no colgar el
+ *  recopilatorio de otra jornada. */
+const ROUNDUP_RE = /all goals|todos los goles|goles de la jornada/i;
+const ROUNDUP_WINDOW_MS = 36 * 3_600_000;
+
+async function findUclRoundup(q: HighlightQuery): Promise<HighlightHit | null> {
+  const hits: Array<{ entry: FeedEntry; source: string }> = [];
+  for (const ch of UCL_CHANNELS) {
+    for (const entry of await getFeed(ch.channelId)) {
+      const t = normalize(entry.title);
+      if (!ROUNDUP_RE.test(t)) continue;
+      if (!UCL_RE.test(t)) continue;
+      if (OTHER_COMP_RE.test(t)) continue;
+      if (entry.isShort) continue;
+      if (!entry.published) continue;
+      if (entry.published < q.kickoffMs) continue;
+      if (entry.published - q.kickoffMs > ROUNDUP_WINDOW_MS) continue;
+      hits.push({ entry, source: `youtube:${ch.name} (jornada)` });
+    }
+  }
+  if (!hits.length) return null;
+  hits.sort((a, b) => a.entry.published - b.entry.published); // el más cercano al partido
+  const best = hits[0]!;
   return {
     url: `https://www.youtube.com/watch?v=${best.entry.videoId}`,
     thumbnail: best.entry.thumbnail,

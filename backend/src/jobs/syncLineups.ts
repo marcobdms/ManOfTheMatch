@@ -289,7 +289,9 @@ function rawRow(
     rating: p.performance?.rating ?? null,
     season_rating: p.performance?.seasonRating ?? null,
     market_value: p.marketValue ?? null,
-    photo_url: null,
+    // Iba a null y este job corre cada 30 min: pisaba la foto que sí había
+    // resuelto syncMatchFacts y las cartas se quedaban sin PNG.
+    photo_url: photoFor(teamId, p.name),
     lineup_type: lineupType === 'confirmed' ? 'confirmed' : 'predicted',
     captured_at: capturedAt,
   };

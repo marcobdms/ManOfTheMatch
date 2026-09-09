@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom'
 import TeamCrest from './TeamCrest'
+import laligaLogo from '../assets/crests/laliga.svg'
 import { teamColor } from '../lib/teamColors'
 import { TEAMS, type TeamId } from '../lib/shared'
 import type { NewsItem, NewsTopic } from '../types/view'
+
+/** Rojo de LaLiga para el fondo de las noticias de competición (sin club). */
+const LALIGA_TINT = '#D6001C'
 
 const TOPIC_LABEL: Record<NewsTopic, string> = {
   ONCE: 'Alineaciones',
@@ -50,9 +54,22 @@ function relative(iso: string | null): string {
 
 /** Carta con el escudo sobre el color del club — lo que se pinta cuando no hay
  *  foto libre del protagonista. No es un placeholder de emergencia: es el
- *  aspecto normal de buena parte del feed. */
+ *  aspecto normal de buena parte del feed. Una noticia SIN club (Tebas, el
+ *  VAR, la competición en general) lleva el logo de LaLiga sobre su rojo, en
+ *  vez del círculo gris con un guion que salía antes. */
 function CrestArt({ item, tall }: { item: NewsItem; tall: boolean }) {
   const team = item.teamId ? TEAMS[item.teamId as TeamId] : null
+  if (!item.teamId) {
+    return (
+      <div
+        className={`motm-news__art motm-news__art--crest${tall ? ' motm-news__art--tall' : ''}`}
+        style={{ '--news-tint': LALIGA_TINT } as React.CSSProperties}
+        aria-hidden="true"
+      >
+        <img className="motm-news__league" src={laligaLogo} alt="" style={{ height: tall ? 64 : 30 }} />
+      </div>
+    )
+  }
   return (
     <div
       className={`motm-news__art motm-news__art--crest${tall ? ' motm-news__art--tall' : ''}`}
