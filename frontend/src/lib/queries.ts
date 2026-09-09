@@ -143,6 +143,7 @@ type EventRow = {
   detail: string | null
   source: string | null
   narration: string | null
+  created_at: string | null
   team: { name: string; tla: string } | { name: string; tla: string }[] | null
 }
 
@@ -184,7 +185,7 @@ const FIXTURE_SELECT =
   'competition:competitions ( short_name )'
 
 const EVENT_SELECT =
-  'id, type, minute, minute_extra, team_id, player_name, assist_name, detail, source, narration, ' +
+  'id, type, minute, minute_extra, team_id, player_name, assist_name, detail, source, narration, created_at, ' +
   'team:teams!team_id ( name, tla )'
 
 // --- mappers ----------------------------------------------------------------
@@ -641,6 +642,15 @@ async function fetchTimeline(fixtureId: string): Promise<TimelineEvent[]> {
       minuteLabel: eventMinuteLabel(row.minute, row.minute_extra),
       text: buildEventText(row),
       narration: row.narration?.trim() || null,
+      // Un gol recién insertado tarda 1-2 s en tener su frase de Groq. En esa
+      // ventana la fila enseña un placeholder en vez del "GOL del X" plano,
+      // que luego cambiaba de golpe. Pasados 25 s se asume que Groq falló y
+      // se enseña el texto plano como último recurso.
+      narrationPending:
+        !row.narration?.trim() &&
+        (row.type === 'GOAL' || row.type === 'PENALTY_GOAL' || row.type === 'OWN_GOAL' || row.type === 'VAR') &&
+        !!row.created_at &&
+        Date.now() - new Date(row.created_at).getTime() < 75_000,
     }))
     .reverse()
 }

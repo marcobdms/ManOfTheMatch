@@ -22,6 +22,7 @@ import type { FotmobShot, FotmobTickerEvent } from '../sources/fotmob.js';
 import { mapFotmobTickerEvent } from '../lib/map.js';
 import { reconcileRetracted } from '../lib/eventReconcile.js';
 import { narrateEvent } from '../lib/narrate.js';
+import { correctedScore } from '../lib/liveScore.js';
 import { teamName } from '../lib/ids.js';
 
 type LiveFixtureRow = {
@@ -153,50 +154,29 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
   // eventos reales se reconcilia contra lo que ya teniamos.
   if (events.length && rows.length) {
     await reconcileRetracted(f.id, 'fotmob', rows.map((r) => r.source_event_id));
+    await fixDisallowedScore(f);
   }
 
   const brandNew = rows.filter((r) => !seen.has(r.source_event_id) && GOAL_KIND[r.type]);
-  if (brandNew.length) {
-    await bumpScoreFromGoals(f, rows);
-    await narrateNewGoals(f, brandNew);
-  }
+  if (brandNew.length) await narrateNewGoals(f, brandNew);
 
   return rows.length;
 }
 
-/**
- * Sube `fixtures.home_score`/`away_score` al número de goles que Fotmob acaba
- * de reportar, si va por detrás. El marcador "oficial" lo escribe liveLoop
- * (football-data, con retraso) o liveTickerEspn; hasta que llegan, el
- * histórico y la narración ya cantaban el gol y la card seguía en el anterior.
- * SOLO sube, nunca baja: una corrección a la baja (gol anulado) es cosa de
- * eventReconcile + las fuentes con marcador propio.
- */
-async function bumpScoreFromGoals(
-  f: LiveFixtureRow,
-  rows: Array<{ type: string; team_id: string | null }>,
-): Promise<void> {
-  let h = 0;
-  let a = 0;
-  for (const r of rows) {
-    if (!GOAL_KIND[r.type]) continue;
-    const forHome = r.type === 'OWN_GOAL' ? r.team_id !== f.home_team_id : r.team_id === f.home_team_id;
-    forHome ? h++ : a++;
-  }
-
+/** Si hubo un gol anulado, deja el marcador en el conteo real de Fotmob —
+ *  football-data/TheSportsDB no lo bajan solos. Partido sin anulados: no toca
+ *  nada (lo lleva ESPN cada 2s). LIVE/PAUSED. */
+async function fixDisallowedScore(f: LiveFixtureRow): Promise<void> {
+  const sc = await correctedScore(f.id, f.home_team_id);
+  if (!sc) return;
   const { data: fx } = await db
     .from('fixtures')
     .select('home_score, away_score, status')
     .eq('id', f.id)
     .maybeSingle();
   if (!fx || (fx.status !== 'LIVE' && fx.status !== 'PAUSED')) return;
-
-  const patch: Record<string, number> = {};
-  if (h > (fx.home_score ?? 0)) patch.home_score = h;
-  if (a > (fx.away_score ?? 0)) patch.away_score = a;
-  if (Object.keys(patch).length) {
-    await db.from('fixtures').update(patch).eq('id', f.id);
-  }
+  if (fx.home_score === sc.home && fx.away_score === sc.away) return;
+  await db.from('fixtures').update({ home_score: sc.home, away_score: sc.away }).eq('id', f.id);
 }
 
 const GOAL_KIND: Partial<Record<string, 'goal' | 'own_goal' | 'penalty_goal'>> = {

@@ -7,6 +7,7 @@ import type { TsdbLiveEvent } from '../sources/theSportsDB.js';
 import { pushGoal, pushKickoff, pushMatchday, pushToMatchFollowers } from '../notify.js';
 import { GOAL_EVENT_TYPES, mapFootballDataStatus, mapTheSportsDbEvent, mapTheSportsDbStatus } from '../lib/map.js';
 import { isTrackedSlug, teamName, teamSlugByTsdbId } from '../lib/ids.js';
+import { correctedScore } from '../lib/liveScore.js';
 
 /**
  * Runs every minute (POLL.liveSeconds). For every fixture that is LIVE /
@@ -274,6 +275,16 @@ async function syncOne(f: FixtureRow, livescore: TsdbLiveEvent[]): Promise<void>
 
   // 4) Persist score / status. Only write HT once a source actually reported it,
   //    so a transient fetch failure never blanks a known half-time score.
+  // Si el VAR anuló un gol, football-data/TheSportsDB no lo bajan ("un
+  // marcador no baja", que ahí es falso): Fotmob sí, y manda.
+  if (status === 'LIVE' || status === 'PAUSED') {
+    const fm = await correctedScore(f.id, f.home_team_id);
+    if (fm) {
+      home = fm.home;
+      away = fm.away;
+    }
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = {
     status,

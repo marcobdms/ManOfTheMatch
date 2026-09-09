@@ -63,11 +63,17 @@ export default function MatchTimeline({ events }: { events: TimelineEvent[] }) {
                 {e.minuteLabel}
               </span>
               <span className="motm-ev__txt">
-                {/* Cuando hay frase de Groq (goles, goles anulados, rojas) es
-                    LO ÚNICO que se enseña — ya cuenta quién y qué. El "GOL del
-                    X — Jugador" plano solo queda para eventos sin narrar. */}
+                {/* Con frase de Groq (goles, goles anulados, rojas) es LO ÚNICO
+                    que se enseña. Mientras la frase aún no llega (gol de hace
+                    <25 s) se muestra un placeholder — antes salía el "GOL del X"
+                    plano y luego cambiaba de golpe. El texto plano solo queda
+                    para eventos sin narrar y para cuando Groq falla. */}
                 {e.narration ? (
                   <span className="motm-ev__narration">{e.narration}</span>
+                ) : e.narrationPending ? (
+                  <span className="motm-ev__narration motm-ev__narration--pending">
+                    Narrando la jugada…
+                  </span>
                 ) : (
                   e.text
                 )}

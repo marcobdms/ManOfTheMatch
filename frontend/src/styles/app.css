@@ -432,6 +432,10 @@
   font-weight: 600;
   color: var(--ink);
 }
+.motm-ev__narration--pending {
+  color: var(--ink-soft);
+  animation: motm-shimmer 1.3s ease-in-out infinite;
+}
 
 /* bottom nav */
 /* ===== Tab bar sólida ======================================================

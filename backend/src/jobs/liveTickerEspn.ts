@@ -17,6 +17,7 @@ import { reconcileRetracted } from '../lib/eventReconcile.js';
 import { narrateEvent } from '../lib/narrate.js';
 import { pushGoal, pushToMatchFollowers } from '../notify.js';
 import { isTrackedSlug, teamName, teamSlugByEspnId } from '../lib/ids.js';
+import { correctedScore } from '../lib/liveScore.js';
 
 type FixtureRow = {
   id: string;
@@ -114,12 +115,24 @@ async function syncOne(f: FixtureRow, ev: EspnEvent): Promise<void> {
 
   const freshGoals = await upsertEvents(f, ev.id, comp?.details ?? [], home, away);
 
+  // Tras un gol anulado por VAR, ESPN se queda con el marcador inflado —
+  // Fotmob lo corrige y manda en ese caso.
+  let finalHome = home;
+  let finalAway = away;
+  if (mapped === 'LIVE' || mapped === 'PAUSED') {
+    const fm = await correctedScore(f.id, f.home_team_id);
+    if (fm) {
+      finalHome = fm.home;
+      finalAway = fm.away;
+    }
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = {
     status: mapped,
     minute,
-    home_score: home,
-    away_score: away,
+    home_score: finalHome,
+    away_score: finalAway,
     last_synced_at: now,
     updated_at: now,
   };

@@ -122,6 +122,9 @@ export type TimelineEvent = {
   /** Frase corta de Groq (backend/src/lib/narrate.ts) — solo goles y goles
    *  anulados, y no siempre (puede fallar/tardar). null = usar `text`. */
   narration: string | null
+  /** Gol recién metido cuya frase de Groq aún no ha llegado (< 25 s): la fila
+   *  muestra un placeholder en vez del texto plano, para no cambiarlo luego. */
+  narrationPending: boolean
 }
 
 /** Un jugador dentro de `team_lineup_snapshots.players` (contrato con el

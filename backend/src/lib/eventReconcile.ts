@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { teamName } from './ids.js';
 import { narrateEvent } from './narrate.js';
+import { correctedScore } from './liveScore.js';
 
 const GOAL_TYPES = new Set(['GOAL', 'OWN_GOAL', 'PENALTY_GOAL']);
 
@@ -51,7 +52,12 @@ export async function reconcileRetracted(fixtureId: string, source: string, vali
       .update({ type: 'VAR', detail: 'Gol anulado' })
       .in('id', toVar.map((r) => r.id));
     if (error) console.warn(`[reconcile] re-tipificar falló para ${fixtureId}/${source}`, error);
-    else await narrateDisallowed(fixtureId, toVar);
+    else {
+      await narrateDisallowed(fixtureId, toVar);
+      // El gol anulado ya no cuenta: baja el marcador de la card al instante,
+      // sin esperar a que football-data se dé por enterado (a veces no lo hace).
+      if (source === 'fotmob') await correctScoreAfterDisallow(fixtureId);
+    }
   }
   if (toDelete.length) {
     const { error } = await db.from('match_events').delete().in('id', toDelete);
@@ -93,4 +99,18 @@ async function narrateDisallowed(
       await db.from('match_events').update({ narration }).eq('id', r.id);
     }
   }
+}
+
+
+/** Fija el marcador al conteo de goles de Fotmob tras anular uno (LIVE/PAUSED). */
+async function correctScoreAfterDisallow(fixtureId: string): Promise<void> {
+  const { data: fx } = await db
+    .from('fixtures')
+    .select('home_team_id, home_score, away_score, status')
+    .eq('id', fixtureId)
+    .maybeSingle();
+  if (!fx || (fx.status !== 'LIVE' && fx.status !== 'PAUSED')) return;
+  const sc = await correctedScore(fixtureId, fx.home_team_id);
+  if (!sc || (fx.home_score === sc.home && fx.away_score === sc.away)) return;
+  await db.from('fixtures').update({ home_score: sc.home, away_score: sc.away }).eq('id', fixtureId);
 }
