@@ -137,7 +137,16 @@ const TOPIC_PATTERNS: Array<{ topic: NewsTopic; re: RegExp }> = [
  * una llamada. Groq confirma o corrige después, en la misma llamada que
  * escribe la pieza — clasificar aparte costaría el doble de tokens.
  */
+/** No es una noticia: es una página plantilla o un directo que se reescribe
+ *  sin parar (nuevo `pubDate` cada vez que cambia, así que reaparecería como
+ *  "nueva" en cada pasada). Visto en AS: una ficha "Alavés en LaLiga EA
+ *  Sports 2026/27: plantilla, fichajes, bajas..." por cada uno de los 20
+ *  clubes, y "Mercado de fichajes, en directo". */
+const NOT_A_STORY_RE =
+  /\ben directo\b|plantilla,? fichajes,? bajas|claves de la temporada|en laliga ea sports \d{4}\/\d{2,4}:/i;
+
 export function classifyFeedItem(title: string, summary: string | null): NewsTopic | null {
+  if (NOT_A_STORY_RE.test(title)) return null;
   const text = `${title} ${summary ?? ''}`;
   for (const { topic, re } of TOPIC_PATTERNS) if (re.test(text)) return topic;
   return null;

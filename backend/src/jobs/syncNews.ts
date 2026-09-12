@@ -1,18 +1,32 @@
 /**
- * Ingesta de noticias: lee los feeds de Marca, se queda con lo que encaja en
- * la taxonomía y lo guarda como `draft`. Barato — aquí no se llama a Groq.
- * La reescritura va aparte (jobs/rewriteNews.ts) para que un fallo del modelo
- * no arrastre a la ingesta ni al revés.
+ * Ingesta de noticias: lee los feeds de Marca y AS, se queda con lo que
+ * encaja en la taxonomía y lo guarda como `draft`. Barato — aquí no se llama
+ * a Groq. La reescritura va aparte (jobs/rewriteNews.ts) para que un fallo
+ * del modelo no arrastre a la ingesta ni al revés.
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
 import { fetchAllNews } from '../sources/marcaRss.js';
+import { fetchAsNews } from '../sources/asRss.js';
 import {
   classifyFeedItem,
   subjectFromCategories,
   teamFromItem,
   teamsMentioned,
 } from '../lib/newsTaxonomy.js';
+import type { TeamId } from '../lib/shared.js';
+
+/** Forma común para no repetir el bucle de abajo por cada medio. */
+type FeedItem = {
+  title: string;
+  link: string;
+  summary: string | null;
+  author: string | null;
+  publishedAt: string | null;
+  categories: string[];
+  feedTeamId: TeamId | null;
+  source: 'Marca' | 'AS';
+};
 
 /** Los feeds de equipo guardan ~45 items, que pueden ser de hace semanas.
  *  Una noticia vieja ya no interesa y gastaría una llamada a Groq igual. */
@@ -22,7 +36,11 @@ const MAX_DRAFTS_PER_RUN = 40;
 
 export function syncNews() {
   return withRun('syncNews', 'news', async () => {
-    const items = await fetchAllNews();
+    const [marca, as] = await Promise.all([fetchAllNews(), fetchAsNews()]);
+    const items: FeedItem[] = [
+      ...marca.map((it) => ({ ...it, source: 'Marca' as const })),
+      ...as.map((it) => ({ ...it, feedTeamId: null, source: 'AS' as const })),
+    ];
     if (!items.length) return 0;
 
     // Partidos programados de los próximos 12 días: si un titular nombra a los
@@ -61,6 +79,7 @@ export function syncNews() {
       candidates.push({
         topic,
         published,
+        fixtureId,
         row: {
           // Mientras es draft esto guarda el original (la RLS de 0017 no deja
           // salir un draft); al reescribir, ambos se sustituyen por lo nuestro.
@@ -69,7 +88,7 @@ export function syncNews() {
           url: it.link,
           original_title: it.title,
           original_url: it.link,
-          original_source: 'Marca',
+          original_source: it.source,
           original_author: it.author,
           published_at: it.publishedAt,
           team_id: teamFromItem(it.categories, it.feedTeamId),
@@ -84,7 +103,20 @@ export function syncNews() {
 
     // Las más recientes primero: si hay que recortar, que caiga lo viejo.
     candidates.sort((a, b) => b.published - a.published);
-    const batch = candidates.slice(0, MAX_DRAFTS_PER_RUN);
+
+    // Dos medios pueden cubrir EL MISMO partido con el mismo ángulo (previa,
+    // alineaciones...) — se queda solo el primero (el más reciente, tras el
+    // sort de arriba) para no publicar la misma historia dos veces.
+    const seenMatchTopic = new Set<string>();
+    const deduped = candidates.filter((c) => {
+      if (!c.fixtureId) return true;
+      const key = `${c.fixtureId}:${c.topic}`;
+      if (seenMatchTopic.has(key)) return false;
+      seenMatchTopic.add(key);
+      return true;
+    });
+
+    const batch = deduped.slice(0, MAX_DRAFTS_PER_RUN);
     if (!batch.length) return 0;
 
     // `url` es unique desde 0001 → ignoreDuplicates deja pasar las ya vistas
@@ -103,7 +135,10 @@ export function syncNews() {
     }
 
     const inserted = data?.length ?? 0;
-    console.log(`[syncNews] ${items.length} leídas, ${candidates.length} encajan, ${inserted} nuevas`);
+    console.log(
+      `[syncNews] ${marca.length} Marca + ${as.length} AS leídas, ${candidates.length} encajan ` +
+        `(${candidates.length - deduped.length} fusionadas por duplicado), ${inserted} nuevas`,
+    );
     return inserted;
   });
 }

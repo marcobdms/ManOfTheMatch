@@ -3,13 +3,17 @@
  * de copiar a nadie y sin depender de que Marca publique. Cubre los tres temas
  * que ya tenemos en la base:
  *
- *   ONCE    — hay once inicial confirmado para un partido (lineups)
  *   PREVIA  — partido en las próximas 36h (fixtures + newsContext)
- *   CRONICA — partido recién terminado (marcador + goleadores)
+ *   ONCE    — hay once inicial confirmado para un partido (lineups)
+ *   CRONICA — partido recién terminado (marcador y goleadores)
  *
- * Se insertan como `draft` con la pista construida aquí; rewriteNews.ts les da
- * el titular y el párrafo, igual que a las del feed. `url` es sintética
- * (motm://) porque es unique en `news` y así la deduplicación vale para todo.
+ * Las tres fases de UN MISMO partido comparten fila: `url` es
+ * `motm://match/<fixture_id>` para las tres, así que la previa se CONVIERTE en
+ * la noticia del once y luego en la de la crónica, en vez de generar tres
+ * piezas sueltas que se pisan en el feed ("El Celta recibe al Málaga" +
+ * "Alineaciones confirmadas Celta-Málaga" como dos noticias distintas). Cada
+ * salto de fase reescribe la pieza desde cero y la sube arriba del feed — es
+ * información nueva de verdad, no un refresco.
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
@@ -18,6 +22,25 @@ import type { TeamId } from '../lib/shared.js';
 
 const PREVIEW_WINDOW_H = 36;
 const RECAP_WINDOW_H = 12;
+
+/**
+ * Clubes con tirón suficiente para que una previa temprana (36h antes, sin
+ * datos concretos aún) merezca la pena por sí sola. El resto de cruces de
+ * LaLiga entre equipos modestos se cubren igual, pero a partir del once
+ * confirmado — ahí ya hay algo concreto que contar. Champions no se filtra:
+ * cualquier cruce de la fase de liga interesa.
+ */
+const IMPORTANT_TEAM_IDS = new Set<TeamId>([
+  'real-madrid',
+  'barcelona',
+  'atletico-madrid',
+  'athletic-bilbao',
+  'sevilla',
+  'valencia',
+  'real-sociedad',
+  'real-betis',
+  'villarreal',
+]);
 
 type Fx = {
   id: string;
@@ -55,41 +78,81 @@ function slugOrNull(id: string | null): string | null {
 
 const compLabel = (c: string | null) => (c === 'ucl' ? 'la Champions' : 'LaLiga');
 
+/** Ninguno de los dos es un club grande: la previa temprana se descarta (poco
+ *  interés todavía), pero el partido se sigue cubriendo en el once y la
+ *  crónica, que sí tienen algo concreto que contar. */
+function isMinorMatchup(f: Fx): boolean {
+  if (f.competition_id !== 'laliga') return false;
+  const homeBig = !!f.home_team_id && IMPORTANT_TEAM_IDS.has(f.home_team_id as TeamId);
+  const awayBig = !!f.away_team_id && IMPORTANT_TEAM_IDS.has(f.away_team_id as TeamId);
+  return !homeBig && !awayBig;
+}
+
+const TOPIC_RANK: Record<'PREVIA' | 'ONCE' | 'CRONICA', number> = { PREVIA: 1, ONCE: 2, CRONICA: 3 };
+
 /**
- * Inserta la noticia si es nueva. Si ya existía y SIGUE en draft, le refresca
- * la pista y los datos: entre pasada y pasada pueden confirmarse los onces de
- * una previa, o quedar goles registrados en una crónica. Una vez publicada no
- * se toca — ya la reescribió el modelo.
+ * Guarda o hace evolucionar la pieza de UN partido (`url = motm://match/<id>`,
+ * compartida por sus tres fases).
+ *   - No existe todavía → se inserta como draft, fase actual.
+ *   - Existe en una fase de MENOR rango → salto real (previa→once→crónica):
+ *     se reescribe la pista, vuelve a `draft` para que rewriteNews la
+ *     rehaga desde cero, y `published_at` se actualiza para que suba arriba
+ *     del feed — es información nueva, no un retoque.
+ *   - Existe en la MISMA fase y sigue en draft → solo se refresca la pista
+ *     (puede haber cambiado el once o el marcador entre pasadas).
+ *   - Existe en una fase de MAYOR rango → no se toca (la crónica no vuelve a
+ *     convertirse en previa).
  */
-async function insertDraft(row: Record<string, unknown>): Promise<boolean> {
-  const { data: existing } = await db
-    .from('news')
-    .select('id, status')
-    .eq('url', row.url as string)
-    .maybeSingle();
+async function upsertMatchStory(
+  fixtureId: string,
+  topic: 'PREVIA' | 'ONCE' | 'CRONICA',
+  row: Record<string, unknown>,
+): Promise<boolean> {
+  const url = `motm://match/${fixtureId}`;
+  const { data: existing } = await db.from('news').select('id, status, topic').eq('url', url).maybeSingle();
 
-  if (existing) {
-    if ((existing as { status: string }).status === 'draft') {
-      await db
-        .from('news')
-        .update({
-          original_title: row.original_title,
-          summary: row.summary ?? null,
-          team_id: row.team_id,
-          subject: row.subject,
-          topic: row.topic,
-        })
-        .eq('id', (existing as { id: string }).id);
+  if (!existing) {
+    const { error } = await db.from('news').insert({ ...row, url, topic });
+    if (error) {
+      console.error('[generateOwnNews] insert falló', error);
+      return false;
     }
+    return true;
+  }
+
+  const cur = existing as { id: string; status: string; topic: string | null };
+  const curRank = cur.topic ? (TOPIC_RANK[cur.topic as 'PREVIA' | 'ONCE' | 'CRONICA'] ?? 0) : 0;
+  const newRank = TOPIC_RANK[topic];
+
+  if (newRank > curRank) {
+    await db
+      .from('news')
+      .update({
+        original_title: row.original_title,
+        summary: row.summary ?? null,
+        team_id: row.team_id,
+        subject: row.subject,
+        topic,
+        status: 'draft',
+        published_at: new Date().toISOString(),
+        image_state: 'pending',
+      })
+      .eq('id', cur.id);
     return false;
   }
 
-  const { error } = await db.from('news').insert(row);
-  if (error) {
-    console.error('[generateOwnNews] insert falló', error);
-    return false;
+  if (newRank === curRank && cur.status === 'draft') {
+    await db
+      .from('news')
+      .update({
+        original_title: row.original_title,
+        summary: row.summary ?? null,
+        team_id: row.team_id,
+        subject: row.subject,
+      })
+      .eq('id', cur.id);
   }
-  return true;
+  return false;
 }
 
 export function generateOwnNews() {
@@ -110,19 +173,18 @@ export function generateOwnNews() {
     const upcomingRows = (upcoming ?? []) as unknown as Fx[];
 
     for (const f of upcomingRows) {
+      if (isMinorMatchup(f)) continue;
       const home = teamLabel(f.home_team_id, f.home_team_name);
       const away = teamLabel(f.away_team_id, f.away_team_name);
       if (!home || !away) continue;
-      const ok = await insertDraft({
+      const ok = await upsertMatchStory(f.id, 'PREVIA', {
         title: `Previa: ${home} - ${away}`,
         original_title: `El ${home} recibe al ${away} en ${compLabel(f.competition_id)}`,
-        url: `motm://previa/${f.id}`,
         original_url: null,
         original_source: 'ManOfTheMatch',
         published_at: new Date().toISOString(),
         team_id: slugOrNull(f.home_team_id),
         fixture_id: f.id,
-        topic: 'PREVIA',
         subject: null,
         status: 'draft',
         image_state: 'pending',
@@ -131,6 +193,8 @@ export function generateOwnNews() {
     }
 
     // --- ONCE: alineación confirmada de un partido próximo ---
+    // Sin filtro de "equipo grande": el once ya es un dato concreto que
+    // merece pieza propia aunque no hubiera previa antes.
     const fixtureIds = upcomingRows.map((f) => f.id);
     if (fixtureIds.length) {
       const { data: lineups } = await db
@@ -155,18 +219,16 @@ export function generateOwnNews() {
         const home = teamLabel(f.home_team_id, f.home_team_name);
         const away = teamLabel(f.away_team_id, f.away_team_name);
         if (!home || !away) continue;
-        const ok = await insertDraft({
+        const ok = await upsertMatchStory(fixtureId, 'ONCE', {
           title: `Ya hay onces para el ${home} - ${away}`,
           original_title:
             `Confirmados los onces iniciales del ${home} - ${away}` +
             (info.formation ? ` (${home} sale con ${info.formation})` : ''),
-          url: `motm://once/${fixtureId}`,
           original_url: null,
           original_source: 'ManOfTheMatch',
           published_at: new Date().toISOString(),
           team_id: slugOrNull(f.home_team_id),
           fixture_id: fixtureId,
-          topic: 'ONCE',
           subject: null,
           status: 'draft',
           image_state: 'pending',
@@ -230,22 +292,16 @@ export function generateOwnNews() {
           goalLine(home, homeGoals) +
           goalLine(away, awayGoals);
 
-      const winnerId = draw
-        ? f.home_team_id
-        : homeWon
-          ? f.home_team_id
-          : f.away_team_id;
+      const winnerId = draw ? f.home_team_id : homeWon ? f.home_team_id : f.away_team_id;
 
-      const ok = await insertDraft({
+      const ok = await upsertMatchStory(f.id, 'CRONICA', {
         title: `${home} ${f.home_score}-${f.away_score} ${away}`,
         original_title: pista,
-        url: `motm://cronica/${f.id}`,
         original_url: null,
         original_source: 'ManOfTheMatch',
         published_at: new Date().toISOString(),
         team_id: slugOrNull(winnerId),
         fixture_id: f.id,
-        topic: 'CRONICA',
         subject: (winnerId === f.home_team_id ? homeGoals : awayGoals)[0] ?? null,
         status: 'draft',
         image_state: 'pending',

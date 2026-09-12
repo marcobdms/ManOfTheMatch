@@ -29,10 +29,21 @@ const FEED_TTL_MS = 8 * 60_000;
  *
  * Champions: DAZN Fútbol SÍ sube el resumen por partido en español ("Real
  * Madrid vs Inter (2-1) | Resumen y goles | Highlights UEFA Champions
- * League") — va primero. CBS y UEFA quedan detrás como red de seguridad; si
- * ninguno tiene el partido, se cae al recopilatorio de la jornada.
+ * League"), pero solo del partido estrella de la jornada — el resto de los
+ * seis no le llegan a tiempo al feed de 15 entradas. TNT Sports Football
+ * (derechos en UK) SÍ sube resumen de TODOS los partidos, con un título
+ * regular ("... | Equipo 2-1 Equipo | UEFA Champions League Highlights") —
+ * va primero por eso. Se usa su PLAYLIST dedicada a resúmenes ("UEFA
+ * Champions League Match Highlights 2026/27"), no el canal general: el canal
+ * mezcla entrevistas y análisis y el resumen se cae del feed en horas; la
+ * playlist tarda más en desplazarlo. Se comprueban las DOS: la playlist no
+ * recibe cada partido al momento (va por detrás, verificado: se le escapó
+ * toda la J2), así que hace falta el canal general para lo recién publicado
+ * y la playlist como red de seguridad de lo que el canal ya se dejó atrás.
+ * CBS y UEFA quedan detrás de las dos como último recurso; si nadie tiene el
+ * partido, se cae al recopilatorio de la jornada.
  */
-type Channel = { name: string; channelId: string };
+type Channel = { name: string; channelId?: string; playlistId?: string };
 
 const LALIGA_CHANNELS: Channel[] = [
   { name: 'DAZN Fútbol', channelId: 'UCz9FiMLz6SOgR_4VEFvjeIA' },
@@ -40,6 +51,8 @@ const LALIGA_CHANNELS: Channel[] = [
 ];
 
 const UCL_CHANNELS: Channel[] = [
+  { name: 'TNT Sports Football', channelId: 'UC4i_9WvfPRTuRWEaWyfKuFw' },
+  { name: 'TNT Sports Football (playlist)', playlistId: 'PLL5UZqtrgqxI' },
   { name: 'DAZN Fútbol', channelId: 'UCz9FiMLz6SOgR_4VEFvjeIA' },
   { name: 'CBS Sports Golazo', channelId: 'UCET00YnetHT7tOpu12v8jxg' },
   { name: 'UEFA', channelId: 'UCyGa1YEx9ST66rYrJTGIKOw' },
@@ -118,6 +131,10 @@ const SUMMARY_RE = /\bresumen\b|\bhighlights?\b|\bresumen y goles\b/i;
 function normalize(s: string): string {
   return s
     .toLowerCase()
+    // ø/æ/å no son letra+acento — NFD no las toca (Bodø/Glimt, noruego).
+    .replace(/ø/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/å/g, 'a')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, ' ')
@@ -156,25 +173,44 @@ function parseFeed(xml: string): FeedEntry[] {
   return out;
 }
 
-export async function getFeed(channelId: string): Promise<FeedEntry[]> {
-  const cached = feedCache.get(channelId);
+async function fetchFeed(cacheKey: string, url: string): Promise<FeedEntry[]> {
+  const cached = feedCache.get(cacheKey);
   if (cached && Date.now() - cached.at < FEED_TTL_MS) return cached.entries;
   try {
-    const res = await fetch(
-      `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
-      { headers: { 'User-Agent': UA, Accept: 'application/atom+xml,application/xml' } },
-    );
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'application/atom+xml,application/xml' },
+    });
     if (!res.ok) {
-      console.warn(`[yt-highlights] feed ${channelId} → ${res.status}`);
+      console.warn(`[yt-highlights] feed ${cacheKey} → ${res.status}`);
       return cached?.entries ?? [];
     }
     const entries = parseFeed(await res.text());
-    feedCache.set(channelId, { at: Date.now(), entries });
+    feedCache.set(cacheKey, { at: Date.now(), entries });
     return entries;
   } catch (err) {
-    console.warn(`[yt-highlights] feed ${channelId} falló`, err);
+    console.warn(`[yt-highlights] feed ${cacheKey} falló`, err);
     return cached?.entries ?? [];
   }
+}
+
+export async function getFeed(channelId: string): Promise<FeedEntry[]> {
+  return fetchFeed(channelId, `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+}
+
+/** Feed de una PLAYLIST en vez de un canal entero — se usa para la de "Match
+ *  Highlights" de TNT, que se desplaza más despacio que su canal general. */
+async function getPlaylistFeed(playlistId: string): Promise<FeedEntry[]> {
+  return fetchFeed(
+    `playlist:${playlistId}`,
+    `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`,
+  );
+}
+
+/** Entradas de un `Channel`, sea canal o playlist. */
+function entriesFor(ch: Channel): Promise<FeedEntry[]> {
+  if (ch.playlistId) return getPlaylistFeed(ch.playlistId);
+  if (ch.channelId) return getFeed(ch.channelId);
+  return Promise.resolve([]);
 }
 
 /** Marcador escrito en el título: "(0-5)" o "VALENCIA 0 - 5 BARCELONA". */
@@ -219,7 +255,7 @@ export async function findYoutubeHighlight(q: HighlightQuery): Promise<Highlight
 
   const candidates: Array<{ entry: FeedEntry; source: string }> = [];
   for (const ch of channels) {
-    for (const entry of await getFeed(ch.channelId)) {
+    for (const entry of await entriesFor(ch)) {
       const t = normalize(entry.title);
       if (!SUMMARY_RE.test(t)) continue;
       if (OTHER_COMP_RE.test(t)) continue;
@@ -266,7 +302,7 @@ const ROUNDUP_WINDOW_MS = 36 * 3_600_000;
 async function findUclRoundup(q: HighlightQuery): Promise<HighlightHit | null> {
   const hits: Array<{ entry: FeedEntry; source: string }> = [];
   for (const ch of UCL_CHANNELS) {
-    for (const entry of await getFeed(ch.channelId)) {
+    for (const entry of await entriesFor(ch)) {
       const t = normalize(entry.title);
       if (!ROUNDUP_RE.test(t)) continue;
       if (!UCL_RE.test(t)) continue;
