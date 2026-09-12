@@ -108,7 +108,7 @@ const TEAM_TOKENS: Record<string, string[]> = {
 
 /** Un vídeo que NO es de LaLiga: DAZN sube resúmenes de Hypermotion, Liga F,
  *  Serie A, etc. con el mismo formato de título. */
-const OTHER_COMP_RE =
+export const OTHER_COMP_RE =
   /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|europa league|conference league|libertadores|sudamericana|\bmls\b|brasileir|segunda|primera rfef|amistoso|friendly/i;
 
 const LALIGA_RE = /laliga ea sports|la ?liga ea sports|laliga santander|\bla ?liga\b/i;

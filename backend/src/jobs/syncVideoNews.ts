@@ -10,7 +10,7 @@
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
-import { getFeed, type FeedEntry } from '../sources/youtubeHighlights.js';
+import { getFeed, OTHER_COMP_RE, type FeedEntry } from '../sources/youtubeHighlights.js';
 import { teamsMentioned } from '../lib/newsTaxonomy.js';
 
 /** Canales oficiales. El club aporta rueda de prensa; LaLiga/DAZN, goles. */
@@ -27,8 +27,14 @@ const CHANNELS: Array<{ name: string; channelId: string; teamId?: string }> = [
 const KEEP_RE =
   /rueda de prensa|press conference|\bresumen\b|highlights?|\bgol(es|azo|azos)?\b|hat-?trick|entrevista|interview|\bprevia\b|match preview|minuto a minuto/i;
 
-/** Ruido que se cuela aunque case KEEP_RE. */
-const DROP_RE = /#shorts|\bshorts\b|femenin|women|juvenil|castilla|esports|e-?sports|fifa \d|ea sports fc/i;
+/** Ruido que se cuela aunque case KEEP_RE: Shorts/relleno propio, más
+ *  cualquier competición que no sea la nuestra. Reutiliza OTHER_COMP_RE (el
+ *  mismo filtro del buscador de resúmenes de partido) en vez de mantener una
+ *  segunda lista aparte — "Liga F" se coló una vez precisamente por eso. */
+const DROP_RE = new RegExp(
+  `#shorts|\\bshorts\\b|femenin|women|juvenil|castilla|esports|e-?sports|fifa \\d|ea sports fc|${OTHER_COMP_RE.source}`,
+  'i',
+);
 
 const MAX_AGE_H = 48;
 const MAX_PER_RUN = 12;
