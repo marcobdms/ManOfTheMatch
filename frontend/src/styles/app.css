@@ -3126,48 +3126,44 @@
   pointer-events: none;
 }
 
-/* Carrusel de resúmenes/vídeos en Home. Tarjetas al 78% de ancho (se ve el
-   borde de la siguiente, invita a deslizar) — scroll nativo con snap, misma
-   técnica que .motm-carousel (StatCarousel). Sin puntos: con 10 tarjetas
-   serían demasiados. */
+/* Carrusel de resúmenes/vídeos en Home: ocupa el hueco de la card "hero" de
+   Noticias (antes la primera noticia, a todo el ancho) — una tarjeta llena
+   la pantalla, se desliza a la siguiente. Scroll nativo con snap, misma
+   técnica que .motm-carousel (StatCarousel). */
 .motm-hl {
   margin-bottom: 18px;
 }
-.motm-hl__label {
-  margin: 0 0 10px;
-}
 .motm-hl__track {
   display: flex;
-  gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  /* Deja asomar la siguiente tarjeta hasta el borde del viewport. */
-  margin: 0 -16px;
-  padding: 0 16px;
 }
 .motm-hl__track::-webkit-scrollbar {
   display: none;
 }
 .motm-hl-card {
-  flex: 0 0 78%;
-  max-width: 260px;
+  flex: 0 0 100%;
   min-width: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   color: var(--ink);
   text-decoration: none;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--card);
   overflow: hidden;
+  padding-bottom: 14px;
 }
 .motm-hl-card__art {
   position: relative;
-  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: 200px;
   background: var(--muted);
 }
 .motm-hl-card__art img {
@@ -3186,23 +3182,31 @@
   pointer-events: none;
 }
 .motm-hl-card__text {
-  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 14px;
+}
+.motm-hl-card__eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
 }
 .motm-hl-card__title {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
 }
 .motm-hl-card__paragraph {
   margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.motm-hl__count {
+  margin: 8px 0 0;
+  text-align: center;
   font-size: 11px;
   color: var(--ink-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }

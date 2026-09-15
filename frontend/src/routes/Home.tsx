@@ -146,8 +146,10 @@ export default function Home() {
 
             {news.length > 0 && (
               <div className="motm-news-list">
-                {news.map((item, i) => (
-                  <NewsCard key={item.id} item={item} hero={i === 0} />
+                {/* Sin hero aquí: la card grande de arriba ahora es el
+                    carrusel de vídeos, el resto se queda en formato pequeño. */}
+                {news.map((item) => (
+                  <NewsCard key={item.id} item={item} />
                 ))}
               </div>
             )}

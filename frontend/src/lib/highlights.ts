@@ -31,27 +31,39 @@ export function contentKind(title: string): string {
 /** Hasta `max` vídeos para el carrusel: equipos grandes primero, y sin
  *  repetir equipo mientras el resto del pool dé variedad — así no salen 4
  *  seguidos del Madrid y nada más. Si no hay suficiente variedad para llegar
- *  a `max`, se rellena repitiendo equipo antes que dejar huecos vacíos. */
+ *  a `max`, se rellena repitiendo equipo (2ª pasada) — pero una "Rueda de
+ *  prensa" de un equipo que ya tiene la suya no se repite NUNCA, ni en el
+ *  relleno: es el tipo de vídeo que más se repite en los canales oficiales
+ *  (varios clips de la misma comparecencia) y es justo lo que no se quiere ver
+ *  dos veces seguidas en el carrusel. */
 export function pickHighlights(items: NewsItem[], max: number): NewsItem[] {
   const sorted = [...items].sort((a, b) => {
     const pa = a.teamId && IMPORTANT_TEAM_IDS.has(a.teamId) ? 0 : 1
     const pb = b.teamId && IMPORTANT_TEAM_IDS.has(b.teamId) ? 0 : 1
     return pa - pb
   })
+  const isPress = (it: NewsItem) => contentKind(it.title) === 'Rueda de prensa'
 
   const picked: NewsItem[] = []
   const seenTeam = new Set<string>()
+  const seenPressTeam = new Set<string>()
+
   for (const it of sorted) {
     if (picked.length >= max) break
     if (it.teamId && seenTeam.has(it.teamId)) continue
     picked.push(it)
-    if (it.teamId) seenTeam.add(it.teamId)
+    if (it.teamId) {
+      seenTeam.add(it.teamId)
+      if (isPress(it)) seenPressTeam.add(it.teamId)
+    }
   }
   if (picked.length < max) {
     for (const it of sorted) {
       if (picked.length >= max) break
       if (picked.includes(it)) continue
+      if (it.teamId && isPress(it) && seenPressTeam.has(it.teamId)) continue
       picked.push(it)
+      if (it.teamId && isPress(it)) seenPressTeam.add(it.teamId)
     }
   }
   return picked
