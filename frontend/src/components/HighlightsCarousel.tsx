@@ -59,6 +59,12 @@ export default function HighlightsCarousel() {
     if (index !== active) setActive(Math.max(0, Math.min(index, items.length - 1)))
   }
 
+  function goTo(index: number) {
+    const el = trackRef.current
+    if (!el) return
+    el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
+  }
+
   if (poolQuery.isLoading) {
     return <div className="motm-skel" style={{ height: 280 }} aria-hidden="true" />
   }
@@ -71,10 +77,22 @@ export default function HighlightsCarousel() {
           <HighlightCard key={item.id} item={item} />
         ))}
       </div>
+      {/* Mismos puntitos que StatCarousel (.motm-carousel__dot), no unos
+          nuevos — ya son rojos vía --brand en su estado activo. */}
       {items.length > 1 && (
-        <p className="motm-hl__count">
-          {active + 1} / {items.length}
-        </p>
+        <div className="motm-carousel__dots" role="tablist" aria-label="Vídeos del carrusel">
+          {items.map((item, i) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={i === active}
+              aria-label={item.title}
+              className={'motm-carousel__dot' + (i === active ? ' is-active' : '')}
+              onClick={() => goTo(i)}
+            />
+          ))}
+        </div>
       )}
     </div>
   )

@@ -14,6 +14,7 @@
  * reproductor oficial, igual que con el de Fotmob.
  */
 import type { CompetitionId } from '../lib/shared.js';
+import { stripEmoji } from '../lib/text.js';
 
 const UA = 'ManOfTheMatch/0.1 (+https://github.com/marcobdms/ManOfTheMatch)';
 const FEED_TTL_MS = 8 * 60_000;
@@ -120,9 +121,13 @@ const TEAM_TOKENS: Record<string, string[]> = {
 };
 
 /** Un vídeo que NO es de LaLiga: DAZN sube resúmenes de Hypermotion, Liga F,
- *  Serie A, etc. con el mismo formato de título. */
+ *  Serie A, etc. con el mismo formato de título. "rfef" a secas (no "primera
+ *  rfef"): los filiales lo escriben como "1ª RFEF"/"2ª RFEF", no como palabra
+ *  ("Atlético Madrileño 4-0 Real Murcia | RESUMEN - 1ª RFEF, J3" se colaba
+ *  por el canal del primer equipo, que también sube los partidos del
+ *  filial). No cubrimos ninguna división de la RFEF, así que basta la sigla. */
 export const OTHER_COMP_RE =
-  /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|europa league|conference league|libertadores|sudamericana|\bmls\b|brasileir|segunda|primera rfef|amistoso|friendly/i;
+  /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|europa league|conference league|libertadores|sudamericana|\bmls\b|brasileir|segunda|\brfef\b|amistoso|friendly/i;
 
 const LALIGA_RE = /laliga ea sports|la ?liga ea sports|laliga santander|\bla ?liga\b/i;
 const UCL_RE = /champions league|uefa champions/i;
@@ -164,7 +169,7 @@ function parseFeed(xml: string): FeedEntry[] {
     const altHref = /<link rel="alternate" href="([^"]+)"/.exec(b)?.[1] ?? '';
     out.push({
       videoId,
-      title: title.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
+      title: stripEmoji(title.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")),
       published: Number.isFinite(published) ? published : 0,
       thumbnail,
       isShort: altHref.includes('/shorts/'),

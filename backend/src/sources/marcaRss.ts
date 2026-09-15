@@ -14,6 +14,7 @@
  * sin reintento y circuit breaker por proceso. Nunca lanza.
  */
 import { TEAMS, type TeamId } from '../lib/shared.js';
+import { stripEmoji } from '../lib/text.js';
 
 const BASE = 'https://estaticos.marca.com/rss/futbol';
 const BROWSER_UA =
@@ -117,17 +118,19 @@ export type MarcaItem = {
 };
 
 function decode(s: string): string {
-  return s
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  return stripEmoji(
+    s
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
 }
 
 function tag(block: string, name: string): string | null {

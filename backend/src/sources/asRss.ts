@@ -11,6 +11,8 @@
  * Mismo patrón defensivo que marcaRss.ts/espn.ts: throttle de un carril,
  * backoff sin reintento y circuit breaker por proceso. Nunca lanza.
  */
+import { stripEmoji } from '../lib/text.js';
+
 const URL = 'https://feeds.as.com/mrss-s/pages/as/site/as.com/section/futbol/subsection/primera';
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -39,17 +41,19 @@ export type AsItem = {
 };
 
 function decode(s: string): string {
-  return s
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  return stripEmoji(
+    s
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
 }
 
 function tag(block: string, name: string): string | null {

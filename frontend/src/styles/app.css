@@ -3204,9 +3204,8 @@
   font-size: 13px;
   color: var(--ink-soft);
 }
-.motm-hl__count {
-  margin: 8px 0 0;
-  text-align: center;
-  font-size: 11px;
-  color: var(--ink-faint);
+/* Los puntitos del carrusel usan .motm-carousel__dots/__dot (StatCarousel) —
+   reciclados a propósito, ya son rojos vía --brand en su estado activo. */
+.motm-hl .motm-carousel__dots {
+  margin-top: 10px;
 }
