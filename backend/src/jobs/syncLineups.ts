@@ -16,6 +16,7 @@ import { fotmobPositionLabel } from '../lib/map.js';
 import { getMatchDetails } from '../sources/fotmob.js';
 import type { FotmobLineupTeam, FotmobPlayer } from '../sources/fotmob.js';
 import { resolveFotmobMatchId } from '../lib/fotmobResolve.js';
+import { saveFixtureLineup } from '../lib/lineups.js';
 
 type LineupType = 'confirmed' | 'predicted' | 'last_played';
 
@@ -253,8 +254,7 @@ async function upsertRawLineupRows(
     ...(side.starters ?? []).map((p) => rawRow(fixtureId, teamId, side, p, true, lineupType, now)),
     ...(side.subs ?? []).map((p) => rawRow(fixtureId, teamId, side, p, false, lineupType, now)),
   ];
-  if (!rows.length) return;
-  await db.from('lineups').upsert(rows, { onConflict: 'fixture_id,team_id,player_name,is_starting' });
+  await saveFixtureLineup(rows, `syncLineups ${fixtureId}`);
 }
 
 function rawRow(
@@ -278,7 +278,7 @@ function rawRow(
     shirt_number: p.shirtNumber ?? null,
     position: fotmobPositionLabel(x, y),
     grid: null,
-    source: 'fotmob',
+    source: 'fotmob' as const,
     coach: side.coach?.name ?? null,
     pos_x: x,
     pos_y: y,

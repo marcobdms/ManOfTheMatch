@@ -10,6 +10,7 @@ import { mapApiFootballEvent } from '../lib/map.js';
 import { teamName, teamSlugByApiFootballId } from '../lib/ids.js';
 import { API_FOOTBALL_DAILY_BUDGET, apiFootballHasBudget, apiFootballUsedToday } from '../lib/budget.js';
 import { pushLineup } from '../notify.js';
+import { saveFixtureLineup } from '../lib/lineups.js';
 
 /**
  * Post-match enrichment from API-Football (api-research.md §3.2 / §6.5–§6.7):
@@ -125,6 +126,7 @@ async function upsertEvents(
 
 async function upsertLineups(fixtureId: string, lineups: AfLineup[]): Promise<number> {
   const rows = [];
+  const capturedAt = new Date().toISOString();
   for (const block of lineups) {
     // `lineups.team_id` is NOT NULL FK → only the tracked team is storable.
     const teamId = teamSlugByApiFootballId(block.team?.id);
@@ -133,18 +135,14 @@ async function upsertLineups(fixtureId: string, lineups: AfLineup[]): Promise<nu
     const formation = block.formation ?? null;
 
     for (const s of block.startXI ?? []) {
-      rows.push(lineupRow(fixtureId, teamId, formation, coach, s, true));
+      rows.push(lineupRow(fixtureId, teamId, formation, coach, s, true, capturedAt));
     }
     for (const s of block.substitutes ?? []) {
-      rows.push(lineupRow(fixtureId, teamId, formation, coach, s, false));
+      rows.push(lineupRow(fixtureId, teamId, formation, coach, s, false, capturedAt));
     }
   }
 
-  if (rows.length) {
-    await db
-      .from('lineups')
-      .upsert(rows, { onConflict: 'fixture_id,team_id,player_name,is_starting' });
-  }
+  await saveFixtureLineup(rows, `syncMatchDetail ${fixtureId}`);
   return rows.length;
 }
 
@@ -170,6 +168,7 @@ function lineupRow(
   coach: string | null,
   s: AfLineup['startXI'][number],
   isStarting: boolean,
+  capturedAt: string,
 ) {
   const p = s.player;
   return {
@@ -182,8 +181,9 @@ function lineupRow(
     shirt_number: p?.number ?? null,
     position: p?.pos ?? null,
     grid: isStarting ? p?.grid ?? null : null,
-    source: 'apiFootball',
+    source: 'apiFootball' as const,
     coach, // 0002 column
+    captured_at: capturedAt,
   };
 }
 

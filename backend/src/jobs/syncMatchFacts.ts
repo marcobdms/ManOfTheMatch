@@ -15,6 +15,7 @@ import { withRun } from '../lib/run.js';
 import { getMatchDetails } from '../sources/fotmob.js';
 import { findYoutubeHighlight } from '../sources/youtubeHighlights.js';
 import { resolveFotmobMatchId } from '../lib/fotmobResolve.js';
+import { saveFixtureLineup } from '../lib/lineups.js';
 import type { CompetitionId } from '../lib/shared.js';
 import type {
   FotmobLineupTeam,
@@ -345,7 +346,7 @@ async function writeFixtureLineups(f: FixtureRow, details: FotmobMatchDetails): 
         shirt_number: p.shirtNumber ?? null,
         position: fotmobPositionLabel(x, y),
         grid: null,
-        source: 'fotmob',
+        source: 'fotmob' as const,
         coach: side.coach?.name ?? null,
         pos_x: x,
         pos_y: y,
@@ -367,11 +368,7 @@ async function writeFixtureLineups(f: FixtureRow, details: FotmobMatchDetails): 
     ...rowsFor(lineup.homeTeam, f.home_team_id),
     ...rowsFor(lineup.awayTeam, f.away_team_id),
   ];
-  if (!rows.length) return;
-  const { error } = await db
-    .from('lineups')
-    .upsert(rows, { onConflict: 'fixture_id,team_id,player_name,is_starting' });
-  if (error) console.warn(`[syncMatchFacts] lineups de ${f.id} no se guardaron`, error);
+  await saveFixtureLineup(rows, `syncMatchFacts ${f.id}`);
 }
 
 async function writeMomentum(fixtureId: string, details: FotmobMatchDetails): Promise<void> {
