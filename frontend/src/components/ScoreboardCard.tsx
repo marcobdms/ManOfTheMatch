@@ -1,17 +1,9 @@
 import { SoccerBall } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
-import laligaLogo from '../assets/crests/laliga.svg'
-import championsLogo from '../assets/crests/champions.svg'
 import TeamCrest from './TeamCrest'
 import { useLiveMinute } from '../lib/useLiveMinute'
+import { compLogo } from '../lib/competitionLogo'
 import type { GoalChip, LiveMatch, TeamLite } from '../types/view'
-
-/** Logo de la competición del partido, o null si no lo reconocemos. */
-function compLogo(short: string): string | null {
-  if (short === 'LaLiga') return laligaLogo
-  if (short === 'Champions') return championsLogo
-  return null
-}
 
 type Props = {
   match: LiveMatch

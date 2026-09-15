@@ -158,9 +158,42 @@ async function upsertTickerEvents(f: LiveFixtureRow, events: FotmobTickerEvent[]
   }
 
   const brandNew = rows.filter((r) => !seen.has(r.source_event_id) && GOAL_KIND[r.type]);
-  if (brandNew.length) await narrateNewGoals(f, brandNew);
+  if (brandNew.length) {
+    // Sube el marcador YA con el conteo de Fotmob: sin esto el histórico (y
+    // su narración) cantaban el gol segundos antes de que la card lo
+    // reflejara, porque el agregado de `fixtures` lo escriben fuentes más
+    // lentas (ESPN cuando la tiene, football-data cada 60s). Complementa a
+    // fixDisallowedScore, que solo BAJA y solo tras un gol anulado — este
+    // SOLO sube, así que nunca pueden pisarse.
+    await bumpScoreOnNewGoal(f, rows);
+    await narrateNewGoals(f, brandNew);
+  }
 
   return rows.length;
+}
+
+async function bumpScoreOnNewGoal(
+  f: LiveFixtureRow,
+  rows: Array<{ type: string; team_id: string | null }>,
+): Promise<void> {
+  let h = 0;
+  let a = 0;
+  for (const r of rows) {
+    if (!GOAL_KIND[r.type] || !r.team_id) continue;
+    const forHome = r.type === 'OWN_GOAL' ? r.team_id !== f.home_team_id : r.team_id === f.home_team_id;
+    if (forHome) h++;
+    else a++;
+  }
+  const { data: fx } = await db
+    .from('fixtures')
+    .select('home_score, away_score, status')
+    .eq('id', f.id)
+    .maybeSingle();
+  if (!fx || (fx.status !== 'LIVE' && fx.status !== 'PAUSED')) return;
+  const patch: Record<string, number> = {};
+  if (h > (fx.home_score ?? 0)) patch.home_score = h;
+  if (a > (fx.away_score ?? 0)) patch.away_score = a;
+  if (Object.keys(patch).length) await db.from('fixtures').update(patch).eq('id', f.id);
 }
 
 /** Si hubo un gol anulado, deja el marcador en el conteo real de Fotmob —

@@ -522,63 +522,6 @@
   justify-content: center;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Avisos de un partido: interruptor en la cabecera + panel de confirmación.
-   Va en la cabecera (no en la fila de acciones) para no competir con los
-   botones grandes de "ver X" — es un ajuste, no una navegación. */
-.motm-alert-toggle {
-  margin-left: auto;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-.motm-alert-toggle.is-on {
-  color: var(--brand);
-  border-color: var(--brand);
-  background: var(--brand-tint);
-}
-.motm-alert-toggle:disabled {
-  opacity: 0.6;
-}
-.motm-alert-toggle__track {
-  width: 30px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--line);
-  position: relative;
-  transition: background 0.18s ease;
-}
-.motm-alert-toggle.is-on .motm-alert-toggle__track {
-  background: var(--brand);
-}
-.motm-alert-toggle__thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
-  transition: transform 0.18s ease;
-}
-.motm-alert-toggle.is-on .motm-alert-toggle__thumb {
-  transform: translateX(12px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .motm-alert-toggle,
-  .motm-alert-toggle__track,
-  .motm-alert-toggle__thumb {
-    transition: none;
-  }
-}
 
 .motm-alert-ask {
   margin: 10px 16px 0;
@@ -1684,6 +1627,12 @@
   color: var(--ink);
   text-decoration: none;
 }
+/* Próximos: sin columna de hora a la izquierda — la competición centrada
+   (logo + hora debajo) sustituye al "–" y ya no hay meta debajo, así que la
+   fila queda simétrica entre los dos equipos. */
+.motm-fixture-row__main--comp {
+  grid-template-columns: 1fr auto 1fr;
+}
 /* Mismo pill oscuro que "Ver estadísticas" (.motm-btn), a escala reducida
    para caber dentro de la tarjeta de partido en vez de una franja plana. */
 .motm-fixture-row__actions {
@@ -1747,6 +1696,22 @@
 .motm-fixture-row__vs {
   color: var(--ink-faint);
   font-size: 12px;
+}
+/* Próximos: logo de competición + hora apiladas, en el hueco que antes era
+   el "–" entre los dos equipos. */
+.motm-fixture-row__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.motm-fixture-row__comp-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.motm-fixture-row__center .motm-fixture-row__time {
+  font-size: 11px;
 }
 .motm-fixture-row__vs--score {
   color: var(--ink);

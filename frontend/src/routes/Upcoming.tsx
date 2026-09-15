@@ -4,6 +4,7 @@ import { ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import AppHeader from '../components/AppHeader'
 import { Segmented, SegmentedButton } from '../components/Segmented'
 import TeamCrest from '../components/TeamCrest'
+import { compLogo } from '../lib/competitionLogo'
 import { useFinishedFixtures, useUpcomingFixtures } from '../lib/queries'
 import type { LiveMatch, UpcomingMatch } from '../types/view'
 
@@ -64,25 +65,26 @@ function hoursUntil(iso: string): number {
 }
 
 function UpcomingRow({ match, showPredictions }: { match: UpcomingMatch; showPredictions: boolean }) {
+  const logo = compLogo(match.competitionShort)
   return (
     <div className="motm-fixture-row">
       {/* La fila NO navega: en Próximos solo se entra por los botones de
           abajo (previsiones / alineaciones). Antes llevaba al perfil del
           equipo local, poco intuitivo. */}
-      <div className="motm-fixture-row__main motm-fixture-row__main--static">
-        <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
+      <div className="motm-fixture-row__main motm-fixture-row__main--static motm-fixture-row__main--comp">
         <span className="motm-fixture-row__team">
           <TeamCrest teamId={match.home.id} name={match.home.name} tla={match.home.tla} size={24} className="motm-fixture-row__crest" />
           <span className="motm-fixture-row__name">{match.home.shortName}</span>
         </span>
-        <span className="motm-fixture-row__vs">–</span>
+        <span className="motm-fixture-row__center">
+          {logo
+            ? <img src={logo} alt={match.competitionShort} className="motm-fixture-row__comp-logo" />
+            : <span className="motm-fixture-row__vs">–</span>}
+          <span className="motm-fixture-row__time">{formatTime(match.kickoffAt)}</span>
+        </span>
         <span className="motm-fixture-row__team motm-fixture-row__team--away">
           <span className="motm-fixture-row__name">{match.away.shortName}</span>
           <TeamCrest teamId={match.away.id} name={match.away.name} tla={match.away.tla} size={24} className="motm-fixture-row__crest" />
-        </span>
-        <span className="motm-fixture-row__meta">
-          {match.competitionShort}
-          {match.matchday ? ` · J${match.matchday}` : ''}
         </span>
       </div>
       {showPredictions && (

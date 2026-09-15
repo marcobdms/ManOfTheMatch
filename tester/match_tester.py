@@ -415,9 +415,13 @@ async def run_static_checks(client, fid) -> list[Check]:
         ))
 
     # Escudos: un equipo sin `source_ids` resueltos no cruza con las fuentes y
-    # se queda sin alineaciones ni eventos (ver resolveTeamIds.ts).
+    # se queda sin alineaciones ni eventos (ver resolveTeamIds.ts). Solo los
+    # 20 de LaLiga (`is_tracked`): los ~31 de Champions se resuelven aparte
+    # (resolveUclTeamIds.ts, solo theSportsDb) y NUNCA tienen fotmob/espn a
+    # nivel de equipo a propósito — contarlos aquí los marcaba "sin resolver"
+    # siempre, en los 51 equipos, no solo los 20 que de verdad importan aquí.
     try:
-        rows, lat = await sb_get(client, "teams", {"select": "id,source_ids", "limit": "50"})
+        rows, lat = await sb_get(client, "teams", {"select": "id,source_ids", "is_tracked": "eq.true", "limit": "30"})
         unresolved = [r["id"] for r in rows if not (r.get("source_ids") or {}).get("fotmob")
                       and not (r.get("source_ids") or {}).get("espn")]
         checks.append(Check("Teams con ids resueltos", len(unresolved) == 0,
@@ -486,12 +490,17 @@ async def take_screenshot(page: Page, app_url: str, fid: str, label: str) -> str
         print(f"  [screenshot] {e}")
         return None
 
-# ── Browser checks — sobre la vista En vivo, que es la ruta indice '/' ───────
-async def browser_checks(page: Page, app_url: str) -> list[Check]:
+# ── Browser checks — sobre /en-vivo/:fixtureId, no la ruta indice '/' ────────
+# La ruta indice muestra una LISTA de cards (sin timeline ni link a
+# estadisticas) en cuanto hay 2+ partidos en vivo a la vez — cada vez mas
+# comun con Champions. /en-vivo/{fid} siempre renderiza LiveMatchView para
+# ESE fixture, con o sin otros partidos simultaneos (ver LiveMatchRoute.tsx).
+async def browser_checks(page: Page, app_url: str, fid: str) -> list[Check]:
     checks = []
+    target = f"{app_url.rstrip('/')}/en-vivo/{fid}"
     try:
-        if not page.url.startswith(app_url):
-            await page.goto(app_url, wait_until="networkidle", timeout=20000)
+        if not page.url.startswith(target):
+            await page.goto(target, wait_until="networkidle", timeout=20000)
             await page.wait_for_timeout(2000)
 
         score_el = await page.query_selector(
@@ -688,7 +697,7 @@ async def take_sample(client, page, fid, n, kickoff_dt, do_screenshot, ctx: RunC
         checks.append(espn_check)
 
     if ctx.app_available:
-        bc = await browser_checks(page, ctx.app_url)
+        bc = await browser_checks(page, ctx.app_url, fid)
         checks.extend(bc)
     else:
         checks.append(Check("Browser checks", True, f"Omitido: app no disponible en {ctx.app_url}", skipped=True))
