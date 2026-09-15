@@ -23,6 +23,7 @@ type DraftRow = {
   topic: NewsTopic;
   subject: string | null;
   team_id: string | null;
+  fixture_id: string | null;
 };
 
 export function rewriteNews() {
@@ -38,7 +39,7 @@ export function rewriteNews() {
 
     const { data } = await db
       .from('news')
-      .select('id, original_title, summary, topic, subject, team_id')
+      .select('id, original_title, summary, topic, subject, team_id, fixture_id')
       .eq('status', 'draft')
       .not('topic', 'is', null)
       .order('published_at', { ascending: false })
@@ -50,7 +51,19 @@ export function rewriteNews() {
     let written = 0;
     for (const d of drafts) {
       try {
-        const context = await buildNewsContext((d.team_id as TeamId | null) ?? null, d.subject);
+        // La pieza cuenta un partido de Champions: la clasificación/forma/
+        // próximo rival que se le pegan tienen que ser de Champions, no de
+        // LaLiga (buildNewsContext por defecto va a LaLiga).
+        let competitionId: 'laliga' | 'ucl' = 'laliga';
+        if (d.fixture_id) {
+          const { data: fx } = await db
+            .from('fixtures')
+            .select('competition_id')
+            .eq('id', d.fixture_id)
+            .maybeSingle();
+          if (fx?.competition_id === 'ucl') competitionId = 'ucl';
+        }
+        const context = await buildNewsContext((d.team_id as TeamId | null) ?? null, d.subject, competitionId);
         const piece = await writeNewsPiece({
           originalTitle: d.original_title,
           originalSummary: d.summary,

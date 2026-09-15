@@ -13,19 +13,25 @@ import { withRun } from '../lib/run.js';
 import { getFeed, OTHER_COMP_RE, type FeedEntry } from '../sources/youtubeHighlights.js';
 import { teamsMentioned } from '../lib/newsTaxonomy.js';
 
-/** Canales oficiales. El club aporta rueda de prensa; LaLiga/DAZN, goles. */
+/** Canales oficiales. El club aporta rueda de prensa; LaLiga/DAZN, goles.
+ *  TNT Sports Football es el mismo canal que ya usa youtubeHighlights.ts
+ *  para el resumen POR PARTIDO de Champions (tiene derechos en UK y sube los
+ *  siete partidos, no solo el estelar) — aquí además trae el recopilatorio
+ *  "ALL GOALS in MDx" de la jornada completa. */
 const CHANNELS: Array<{ name: string; channelId: string; teamId?: string }> = [
   { name: 'LALIGA EA SPORTS', channelId: 'UCTv-XvfzLX3i4IGWAm4sbmA' },
   { name: 'DAZN Fútbol', channelId: 'UCz9FiMLz6SOgR_4VEFvjeIA' },
+  { name: 'TNT Sports Football', channelId: 'UC4i_9WvfPRTuRWEaWyfKuFw' },
   { name: 'Real Madrid', channelId: 'UCWV3obpZVGgJ3j9FVhEjF2Q', teamId: 'real-madrid' },
   { name: 'FC Barcelona', channelId: 'UC14UlmYlSNiQCBe9Eookf_A', teamId: 'barcelona' },
   { name: 'Atlético de Madrid', channelId: 'UCuzKFwdh7z2GHcIOX_tXgxA', teamId: 'atletico-madrid' },
 ];
 
 /** Solo entra lo que es una pieza de verdad. Los canales de club publican
- *  sobre todo Shorts y clips de relleno ("Ready!", "Good afternoon 👋"). */
+ *  sobre todo Shorts y clips de relleno ("Ready!", "Good afternoon 👋").
+ *  "goals" (sin la "e" de "gol") es TNT en inglés: "ALL GOALS in MD1...". */
 const KEEP_RE =
-  /rueda de prensa|press conference|\bresumen\b|highlights?|\bgol(es|azo|azos)?\b|hat-?trick|entrevista|interview|\bprevia\b|match preview|minuto a minuto/i;
+  /rueda de prensa|press conference|\bresumen\b|highlights?|\bgol(es|azo|azos)?\b|\bgoals?\b|hat-?trick|entrevista|interview|\bprevia\b|match preview|minuto a minuto/i;
 
 /** Ruido que se cuela aunque case KEEP_RE: Shorts/relleno propio, más
  *  cualquier competición que no sea la nuestra. Reutiliza OTHER_COMP_RE (el

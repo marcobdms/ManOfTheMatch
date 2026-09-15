@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import NewsCard from '../components/NewsCard'
+import HighlightsCarousel from '../components/HighlightsCarousel'
 import ScoreboardCard from '../components/ScoreboardCard'
 import LiveFolders from '../components/LiveFolders'
 import { Segmented, SegmentedButton } from '../components/Segmented'
@@ -87,7 +88,9 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('noticias')
   const uclQuery = useStandings('ucl', STANDINGS_LIMIT)
 
-  const news = newsQuery.data ?? []
+  // Los vídeos (topic VIDEO) se ven en el carrusel de arriba, no otra vez
+  // sueltos en la lista de debajo.
+  const news = (newsQuery.data ?? []).filter((item) => item.topic !== 'VIDEO')
   // Sin noticias todavía la pestaña por defecto sería un hueco vacío: se
   // arranca en LaLiga hasta que la ingesta llene `news`.
   const active: Tab = tab === 'noticias' && !newsQuery.isLoading && news.length === 0 ? 'laliga' : tab
@@ -133,6 +136,8 @@ export default function Home() {
 
         {active === 'noticias' && (
           <Section>
+            <HighlightsCarousel />
+
             {newsQuery.isLoading && <div className="motm-skel" style={{ height: 260 }} aria-hidden="true" />}
 
             {!newsQuery.isLoading && news.length === 0 && (

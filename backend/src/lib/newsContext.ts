@@ -43,6 +43,7 @@ function resultLabel(gf: number, ga: number): string {
 export async function buildNewsContext(
   teamId: TeamId | null,
   subject: string | null,
+  competitionId: 'laliga' | 'ucl' = 'laliga',
 ): Promise<NewsContext> {
   const ctx: NewsContext = {
     equipo: teamId ? TEAM_NAME[teamId] : null,
@@ -55,16 +56,18 @@ export async function buildNewsContext(
   };
   if (!teamId) return ctx;
 
-  // Solo la de LaLiga: un equipo en Champions tiene también filas de esa
-  // competición y a veces con captured_at más reciente pero sin poblar
-  // (pretemporada: J0, 0 puntos). Y aun dentro de LaLiga, se descarta una
-  // captura con jugados=0 — es un placeholder, no una clasificación real.
+  // SIEMPRE la de `competitionId` (LaLiga salvo que la pista sea de
+  // Champions): antes esto iba fijo a LaLiga aunque la noticia fuera de un
+  // partido de Champions, y la pieza acababa con la clasificación equivocada
+  // pegada a un hecho de la otra competición. Dentro de esa competición se
+  // sigue descartando una captura con jugados=0 — es un placeholder de
+  // pretemporada, no una clasificación real.
   const { data: st } = await db
     .from('standings')
     .select('position, points, played, form, goals_for, goals_against')
     .eq('team_id', teamId)
     .eq('season_id', CURRENT_SEASON)
-    .eq('competition_id', 'laliga')
+    .eq('competition_id', competitionId)
     .order('captured_at', { ascending: false })
     .limit(1);
   const row = st?.[0] as
@@ -92,11 +95,15 @@ export async function buildNewsContext(
     return inline?.trim() || null;
   };
 
+  // Misma competición que la clasificación de arriba: si no, un empate 2-2 de
+  // Champions se colaba en el resumen "últimos partidos" de una noticia de
+  // LaLiga (o al revés) sin decir de qué competición era cada uno.
   const { data: played } = await db
     .from('fixtures')
     .select('home_team_id, away_team_id, home_team_name, away_team_name, home_score, away_score, kickoff_at')
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .eq('status', 'FINISHED')
+    .eq('competition_id', competitionId)
     .order('kickoff_at', { ascending: false })
     .limit(5);
   for (const f of (played ?? []) as Array<{
@@ -119,6 +126,7 @@ export async function buildNewsContext(
     .select('home_team_id, away_team_id, home_team_name, away_team_name, kickoff_at')
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .eq('status', 'SCHEDULED')
+    .eq('competition_id', competitionId)
     .gte('kickoff_at', new Date().toISOString())
     .order('kickoff_at', { ascending: true })
     .limit(1);

@@ -586,6 +586,24 @@ async function fetchNews(limit: number): Promise<NewsItem[]> {
   return (data ?? []).map(mapNewsRow)
 }
 
+/** Pool de vídeos para el carrusel de Home (resúmenes, ruedas de prensa...):
+ *  se pide de sobra (`limit`) y `pickHighlights` en `lib/highlights.ts` es
+ *  quien recorta a los 10 que se enseñan, con la prioridad y variedad. */
+async function fetchVideoHighlights(limit: number): Promise<NewsItem[]> {
+  const { data, error } = await supabase
+    .from('news')
+    .select(NEWS_COLS)
+    .eq('topic', 'VIDEO')
+    .order('published_at', { ascending: false })
+    .limit(limit)
+    .returns<NewsRow[]>()
+  if (error) {
+    if (isMissingTableError(error)) return []
+    throw error
+  }
+  return (data ?? []).map(mapNewsRow)
+}
+
 async function fetchNewsItem(id: string): Promise<NewsItem | null> {
   const { data, error } = await supabase
     .from('news')
@@ -892,6 +910,15 @@ export function useNews(limit: number) {
   return useQuery({
     queryKey: ['news', limit],
     queryFn: () => fetchNews(limit),
+    enabled: hasSupabaseEnv,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+export function useVideoHighlights(poolLimit: number) {
+  return useQuery({
+    queryKey: ['videoHighlights', poolLimit],
+    queryFn: () => fetchVideoHighlights(poolLimit),
     enabled: hasSupabaseEnv,
     staleTime: 10 * 60 * 1000,
   })

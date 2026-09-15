@@ -44,7 +44,7 @@ export function newsEyebrow(item: NewsItem): string {
   return item.topic ? TOPIC_LABEL[item.topic].toUpperCase() : 'LALIGA'
 }
 
-function relative(iso: string | null): string {
+export function relative(iso: string | null): string {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.round(diff / 60000)
