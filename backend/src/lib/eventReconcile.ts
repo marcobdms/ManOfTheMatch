@@ -5,24 +5,33 @@ import { correctedScore } from './liveScore.js';
 
 const GOAL_TYPES = new Set(['GOAL', 'OWN_GOAL', 'PENALTY_GOAL']);
 
+/** Identifica el MISMO gol entre su fila original y la fila de anulación:
+ *  no hay otra clave que las una (la de anulación es una fila nueva, con su
+ *  propio `source_event_id`). */
+function eventFingerprint(r: { team_id: string | null; minute: number | null; player_name: string | null }): string {
+  return `${r.team_id ?? ''}|${r.minute ?? ''}|${(r.player_name ?? '').trim().toLowerCase()}`;
+}
+
 /**
  * Fotmob/ESPN mandan el estado ACTUAL del partido en cada poll, no un log que
  * solo crece — un gol anulado por VAR desaparece de esa lista en un poll
  * posterior. Antes solo hacíamos upsert, así que la fila vieja se quedaba
  * para siempre (visto en real: "GOL del Getafe — <TBD>" que el marcador
  * final nunca contó). Lo que ya no está en `validIds`:
- *   - si era gol, se RE-TIPIFICA a 'VAR' con detail 'Gol anulado' (y se narra
- *     una vez, igual que un gol normal) — se conserva el momento en vez de
- *     borrarlo sin dejar rastro.
- *   - si ya era 'VAR' (gol anulado que reconciliamos en un poll anterior), se
- *     DEJA — es un hecho histórico, Fotmob nunca lo vuelve a listar y borrarlo
- *     tiraba la narración "el VAR lo anula" que ya se había guardado.
+ *   - si era gol, se AÑADE una fila NUEVA de tipo 'VAR' (detail 'Gol
+ *     anulado', narrada aparte) — la fila del gol original NO se toca: tipo
+ *     y narración se quedan tal cual, así el "GOL de X" no desaparece del
+ *     histórico solo porque el VAR lo anule un minuto después. Dos hechos,
+ *     dos líneas.
+ *   - si el gol YA tiene su fila 'VAR' gemela (mismo equipo+minuto+jugador,
+ *     de un poll anterior), no se reprocesa — si no, cada poll insertaría
+ *     otra fila de anulación para el mismo gol.
  *   - si no era gol (sustitución, tarjeta...), se borra sin más.
  */
 export async function reconcileRetracted(fixtureId: string, source: string, validIds: string[]): Promise<void> {
   const { data: existing, error: selError } = await db
     .from('match_events')
-    .select('id, type, source_event_id, team_id, player_name, minute, narration')
+    .select('id, type, source_event_id, team_id, player_name, minute, narration, sort_key')
     .eq('fixture_id', fixtureId)
     .eq('source', source);
   if (selError) {
@@ -40,20 +49,32 @@ export async function reconcileRetracted(fixtureId: string, source: string, vali
   const gone = (existing ?? []).filter((r) => !validSet.has(r.source_event_id));
   if (!gone.length) return;
 
-  const toVar = gone.filter((r) => GOAL_TYPES.has(r.type));
-  // 'VAR' fuera del borrado: ya se reconció una vez y es permanente.
-  const toDelete = gone
-    .filter((r) => !GOAL_TYPES.has(r.type) && r.type !== 'VAR')
-    .map((r) => r.id);
+  const voidedFingerprints = new Set((existing ?? []).filter((r) => r.type === 'VAR').map(eventFingerprint));
+
+  const toVar = gone.filter((r) => GOAL_TYPES.has(r.type) && !voidedFingerprints.has(eventFingerprint(r)));
+  const toDelete = gone.filter((r) => !GOAL_TYPES.has(r.type) && r.type !== 'VAR').map((r) => r.id);
 
   if (toVar.length) {
-    const { error } = await db
+    const varRows = toVar.map((r) => ({
+      fixture_id: fixtureId,
+      source,
+      source_event_id: `${r.source_event_id}:var`,
+      type: 'VAR',
+      detail: 'Gol anulado',
+      team_id: r.team_id,
+      player_name: r.player_name,
+      minute: r.minute,
+      // Justo después del gol original en el orden del histórico (mismo
+      // minuto): sin esto el sort_key por defecto (0) la podía colar ANTES.
+      sort_key: (r.sort_key ?? 0) + 1,
+    }));
+    const { data: inserted, error } = await db
       .from('match_events')
-      .update({ type: 'VAR', detail: 'Gol anulado' })
-      .in('id', toVar.map((r) => r.id));
-    if (error) console.warn(`[reconcile] re-tipificar falló para ${fixtureId}/${source}`, error);
+      .insert(varRows)
+      .select('id, team_id, player_name, minute');
+    if (error) console.warn(`[reconcile] insertar anulación falló para ${fixtureId}/${source}`, error);
     else {
-      await narrateDisallowed(fixtureId, toVar);
+      await narrateDisallowed(fixtureId, inserted ?? []);
       // El gol anulado ya no cuenta: baja el marcador de la card al instante,
       // sin esperar a que football-data se dé por enterado (a veces no lo hace).
       if (source === 'fotmob') await correctScoreAfterDisallow(fixtureId);

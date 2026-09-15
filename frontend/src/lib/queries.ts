@@ -629,20 +629,35 @@ export function useNewsItem(id: string | undefined) {
   })
 }
 
+/** Misma huella que backend/lib/eventReconcile.ts: une la fila del gol
+ *  original con su fila 'VAR' de anulación — son dos filas distintas, el gol
+ *  nunca cambia de tipo (para que su narración no desaparezca del
+ *  histórico), así que un gol anulado solo se detecta por esta huella. */
+function eventFingerprint(r: { team_id: string | null; minute: number | null; player_name: string | null }): string {
+  return `${r.team_id ?? ''}|${r.minute ?? ''}|${(r.player_name ?? '').trim().toLowerCase()}`
+}
+
 async function fetchGoalChips(fixtureId: string): Promise<GoalChip[]> {
   const { data, error } = await supabase
     .from('match_events')
-    .select('id, type, minute, minute_extra, player_name, detail, source')
+    .select('id, type, minute, minute_extra, team_id, player_name, detail, source')
     .eq('fixture_id', fixtureId)
-    .in('type', GOAL_TYPES as string[])
+    .in('type', [...GOAL_TYPES, 'VAR'] as string[])
     .order('minute', { ascending: true })
     .order('sort_key', { ascending: true })
     .returns<EventRow[]>()
   if (error) throw error
-  return preferBestSource(data ?? []).map((row) => ({
-    minuteLabel: eventMinuteLabel(row.minute, row.minute_extra),
-    player: row.player_name?.trim() || '—',
-  }))
+  const rows = preferBestSource(data ?? [])
+  // Un gol anulado no se borra (se conserva su narración en el histórico),
+  // así que sin esto la card del marcador seguía enseñando su chip aunque el
+  // marcador ya no lo contara.
+  const voidedFingerprints = new Set(rows.filter((r) => r.type === 'VAR').map(eventFingerprint))
+  return rows
+    .filter((row) => (GOAL_TYPES as string[]).includes(row.type) && !voidedFingerprints.has(eventFingerprint(row)))
+    .map((row) => ({
+      minuteLabel: eventMinuteLabel(row.minute, row.minute_extra),
+      player: row.player_name?.trim() || '—',
+    }))
 }
 
 async function fetchTimeline(fixtureId: string): Promise<TimelineEvent[]> {
