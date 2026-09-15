@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { POLL, TRACKED_TEAM_IDS } from './shared'
 import type { MatchEventType, MatchStatus } from './shared'
 import { supabase } from './supabase'
+import { stripEmoji } from './text'
 import type {
   AiPrediction,
   GoalChip,
@@ -537,7 +538,7 @@ const NEWS_COLS =
 function mapNewsRow(row: NewsRow): NewsItem {
   return {
     id: row.id,
-    title: row.title,
+    title: stripEmoji(row.title),
     summary: row.summary,
     body: row.body,
     topic: (row.topic as NewsItem['topic']) ?? null,
@@ -554,6 +555,7 @@ function mapNewsRow(row: NewsRow): NewsItem {
     originalAuthor: row.original_author,
     publishedAt: row.published_at,
     videoUrl: row.video_url,
+    fixtureId: row.fixture_id,
     match: newsMatch(asOne(row.fixture)),
   }
 }
@@ -1092,6 +1094,41 @@ type RawLineupRow = {
   coach: string | null
   lineup_type: string | null
   photo_url: string | null
+  source: string | null
+  captured_at: string | null
+}
+
+/** Margen para considerar "la misma pasada" filas escritas por dos jobs
+ *  distintos (syncLineups y syncMatchFacts reescriben el mismo XI de Fotmob
+ *  con segundos/minutos de diferencia). */
+const LINEUP_BATCH_MS = 15 * 60_000
+
+/**
+ * Un único XI coherente por equipo. `lineups` puede traer a la vez: el XI
+ * confirmado de Fotmob, restos del XI *previsto* de pasadas anteriores
+ * (jugadores que al final no fueron titulares) y el mismo once de API-Football
+ * con nombres abreviados ("A. Rațiu") y sin coordenadas. Pintarlo todo junto
+ * daba 12+ titulares encima unos de otros.
+ * Se queda Fotmob (tiene posiciones) y solo su tanda más reciente; API-Football
+ * únicamente si no hay nada de Fotmob.
+ */
+function pickLineupBatch(rows: RawLineupRow[]): RawLineupRow[] {
+  const fotmob = rows.filter((r) => r.source === 'fotmob' && r.pos_x != null)
+  const pool = fotmob.length ? fotmob : rows.filter((r) => r.source !== 'fotmob')
+  if (!pool.length) return rows
+
+  const stamp = (r: RawLineupRow) => (r.captured_at ? Date.parse(r.captured_at) : 0)
+  const latest = Math.max(...pool.map(stamp))
+  const batch = pool.filter((r) => latest - stamp(r) <= LINEUP_BATCH_MS)
+
+  // Un mismo jugador no puede salir dos veces (p.ej. titular y suplente de
+  // pasadas distintas dentro del margen): gana la fila más reciente.
+  const byPlayer = new Map<string, RawLineupRow>()
+  for (const r of batch) {
+    const prev = byPlayer.get(r.player_name)
+    if (!prev || stamp(r) > stamp(prev)) byPlayer.set(r.player_name, r)
+  }
+  return [...byPlayer.values()]
 }
 
 /**
@@ -1105,7 +1142,8 @@ async function fetchMatchLineups(fixtureId: string): Promise<Record<string, Team
     .from('lineups')
     .select(
       'team_id, formation, is_starting, player_name, shirt_number, position_label, ' +
-        'pos_x, pos_y, age, country, country_code, rating, season_rating, coach, lineup_type, photo_url',
+        'pos_x, pos_y, age, country, country_code, rating, season_rating, coach, lineup_type, photo_url, ' +
+        'source, captured_at',
     )
     .eq('fixture_id', fixtureId)
     .returns<RawLineupRow[]>()
@@ -1119,7 +1157,8 @@ async function fetchMatchLineups(fixtureId: string): Promise<Record<string, Team
   for (const r of data) (byTeam[r.team_id] ??= []).push(r)
 
   const out: Record<string, TeamLineupSnapshot> = {}
-  for (const [teamId, rows] of Object.entries(byTeam)) {
+  for (const [teamId, allRows] of Object.entries(byTeam)) {
+    const rows = pickLineupBatch(allRows)
     const players: LineupPlayer[] = rows.map((r) => ({
       name: r.player_name,
       shortName: r.player_name.split(' ').slice(-1)[0] || r.player_name,

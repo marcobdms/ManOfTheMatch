@@ -1,5 +1,5 @@
-import { PlayCircle } from '@phosphor-icons/react'
-import { useParams } from 'react-router-dom'
+import { ChartBar, YoutubeLogo } from '@phosphor-icons/react'
+import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import BackButton from '../components/BackButton'
 import { ImageCredit, NewsArt, newsEyebrow } from '../components/NewsCard'
@@ -28,9 +28,21 @@ export default function NewsDetail() {
             <h1 className="motm-newsdetail__title">{item.title}</h1>
             {item.body && <p className="motm-newsdetail__body">{item.body}</p>}
 
-            {/* El vídeo no se rehospeda ni se embebe: se abre en su plataforma. */}
+            {/* Mismos botones que en el detalle de un partido (MatchDetail) —
+                reciclados, no unos nuevos, para que se vea igual en toda la
+                app. "Ver estadísticas" solo si el vídeo se pudo casar con un
+                partido concreto (por equipo + marcador en el título, ver
+                syncVideoNews.ts) — un vídeo suelto (rueda de prensa,
+                entrevista) no tiene partido al que enlazar. El vídeo no se
+                rehospeda ni se embebe: se abre en su plataforma. */}
             {item.videoUrl && (
               <div className="motm-actions" style={{ marginTop: 14 }}>
+                {item.fixtureId && (
+                  <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${item.fixtureId}/estadisticas`}>
+                    <ChartBar size={16} />
+                    Ver estadísticas
+                  </Link>
+                )}
                 <a
                   className="motm-btn"
                   style={{ flex: 1 }}
@@ -38,8 +50,8 @@ export default function NewsDetail() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <PlayCircle size={18} weight="fill" />
-                  Ver en YouTube
+                  <YoutubeLogo size={18} weight="fill" />
+                  Ver highlights
                 </a>
               </div>
             )}

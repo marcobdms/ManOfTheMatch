@@ -84,6 +84,9 @@ export type NewsItem = {
   publishedAt: string | null
   /** Enlace al vídeo (YouTube). Nunca se rehospeda: se abre fuera. */
   videoUrl: string | null
+  /** Partido asociado (previa propia, o un vídeo de resumen casado por
+   *  marcador — ver syncVideoNews.ts). Da pie al botón "Ver estadísticas". */
+  fixtureId: string | null
   /** Noticia de partido (previa): los dos equipos, para pintar ambos escudos. */
   match: {
     homeId: string | null

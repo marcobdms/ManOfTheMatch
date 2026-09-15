@@ -10,7 +10,7 @@
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
-import { getFeed, OTHER_COMP_RE, type FeedEntry } from '../sources/youtubeHighlights.js';
+import { getFeed, OTHER_COMP_RE, scoreInTitle, type FeedEntry } from '../sources/youtubeHighlights.js';
 import { teamsMentioned } from '../lib/newsTaxonomy.js';
 
 /** Canales oficiales. El club aporta rueda de prensa; LaLiga/DAZN, goles.
@@ -44,6 +44,37 @@ const DROP_RE = new RegExp(
 
 const MAX_AGE_H = 48;
 const MAX_PER_RUN = 12;
+const FIXTURE_MATCH_WINDOW_D = 10;
+
+/**
+ * Enlaza un vídeo de resumen con SU partido, si el título trae marcador
+ * ("Barcelona 5 vs 1 Feyenoord") y el equipo ya se resolvió: así el detalle
+ * de la noticia puede ofrecer "Ver estadísticas" del partido real, no solo
+ * el vídeo. Heurística (no hay forma de saber si el marcador del título es
+ * local-visitante o al revés) — se acepta cualquier orientación, acotado a
+ * los partidos de ESE equipo de los últimos días.
+ */
+async function resolveFixtureForVideo(teamId: string | null, title: string): Promise<string | null> {
+  if (!teamId) return null;
+  const score = scoreInTitle(title);
+  if (!score) return null;
+  const [a, b] = score;
+
+  const { data } = await db
+    .from('fixtures')
+    .select('id, home_team_id, home_score, away_score')
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .eq('status', 'FINISHED')
+    .gte('kickoff_at', new Date(Date.now() - FIXTURE_MATCH_WINDOW_D * 24 * 3_600_000).toISOString())
+    .order('kickoff_at', { ascending: false })
+    .limit(5);
+
+  const match = (data ?? []).find(
+    (f) =>
+      (f.home_score === a && f.away_score === b) || (f.home_score === b && f.away_score === a),
+  );
+  return match?.id ?? null;
+}
 
 export function syncVideoNews() {
   return withRun('syncVideoNews', 'news', async () => {
@@ -68,6 +99,7 @@ export function syncVideoNews() {
         // Equipo: el del canal si es de club, si no el que nombre el título.
         const teamId = ch.teamId ?? teamsMentioned(e.title)[0] ?? null;
         const url = `https://www.youtube.com/watch?v=${e.videoId}`;
+        const fixtureId = await resolveFixtureForVideo(teamId, e.title);
 
         rows.push({
           title: e.title,
@@ -80,6 +112,7 @@ export function syncVideoNews() {
           original_author: ch.name,
           published_at: new Date(e.published).toISOString(),
           team_id: teamId,
+          fixture_id: fixtureId,
           subject: null,
           topic: 'VIDEO',
           video_url: url,

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
-import { PlayCircle } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+import { CaretLeft, CaretRight, PlayCircle } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
 import { relative } from './NewsCard'
 import { contentKind, pickHighlights } from '../lib/highlights'
 import { useVideoHighlights } from '../lib/queries'
@@ -11,19 +12,33 @@ const MAX_ITEMS = 15
  *  así llegar al máximo. */
 const POOL_LIMIT = 80
 
+/** True con ratón/trackpad de verdad (desktop) — false en touch/PWA, donde el
+ *  swipe nativo ya hace el trabajo y las flechas solo estorban. */
+function usePointerCanHover(): boolean {
+  const [canHover, setCanHover] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)')
+    setCanHover(mq.matches)
+    const onChange = (e: MediaQueryListEvent) => setCanHover(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return canHover
+}
+
 /** Card a todo el ancho — la misma card "hero" que antes llevaba la primera
  *  noticia de la lista: el carrusel ocupa ese hueco, y el resto de noticias
- *  se quedan en su formato pequeño de siempre. */
+ *  se quedan en su formato pequeño de siempre.
+ *
+ * Enlaza a la ficha de la noticia (`/noticias/:id`), NO directo al vídeo: la
+ * miniatura no abre YouTube por sí sola, primero se entra a la ficha y de ahí
+ * salen los botones de "Ver estadísticas"/"Ver highlights" — mismo patrón que
+ * cualquier otra NewsCard, en vez de un atajo solo para el carrusel. */
 function HighlightCard({ item }: { item: NewsItem }) {
   const paragraph = [item.originalSource, relative(item.publishedAt)].filter(Boolean).join(' · ')
 
   return (
-    <a
-      href={item.videoUrl ?? item.originalUrl ?? '#'}
-      target="_blank"
-      rel="noreferrer"
-      className="motm-hl-card"
-    >
+    <Link to={`/noticias/${item.id}`} className="motm-hl-card">
       <div className="motm-hl-card__art">
         {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}
         <span className="motm-hl-card__play" aria-hidden="true">
@@ -35,7 +50,7 @@ function HighlightCard({ item }: { item: NewsItem }) {
         <h3 className="motm-hl-card__title">{item.title}</h3>
         <p className="motm-hl-card__paragraph">{paragraph}</p>
       </div>
-    </a>
+    </Link>
   )
 }
 
@@ -48,6 +63,7 @@ function HighlightCard({ item }: { item: NewsItem }) {
 export default function HighlightsCarousel() {
   const trackRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
+  const canHover = usePointerCanHover()
   const poolQuery = useVideoHighlights(POOL_LIMIT)
   const pool = poolQuery.data ?? []
   const items = pickHighlights(pool, MAX_ITEMS)
@@ -72,11 +88,37 @@ export default function HighlightsCarousel() {
 
   return (
     <div className="motm-hl">
-      <div className="motm-hl__track" ref={trackRef} onScroll={onScroll}>
-        {items.map((item) => (
-          <HighlightCard key={item.id} item={item} />
-        ))}
+      <div className="motm-hl__viewport">
+        <div className="motm-hl__track" ref={trackRef} onScroll={onScroll}>
+          {items.map((item) => (
+            <HighlightCard key={item.id} item={item} />
+          ))}
+        </div>
+
+        {/* Solo en escritorio: en móvil/PWA no hay ratón y el swipe nativo ya
+            desliza el carrusel — las flechas ahí solo ocupan sitio. */}
+        {canHover && active > 0 && (
+          <button
+            type="button"
+            className="motm-hl__arrow motm-hl__arrow--prev"
+            aria-label="Vídeo anterior"
+            onClick={() => goTo(active - 1)}
+          >
+            <CaretLeft size={18} weight="bold" />
+          </button>
+        )}
+        {canHover && active < items.length - 1 && (
+          <button
+            type="button"
+            className="motm-hl__arrow motm-hl__arrow--next"
+            aria-label="Vídeo siguiente"
+            onClick={() => goTo(active + 1)}
+          >
+            <CaretRight size={18} weight="bold" />
+          </button>
+        )}
       </div>
+
       {/* Mismos puntitos que StatCarousel (.motm-carousel__dot), no unos
           nuevos — ya son rojos vía --brand en su estado activo. */}
       {items.length > 1 && (

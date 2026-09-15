@@ -219,7 +219,7 @@ function entriesFor(ch: Channel): Promise<FeedEntry[]> {
 }
 
 /** Marcador escrito en el título: "(0-5)" o "VALENCIA 0 - 5 BARCELONA". */
-function scoreInTitle(title: string): [number, number] | null {
+export function scoreInTitle(title: string): [number, number] | null {
   const m = /\(?\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b\)?/.exec(title);
   if (!m) return null;
   return [Number(m[1]), Number(m[2])];

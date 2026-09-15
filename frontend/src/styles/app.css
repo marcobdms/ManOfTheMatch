@@ -3133,6 +3133,9 @@
 .motm-hl {
   margin-bottom: 18px;
 }
+.motm-hl__viewport {
+  position: relative;
+}
 .motm-hl__track {
   display: flex;
   overflow-x: auto;
@@ -3143,6 +3146,29 @@
 }
 .motm-hl__track::-webkit-scrollbar {
   display: none;
+}
+/* Flechas de escritorio (ratón/trackpad): en móvil/PWA no se pintan, el
+   swipe nativo ya desliza. Encima de la miniatura, no del texto de abajo. */
+.motm-hl__arrow {
+  position: absolute;
+  top: 100px;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+.motm-hl__arrow--prev {
+  left: 10px;
+}
+.motm-hl__arrow--next {
+  right: 10px;
 }
 .motm-hl-card {
   flex: 0 0 100%;
