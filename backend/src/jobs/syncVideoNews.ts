@@ -10,7 +10,14 @@
  */
 import { db } from '../db.js';
 import { withRun } from '../lib/run.js';
-import { getFeed, OTHER_COMP_RE, scoreInTitle, type FeedEntry } from '../sources/youtubeHighlights.js';
+import {
+  getFeed,
+  LALIGA_RE,
+  OTHER_COMP_RE,
+  scoreInTitle,
+  UCL_RE,
+  type FeedEntry,
+} from '../sources/youtubeHighlights.js';
 import { teamsMentioned } from '../lib/newsTaxonomy.js';
 
 /** Canales oficiales. El club aporta rueda de prensa; LaLiga/DAZN, goles.
@@ -41,6 +48,11 @@ const DROP_RE = new RegExp(
   `#shorts|\\bshorts\\b|femenin|women|juvenil|castilla|esports|e-?sports|fifa \\d|ea sports fc|${OTHER_COMP_RE.source}`,
   'i',
 );
+
+/** Contenido de PARTIDO (no rueda de prensa/entrevista/previa, que no suelen
+ *  nombrar la competición en el título). Se usa para exigir, en los canales
+ *  generales, que el título mencione LaLiga o Champions de verdad. */
+const MATCH_CONTENT_RE = /\bresumen\b|highlights?|\bgol(es|azo|azos)?\b|\bgoals?\b|hat-?trick/i;
 
 const MAX_AGE_H = 48;
 const MAX_PER_RUN = 12;
@@ -95,6 +107,17 @@ export function syncVideoNews() {
         if (!e.published || e.published < cutoff) continue;
         if (!KEEP_RE.test(e.title)) continue;
         if (DROP_RE.test(e.title)) continue;
+        // LALIGA EA SPORTS / DAZN / TNT cubren TODA Europa, no solo lo
+        // nuestro — un blocklist (DROP_RE/OTHER_COMP_RE) nunca está completo
+        // (así se colaron Bundesliga e Hypermotion antes de añadirlas ahí).
+        // En un canal general, un vídeo de PARTIDO tiene que nombrar LaLiga o
+        // Champions de verdad. No aplica a rueda de prensa/entrevista/previa
+        // (no suelen nombrar la competición) ni a los canales de club (su
+        // contenido ya es de ese equipo por definición, salvo el filial, que
+        // cubre `\brfef\b` arriba).
+        if (!ch.teamId && MATCH_CONTENT_RE.test(e.title) && !LALIGA_RE.test(e.title) && !UCL_RE.test(e.title)) {
+          continue;
+        }
 
         // Equipo: el del canal si es de club, si no el que nombre el título.
         const teamId = ch.teamId ?? teamsMentioned(e.title)[0] ?? null;

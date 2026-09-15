@@ -129,8 +129,8 @@ const TEAM_TOKENS: Record<string, string[]> = {
 export const OTHER_COMP_RE =
   /hypermotion|liga f\b|serie a|premier league|bundesliga|ligue 1|copa del rey|eurocopa|nations league|europa league|conference league|libertadores|sudamericana|\bmls\b|brasileir|segunda|\brfef\b|amistoso|friendly/i;
 
-const LALIGA_RE = /laliga ea sports|la ?liga ea sports|laliga santander|\bla ?liga\b/i;
-const UCL_RE = /champions league|uefa champions/i;
+export const LALIGA_RE = /laliga ea sports|la ?liga ea sports|laliga santander|\bla ?liga\b/i;
+export const UCL_RE = /champions league|uefa champions/i;
 const SUMMARY_RE = /\bresumen\b|\bhighlights?\b|\bresumen y goles\b/i;
 
 function normalize(s: string): string {
