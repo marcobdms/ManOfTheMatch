@@ -22,11 +22,11 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SUPABASE_URL = "https://jmavllfamaflchxjvwmh.supabase.co"
+SUPABASE_URL = "https://supabase-motm.178.104.122.41.sslip.io"
 SUPABASE_ANON_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30"
-    ".JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y"
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9"
+    ".eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc5MDM2MjkyMCwiZXhwIjo0OTQ2MDM2NTIwLCJyb2xlIjoiYW5vbiJ9"
+    ".qKNfe9XM62dWxQPEHoZJkhBibBZaefEtEazWJFDdoHA"
 )
 DEFAULT_APP_URL = "https://man-of-the-match-web.vercel.app"
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard"

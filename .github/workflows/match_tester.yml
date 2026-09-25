@@ -48,8 +48,8 @@ jobs:
           from datetime import datetime, timezone, timedelta
           from urllib.parse import urlencode
 
-          URL = "https://jmavllfamaflchxjvwmh.supabase.co/rest/v1"
-          KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30.JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y"
+          URL = "https://supabase-motm.178.104.122.41.sslip.io/rest/v1"
+          KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc5MDM2MjkyMCwiZXhwIjo0OTQ2MDM2NTIwLCJyb2xlIjoiYW5vbiJ9.qKNfe9XM62dWxQPEHoZJkhBibBZaefEtEazWJFDdoHA"
           H = {"apikey": KEY, "Authorization": f"Bearer {KEY}"}
 
           def get(path, params):
@@ -156,8 +156,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_SUPABASE_URL: https://jmavllfamaflchxjvwmh.supabase.co
-          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptYXZsbGZhbWFmbGNoeGp2d21oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTQ0ODcsImV4cCI6MjEwMzQzMDQ4N30.JzscEKzByH33A4aFOPReiKYw3qKPxMTiAFSlsAiDa5Y
+          VITE_SUPABASE_URL: https://supabase-motm.178.104.122.41.sslip.io
+          VITE_SUPABASE_ANON_KEY: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc5MDM2MjkyMCwiZXhwIjo0OTQ2MDM2NTIwLCJyb2xlIjoiYW5vbiJ9.qKNfe9XM62dWxQPEHoZJkhBibBZaefEtEazWJFDdoHA
         run: |
           npm ci
           npm run build

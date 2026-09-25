@@ -6,7 +6,7 @@ PWA de LaLiga + Champions. Tres piezas que se despliegan por separado:
 |---|---|---|
 | Frontend (Vite + React) + `api/predict.ts` (Edge Function) | `frontend/` | Vercel |
 | Worker de crons (`croner`, sin servidor HTTP) | `backend/` | Coolify |
-| Postgres + Storage + RLS | `supabase/migrations/` | Supabase |
+| Supabase self-hosted (Postgres + Auth + Storage + Realtime + RLS) | `supabase/migrations/` | Coolify, servicio `supabase-motm` (`https://supabase-motm.178.104.122.41.sslip.io`); compose recortado, sin analytics/vector/functions/minio |
 
 ## Despliegue: automático por webhook
 
@@ -21,7 +21,9 @@ manual: al hacer `git push` se despliegan los dos. Consecuencias:
   `git cat-file -t <sha>` antes de dar por hecho que un job está desplegado.
 
 Las **migraciones NO se aplican solas**: el SQL de `supabase/migrations/` lo
-ejecuta Marco a mano en Supabase.
+ejecuta Marco a mano en el contenedor `supabase-db-*` del VPS (`docker exec -i`
+con `psql -U supabase_admin`). El trigger `on_auth_user_created` cuelga de
+`auth.users`: un dump de `public` no lo trae, hay que recrearlo (0006).
 
 ## Scripts de mantenimiento (no son crons, no van en el deploy)
 
