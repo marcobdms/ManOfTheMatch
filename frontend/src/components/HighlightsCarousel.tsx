@@ -10,7 +10,7 @@ const MAX_ITEMS = 15
 /** De sobra sobre MAX_ITEMS: pickHighlights necesita margen para evitar
  *  equipos repetidos (y ruedas de prensa repetidas de un mismo equipo) y aun
  *  así llegar al máximo. */
-const POOL_LIMIT = 80
+export const HIGHLIGHTS_POOL_LIMIT = 80
 
 /** True con ratón/trackpad de verdad (desktop) — false en touch/PWA, donde el
  *  swipe nativo ya hace el trabajo y las flechas solo estorban. */
@@ -64,8 +64,7 @@ export default function HighlightsCarousel() {
   const trackRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
   const canHover = usePointerCanHover()
-  const poolQuery = useVideoHighlights(POOL_LIMIT)
-  const pool = poolQuery.data ?? []
+  const pool = useVideoHighlights(HIGHLIGHTS_POOL_LIMIT).data ?? []
   const items = pickHighlights(pool, MAX_ITEMS)
 
   function onScroll() {
@@ -81,9 +80,6 @@ export default function HighlightsCarousel() {
     el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
   }
 
-  if (poolQuery.isLoading) {
-    return <div className="motm-skel" style={{ height: 280 }} aria-hidden="true" />
-  }
   if (items.length === 0) return null
 
   return (

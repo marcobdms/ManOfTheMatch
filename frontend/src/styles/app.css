@@ -666,6 +666,14 @@
   background: var(--muted);
   animation: motm-shimmer 1.4s ease-in-out infinite;
 }
+.motm-reveal {
+  animation: motm-fade-in 0.28s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .motm-reveal {
+    animation: none;
+  }
+}
 /* Spinner reutilizable: cualquier icono con .motm-spin gira. */
 .motm-spin {
   animation: motm-spin 0.7s linear infinite;
@@ -2983,7 +2991,7 @@
   flex-direction: column;
   justify-content: center;
 }
-.motm-home__feature > .motm-empty {
+.motm-home__feature .motm-empty {
   margin: 0 16px;
   animation: none;
 }

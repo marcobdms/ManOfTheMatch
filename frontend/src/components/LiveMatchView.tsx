@@ -2,6 +2,7 @@ import { ChartBar, ChartLineUp, UsersThree } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import ScoreboardCard from './ScoreboardCard'
 import MatchTimeline from './MatchTimeline'
+import Reveal, { SkelBlock } from './Reveal'
 import { isLiveStatus, useGoalChips, useLiveRealtime, useTimeline } from '../lib/queries'
 import type { LiveMatch } from '../types/view'
 
@@ -18,7 +19,9 @@ export default function LiveMatchView({ match }: { match: LiveMatch }) {
 
   return (
     <>
-      <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+      <Reveal ready={!goalsQuery.isLoading} skeleton={<SkelBlock height={208} margin={16} />}>
+        <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+      </Reveal>
 
       <div className="motm-actions">
         {/* Antes del pitido inicial no hay estadísticas — el hueco lo ocupa
@@ -40,7 +43,9 @@ export default function LiveMatchView({ match }: { match: LiveMatch }) {
         </Link>
       </div>
 
-      <MatchTimeline events={timelineQuery.data ?? []} />
+      <Reveal ready={!timelineQuery.isLoading} skeleton={<SkelBlock height={200} margin={16} />}>
+        <MatchTimeline events={timelineQuery.data ?? []} />
+      </Reveal>
     </>
   )
 }

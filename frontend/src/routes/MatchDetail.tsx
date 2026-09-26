@@ -4,6 +4,7 @@ import AppHeader from '../components/AppHeader'
 import BackButton from '../components/BackButton'
 import ScoreboardCard from '../components/ScoreboardCard'
 import MatchTimeline from '../components/MatchTimeline'
+import Reveal, { SkelBlock } from '../components/Reveal'
 import { useFixtureById, useGoalChips, useTimeline } from '../lib/queries'
 
 /** Detalle de un partido ya jugado — recicla ScoreboardCard/MatchTimeline de
@@ -25,7 +26,7 @@ export default function MatchDetail() {
           <h1 className="motm-lineup__name">Partido</h1>
         </div>
 
-        {matchQuery.isLoading && <div className="motm-skel" style={{ margin: '16px' }} aria-hidden="true" />}
+        {matchQuery.isLoading && <SkelBlock height={208} margin={16} />}
 
         {!matchQuery.isLoading && !match && (
           <div className="motm-empty">
@@ -35,7 +36,9 @@ export default function MatchDetail() {
 
         {match && (
           <>
-            <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+            <Reveal ready={!goalsQuery.isLoading} skeleton={<SkelBlock height={208} margin={16} />}>
+              <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+            </Reveal>
             <div className="motm-actions">
               <Link className="motm-btn" style={{ flex: 1 }} to={`/partidos/${match.id}/estadisticas`}>
                 <ChartBar size={16} />
@@ -51,7 +54,9 @@ export default function MatchDetail() {
                 </Link>
               )}
             </div>
-            <MatchTimeline events={timelineQuery.data ?? []} />
+            <Reveal ready={!timelineQuery.isLoading} skeleton={<SkelBlock height={200} margin={16} />}>
+              <MatchTimeline events={timelineQuery.data ?? []} />
+            </Reveal>
           </>
         )}
       </div>

@@ -30,6 +30,8 @@ function ratingTier(rating: number): string {
 export default function PlayerCard({ player, variant = 'starter' }: Props) {
   const rating = player.rating ?? player.seasonRating
   const [flipped, setFlipped] = useState(false)
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const photoUrl = photoFailed ? null : player.photoUrl
   const reduceMotion = useReducedMotion()
 
   if (variant === 'sub') {
@@ -37,8 +39,8 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
       <div className="motm-pcard motm-pcard--sub">
         {player.number != null && <span className="motm-pcard__number">{player.number}</span>}
         <span className="motm-pcard__avatar" aria-hidden="true">
-          {player.photoUrl ? (
-            <img src={player.photoUrl} alt="" loading="lazy" decoding="async" />
+          {photoUrl ? (
+            <img src={photoUrl} alt="" loading="lazy" decoding="async" onError={() => setPhotoFailed(true)} />
           ) : (
             <UserCircle size={20} weight="fill" />
           )}
@@ -75,8 +77,8 @@ export default function PlayerCard({ player, variant = 'starter' }: Props) {
             )}
 
             <span className="motm-pcard__photo">
-              {player.photoUrl ? (
-                <img src={player.photoUrl} alt="" loading="lazy" decoding="async" />
+              {photoUrl ? (
+                <img src={photoUrl} alt="" loading="lazy" decoding="async" onError={() => setPhotoFailed(true)} />
               ) : (
                 <UserCircle size={30} weight="fill" className="motm-pcard__silhouette" />
               )}

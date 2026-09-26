@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import BackButton from '../components/BackButton'
 import TeamCrest from '../components/TeamCrest'
+import Reveal, { SkelBlock } from '../components/Reveal'
 import { useTeam, useStandings, useTeamSeasonStats } from '../lib/queries'
 import { factsFor, palmaresLine } from '../lib/teamHonours'
 
@@ -79,6 +80,10 @@ export default function TeamProfile() {
               {facts && <p className="motm-teamprofile__since">Fundado en {facts.founded}</p>}
             </div>
 
+            <Reveal
+              ready={!ligaQuery.isLoading && !uclQuery.isLoading && !statsQuery.isLoading}
+              skeleton={<SkelBlock height={150} margin="8px 16px" />}
+            >
             {row && (
               <div className="motm-tp-summary">
                 <Stat label="Puesto" value={`${row.position}º`} />
@@ -127,6 +132,7 @@ export default function TeamProfile() {
                 </div>
               </section>
             )}
+            </Reveal>
 
             <div className="motm-actions motm-teamprofile__actions">
               <Link className="motm-btn" style={{ flex: 1 }} to={`/historial/${team.id}`}>

@@ -2,12 +2,21 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import NewsCard from '../components/NewsCard'
-import HighlightsCarousel from '../components/HighlightsCarousel'
+import HighlightsCarousel, { HIGHLIGHTS_POOL_LIMIT } from '../components/HighlightsCarousel'
+import Reveal, { SkelBlock } from '../components/Reveal'
 import ScoreboardCard from '../components/ScoreboardCard'
 import LiveFolders from '../components/LiveFolders'
 import { Segmented, SegmentedButton } from '../components/Segmented'
 import TeamCrest from '../components/TeamCrest'
-import { isLiveStatus, useGoalChips, useLiveMatch, useLiveMatches, useNews, useStandings } from '../lib/queries'
+import {
+  isLiveStatus,
+  useGoalChips,
+  useLiveMatch,
+  useLiveMatches,
+  useNews,
+  useStandings,
+  useVideoHighlights,
+} from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
 import { crestForUclTeam } from '../lib/crestsUcl'
 import laligaLogo from '../assets/crests/laliga.svg'
@@ -36,10 +45,10 @@ function StandingsTable({
   emptyNote: string
   competition: 'laliga' | 'ucl'
 }) {
-  if (isLoading) return <div className="motm-skel" style={{ height: 220 }} aria-hidden="true" />
+  if (isLoading) return <SkelBlock height={220} />
   if (!rows || rows.length === 0) return <p className="motm-note">{emptyNote}</p>
   return (
-    <table className="motm-standings">
+    <table className="motm-standings motm-reveal">
       <tbody>
         {rows.map((row) => {
           // En Champions las filas no traen slug (solo los clubes españoles),
@@ -81,7 +90,15 @@ export default function Home() {
   // día: los que juegan con el punto rojo, el resto con uno gris.
   const showFolders = todayMatches.filter((m) => isLiveStatus(m.status)).length >= 2
 
+  // Hueco destacado: aparece cuando ya se sabe qué partido hay Y sus goles.
+  const featureReady =
+    !liveQuery.isLoading && !allLiveQuery.isLoading && (!match || !goalsQuery.isLoading)
+
   const newsQuery = useNews(NEWS_LIMIT)
+  // Misma consulta que pinta el carrusel (react-query la comparte): así la
+  // sección de noticias espera a carrusel + lista y entra entera.
+  const videosQuery = useVideoHighlights(HIGHLIGHTS_POOL_LIMIT)
+  const newsReady = !newsQuery.isLoading && !videosQuery.isLoading
   const ligaQuery = useStandings('laliga', STANDINGS_LIMIT)
   // Solo se pide al abrir la pestaña: la tabla de Champions no la mira casi
   // nadie de entrada y son 36 filas.
@@ -103,19 +120,26 @@ export default function Home() {
             ocupan lo mismo, así al resolverse la consulta no se desplaza nada
             de lo de abajo (ni el switcher). */}
         <div className="motm-home__feature">
-          {showFolders ? (
-            <LiveFolders matches={todayMatches} />
-          ) : match ? (
-            <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
-          ) : (
-            <div
-              className={'motm-empty' + (liveQuery.isLoading ? ' motm-empty--loading' : '')}
-              role="status"
-            >
-              <b>Sin partido destacado</b>
-              No hay partidos de LaLiga en juego ahora mismo.
-            </div>
-          )}
+          <Reveal
+            ready={featureReady}
+            skeleton={
+              <div className="motm-empty motm-empty--loading" role="status">
+                <b>Sin partido destacado</b>
+                No hay partidos de LaLiga en juego ahora mismo.
+              </div>
+            }
+          >
+            {showFolders ? (
+              <LiveFolders matches={todayMatches} />
+            ) : match ? (
+              <ScoreboardCard match={match} goals={goalsQuery.data ?? []} />
+            ) : (
+              <div className="motm-empty" role="status">
+                <b>Sin partido destacado</b>
+                No hay partidos de LaLiga en juego ahora mismo.
+              </div>
+            )}
+          </Reveal>
         </div>
 
         <Segmented id="home" ariaLabel="Secciones de la portada">
@@ -136,23 +160,33 @@ export default function Home() {
 
         {active === 'noticias' && (
           <Section>
-            <HighlightsCarousel />
+            <Reveal
+              ready={newsReady}
+              skeleton={
+                <>
+                  <SkelBlock height={280} margin="0 0 18px" />
+                  <div className="motm-news-list">
+                    {[0, 1, 2].map((i) => (
+                      <SkelBlock key={i} height={84} />
+                    ))}
+                  </div>
+                </>
+              }
+            >
+              <HighlightsCarousel />
 
-            {newsQuery.isLoading && <div className="motm-skel" style={{ height: 260 }} aria-hidden="true" />}
+              {news.length === 0 && <p className="motm-note">Todavía no hay noticias publicadas.</p>}
 
-            {!newsQuery.isLoading && news.length === 0 && (
-              <p className="motm-note">Todavía no hay noticias publicadas.</p>
-            )}
-
-            {news.length > 0 && (
-              <div className="motm-news-list">
-                {/* Sin hero aquí: la card grande de arriba ahora es el
-                    carrusel de vídeos, el resto se queda en formato pequeño. */}
-                {news.map((item) => (
-                  <NewsCard key={item.id} item={item} />
-                ))}
-              </div>
-            )}
+              {news.length > 0 && (
+                <div className="motm-news-list">
+                  {/* Sin hero aquí: la card grande de arriba ahora es el
+                      carrusel de vídeos, el resto se queda en formato pequeño. */}
+                  {news.map((item) => (
+                    <NewsCard key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </Reveal>
           </Section>
         )}
 

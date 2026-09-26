@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import LiveMatchView from '../components/LiveMatchView'
 import ScoreboardCard from '../components/ScoreboardCard'
+import Reveal, { SkelBlock } from '../components/Reveal'
 import type { GoalChip, LiveMatch } from '../types/view'
 import { hasSupabaseEnv, isLiveStatus, useGoalChips, useLiveMatches } from '../lib/queries'
 import { useAuth } from '../lib/AuthProvider'
@@ -58,7 +59,9 @@ function LiveMatchCard({ match }: { match: LiveMatch }) {
   const goalsQuery = useGoalChips(match.id, { live: isLiveStatus(match.status) })
   return (
     <Link to={`/en-vivo/${match.id}`} className="motm-live-card">
-      <ScoreboardCard match={match} goals={goalsQuery.data ?? []} linkTeams={false} />
+      <Reveal ready={!goalsQuery.isLoading} skeleton={<SkelBlock height={208} margin={16} />}>
+        <ScoreboardCard match={match} goals={goalsQuery.data ?? []} linkTeams={false} />
+      </Reveal>
     </Link>
   )
 }
